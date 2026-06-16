@@ -1,0 +1,9 @@
+{
+  "id": "looping-video",
+  "name": "Looping videoklipp",
+  "version": "0.5.0",
+  "entry": "index.html",
+  "description": "Lag et auto-loopende videoklipp (uten lyd) som embed for Labrador. Lim inn URL til opplastet video, trim klippet, kopier embed-koden.",
+  "category": "video",
+  "minStudioVersion": "0.2.0"
+}

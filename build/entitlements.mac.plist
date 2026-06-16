@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- Electron needs JIT for V8 -->
+  <key>com.apple.security.cs.allow-jit</key>
+  <true/>
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+  <true/>
+  <!-- Required for loading Electron's bundled binaries -->
+  <key>com.apple.security.cs.disable-library-validation</key>
+  <true/>
+  <key>com.apple.security.cs.allow-dyld-environment-variables</key>
+  <true/>
+  <!-- Network access so we can fetch CDN libs (html2canvas, jszip) -->
+  <key>com.apple.security.network.client</key>
+  <true/>
+  <!-- File access for project save/load and ffmpeg temp folders -->
+  <key>com.apple.security.files.user-selected.read-write</key>
+  <true/>
+  <!-- Camera/mic (just in case, doesn't enable anything) -->
+</dict>
+</plist>

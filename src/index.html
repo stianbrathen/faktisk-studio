@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Faktisk Studio</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="studio">
+
+  <!-- Topp-bar -->
+  <header class="topbar">
+    <div class="faktisk-logo" role="img" aria-label="Faktisk Studio"></div>
+    <div class="topbar__title" role="img" aria-label="Labrador"></div>
+    <div class="topbar__actions">
+      <button class="btn-primary" id="malsideBtn">Malside</button>
+      <button class="btn-secondary-tb" id="myProjectsBtn">Mine prosjekter</button>
+      <button class="btn-icon" id="addPluginBtn" title="Installer eller oppdater plugin" aria-label="Legg til plugin">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true">
+          <path d="M11 4h2v16h-2zM4 11h16v2H4z"/>
+        </svg>
+      </button>
+      <button class="btn-icon" id="fullscreenBtn" title="Fullskjerm" aria-label="Fullskjerm">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+          <path d="M5 5h5v2H7v3H5V5zm9 0h5v5h-2V7h-3V5zM5 14h2v3h3v2H5v-5zm12 0h2v5h-5v-2h3v-3z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Plugin-grid -->
+  <main class="malside" id="pluginGrid">
+    <!-- Fylles dynamisk av app.js -->
+  </main>
+
+</div>
+
+<script src="dialog.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

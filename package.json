@@ -1,0 +1,60 @@
+{
+  "name": "faktisk-studio",
+  "productName": "Faktisk Studio",
+  "version": "0.3.0",
+  "registryUrl": "https://raw.githubusercontent.com/stianbrathen/faktiskorg-studio-plugins/main/registry.json",
+  "description": "Verktøy for å lage interaktive embeds og video-elementer for Labrador-artikler på faktisk.no",
+  "main": "main.js",
+  "author": "Faktisk / Stian Bråthen",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "clean": "xattr -cr . 2>/dev/null; xattr -cr node_modules/electron 2>/dev/null; find . -name '.DS_Store' -delete 2>/dev/null; find . -name '._*' -delete 2>/dev/null; rm -rf dist",
+    "build": "npm run clean && electron-builder",
+    "build:mac": "npm run clean && electron-builder --mac --dir && bash scripts/sign-and-notarize.sh",
+    "pack": "npm run clean && electron-builder --dir"
+  },
+  "dependencies": {
+    "ffmpeg-static": "^5.3.0"
+  },
+  "devDependencies": {
+    "electron": "^33.4.11",
+    "electron-builder": "^26.8.1"
+  },
+  "build": {
+    "appId": "no.faktisk.studio",
+    "productName": "Faktisk Studio",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*",
+      "plugins/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "node_modules/ffmpeg-static/**"
+    ],
+    "afterPack": "scripts/after-pack.js",
+    "mac": {
+      "category": "public.app-category.graphics-design",
+      "target": [
+        {
+          "target": "dir",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "identity": null
+    }
+  }
+}
