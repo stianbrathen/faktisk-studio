@@ -117,7 +117,7 @@ while IFS= read -r -d '' f; do
     COUNT=$((COUNT + 1))
   fi
 done < <(find "$APP_PATH" -type f \
-  \( -name "*.dylib" -o -path "*/Helpers/*" -o -name "ShipIt" \) \
+  \( -name "*.dylib" -o -path "*/Helpers/*" -o -name "ShipIt" -o -path "*/app.asar.unpacked/*" \) \
   -print0)
 echo "    Signed $COUNT isolated binaries"
 
@@ -142,7 +142,7 @@ echo "==> Step 4/6: Verify signature"
 codesign --verify --verbose=2 "$APP_PATH"
 
 echo "==> Step 5/6: Notarize (this can take 5-15 min)"
-ZIP_PATH="/tmp/faktisk-nettverk-notarize.zip"
+ZIP_PATH="/tmp/faktisk-studio-notarize.zip"
 ditto -c -k --keepParent "$APP_PATH" "$ZIP_PATH"
 
 xcrun notarytool submit "$ZIP_PATH" \
