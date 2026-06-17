@@ -49,7 +49,7 @@
         color: #212121;
         font-weight: 500;
       }
-      .fd-input:focus { outline: 2px solid #171E9D; }
+      .fd-input:focus { outline: 2px solid #0050FC; }
       .fd-row {
         display: flex;
         gap: 10px;
@@ -65,8 +65,8 @@
         cursor: pointer;
         font-family: inherit;
       }
-      .fd-btn-primary { background: #171E9D; color: #fff; }
-      .fd-btn-primary:hover { background: #1F2AB8; }
+      .fd-btn-primary { background: #0050FC; color: #fff; }
+      .fd-btn-primary:hover { background: #0040D9; }
       .fd-btn-cancel { background: #e0e0e0; color: #212121; }
       .fd-btn-cancel:hover { background: #d0d0d0; }
       .fd-btn-danger { background: #d04040; color: #fff; }
@@ -84,11 +84,11 @@
       }
       .fd-progress__bar {
         height: 100%;
-        background: #171E9D;
+        background: #0050FC;
         transition: width 0.2s;
       }
       .project-card {
-        background: #171E9D;
+        background: #0050FC;
         color: #fff;
         border-radius: 9px;
         padding: 12px 16px;
@@ -99,7 +99,7 @@
         position: relative;
         transition: background 0.15s;
       }
-      .project-card:hover { background: #1F2AB8; }
+      .project-card:hover { background: #0040D9; }
       .project-card__name { font-weight: bold; font-size: 14px; }
       .project-card__meta { font-size: 11px; opacity: 0.85; }
       .project-card__delete {
