@@ -398,9 +398,13 @@ ipcMain.handle('generate-thumbnail', async (e, opts) => {
   const tmpOutput = path.join(app.getPath('temp'), 'fs-thumb-' + Date.now() + '.jpg');
   try {
     await new Promise((resolve, reject) => {
+      // -ss ETTER -i: nøyaktig frame ved atTime (slow seek). -ss FØR -i ville
+      // gitt nærmeste keyframe — kunne være flere sekunder unna ønsket tid.
+      // For thumbnail er nøyaktighet viktigere enn hastighet siden vi bare
+      // gjør det én gang per URL+tid.
       const args = [
-        '-ss', String(atTime),
         '-i', tmpInput,
+        '-ss', String(atTime),
         '-frames:v', '1',
         '-vf', 'scale=800:-2',
         '-q:v', '4',
@@ -492,7 +496,10 @@ ipcMain.handle('registry-fetch', async (e, force) => {
       } catch (e) {}
     }
     if (!REGISTRY_URL) return { ok: false, error: 'Ingen registry-URL konfigurert' };
-    const registry = await httpGetJson(REGISTRY_URL);
+    // Cache-buster: GitHub raw CDN cacher ~5 min etter push. Med ?t= får
+    // brukeren alltid fresh registry når de klikker "Sjekk på nytt".
+    const cacheBuster = REGISTRY_URL + (REGISTRY_URL.includes('?') ? '&' : '?') + 't=' + Date.now();
+    const registry = await httpGetJson(cacheBuster);
     fs.writeFileSync(registryCacheFile, JSON.stringify({ cachedAt: now, registry }, null, 2), 'utf-8');
     return { ok: true, registry, fromCache: false };
   } catch (err) {

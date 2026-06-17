@@ -329,3 +329,12 @@ document.getElementById('myProjectsBtn').addEventListener('click', () => {
 });
 
 renderHub();
+
+// Vis app-versjon ved siden av logoen
+(async () => {
+  try {
+    const v = await window.faktisk.appVersion();
+    const el = document.getElementById('appVersion');
+    if (el && v) el.textContent = 'v' + v;
+  } catch (e) {}
+})();

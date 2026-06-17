@@ -1,8 +1,18 @@
 // Faktisk Studio · Looping Video-plugin
 
 const PLUGIN_ID = 'looping-video';
+const PLUGIN_VERSION = '0.5.4';
 const MAX_DURATION = 10;
 const MIN_DURATION = 1;
+
+// Vis app-versjon + plugin-versjon ved siden av logoen
+(async () => {
+  try {
+    const v = await window.faktisk.appVersion();
+    const el = document.getElementById('appVersion');
+    if (el && v) el.textContent = 'v' + v + ' · plugin v' + PLUGIN_VERSION;
+  } catch (e) {}
+})();
 
 const els = {
   url:           document.getElementById('videoUrl'),
@@ -36,6 +46,7 @@ const state = {
   loaded: false,
   thumbnailDataUrl: null,
   thumbnailForTime: null,
+  thumbnailForUrl: null,    // cache-key inkluderer URL så vi ikke gjenbruker thumbnail fra annen video
 };
 
 function setStatus(msg, isError) {
@@ -83,6 +94,12 @@ async function loadVideo() {
     return;
   }
 
+  // Invalider cachet thumbnail når URL endres, ellers kan vi vise gammel
+  // thumbnail på ny video hvis trimStart tilfeldigvis er den samme.
+  if (state.url !== url) {
+    state.thumbnailDataUrl = null;
+    state.thumbnailForTime = null;
+  }
   state.url = url;
   state.duration = els.video.duration;
   state.trimStart = 0;
@@ -104,7 +121,9 @@ function scheduleThumbnail() {
   clearTimeout(thumbTimer);
   thumbTimer = setTimeout(async () => {
     if (!state.loaded || !state.url) return;
-    if (state.thumbnailForTime === state.trimStart && state.thumbnailDataUrl) return;
+    if (state.thumbnailForUrl === state.url
+        && state.thumbnailForTime === state.trimStart
+        && state.thumbnailDataUrl) return;
     const origStatus = els.status.textContent;
     setStatus('Genererer thumbnail…');
     try {
@@ -115,6 +134,7 @@ function scheduleThumbnail() {
       if (res.ok) {
         state.thumbnailDataUrl = res.dataUrl;
         state.thumbnailForTime = state.trimStart;
+        state.thumbnailForUrl = state.url;
         setStatus(origStatus);
       } else {
         console.warn('Thumbnail feilet:', res.error);
@@ -165,6 +185,7 @@ function attachHandleDrag(handle, isStart) {
   handle.addEventListener('mousedown', e => {
     e.preventDefault();
     const trackRect = els.track.getBoundingClientRect();
+    const startedAtTrimStart = state.trimStart;  // husk for å se om vi må regenerere thumbnail
     const onMove = (ev) => {
       const x = Math.max(0, Math.min(trackRect.width, ev.clientX - trackRect.left));
       const pct = x / trackRect.width;
@@ -187,7 +208,9 @@ function attachHandleDrag(handle, isStart) {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
       scheduleSaveState();
-      if (isStart) scheduleThumbnail();
+      // Regenerér thumbnail hvis trimStart faktisk er endret — uansett hvilket
+      // håndtak. Høyre-håndtaket kan dytte trimStart hvis klippet blir for langt.
+      if (state.trimStart !== startedAtTrimStart) scheduleThumbnail();
     };
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
@@ -224,9 +247,12 @@ function buildEmbedSnippet() {
     <figcaption itemprop="author" data-byline-prefix="Foto:">${escapeHtml(photographer)}</figcaption>`);
   }
 
+  // Caption: container query styres av .fvl-container-wrapper rundt video.
+  // - Smal embed (under 1080px figure-bredde): left-aligned uten padding
+  // - Bred embed (fullWidth, over 1080px): sentrert via cqw-formel
   const innerCaption = hasCaption ? `
 
-  <div class="caption">${captionParts.join('')}
+  <div class="caption fvl-caption" style="margin-top:0.5rem;box-sizing:border-box;">${captionParts.join('')}
   </div>` : '';
 
   const open = hasCaption ? `<figure style="margin:0;">` : '';
@@ -243,7 +269,21 @@ function buildEmbedSnippet() {
      ============================================ -->
 ${open}
   <!-- ▶ VIDEO — bytt ut URL-en under for å bruke et annet klipp -->
-  <video id="${id}" data-src="${baseUrl}#t=${ts},${te}"${posterAttr} muted autoplay loop playsinline webkit-playsinline disablepictureinpicture preload="none" aria-label="Looping videoklipp" style="width:100%;aspect-ratio:${aspect};border-radius:8px;display:block;"></video>${innerCaption}
+  <style>
+    .fvl-container { container-type: inline-size; }
+    /* Caption sentreres KUN når figure er bred nok (fullWidth-embed).
+       På smale embeds (spalte/mobil) treffer ikke regelen, og caption
+       blir left-aligned uten ekstra padding — som Faktisks vanlige bilder. */
+    @container (min-width: 1080px) {
+      .fvl-caption {
+        padding-left: calc(50cqw - var(--lab_page_width, 68rem) / 2 + 0.7rem);
+        padding-right: calc(50cqw - var(--lab_page_width, 68rem) / 2 + 0.7rem);
+      }
+    }
+  </style>
+  <div class="fvl-container">
+    <video id="${id}" data-src="${baseUrl}#t=${ts},${te}"${posterAttr} muted autoplay loop playsinline webkit-playsinline disablepictureinpicture preload="auto" aria-label="Looping videoklipp" style="width:100%;aspect-ratio:${aspect};border-radius:8px;display:block;"></video>${innerCaption}
+  </div>
 ${close}
 <script>
 (function(){
@@ -251,8 +291,18 @@ ${close}
   var S=${ts}, E=${te}, loaded=false, inView=false;
   function actuallyLoad(){
     if(loaded) return; loaded=true;
+    // Vis poster som CSS-background (fallback hvis browser flasher transparent
+    // under seek) OG skjul videoens innhold med opacity:0 (men hold layout).
+    // visibility:hidden kan få iOS Safari til å tro videoen ikke er synlig
+    // og avvise autoplay — opacity:0 unngår det problemet.
+    if(v.poster){
+      v.style.backgroundImage='url("'+v.poster+'")';
+      v.style.backgroundSize='cover';
+      v.style.backgroundPosition='center';
+    }
+    v.style.opacity='0';
+    v.style.transition='opacity 0.15s';
     v.src=v.dataset.src;
-    v.load();
   }
   function tryLoad(){
     if(loaded || !inView) return;
@@ -275,10 +325,25 @@ ${close}
     });
   }
   v.addEventListener('loadedmetadata',function(){ v.currentTime=S; });
+  // Fade in video når den FAKTISK spiller en frame (playing-event).
+  // Da har browser dekodet og rendret en frame ved S — ingen sjanse for
+  // at den viser frame 0 eller en hvit ramme. 2 sek timeout som
+  // sikkerhetsnett hvis autoplay avvises (iOS Low Power osv).
+  var shownTimer = setTimeout(function(){ v.style.opacity='1'; }, 2000);
+  v.addEventListener('playing', function(){
+    clearTimeout(shownTimer);
+    v.style.opacity='1';
+  }, {once:true});
   v.addEventListener('canplay', tryPlay);
-  v.addEventListener('timeupdate',function(){
-    if(v.currentTime>=E-0.05){ v.currentTime=S; tryPlay(); }
-  });
+  // Manuell loop via requestAnimationFrame (jevnere enn timeupdate som bare
+  // fyrer hver ~250 ms — kan miste seek-vinduet og forårsake flash).
+  // Mer lead-time gjør at Safari får tid til å seke og rendre frame før
+  // den når slutten — eliminerer flash av første frame ved loop.
+  function loopTick(){
+    if(!v.paused && v.currentTime>=E-0.15){ v.currentTime=S; }
+    requestAnimationFrame(loopTick);
+  }
+  v.addEventListener('canplay', function(){ requestAnimationFrame(loopTick); }, {once:true});
   v.addEventListener('ended',function(){ v.currentTime=S; tryPlay(); });
   if('IntersectionObserver' in window){
     var io=new IntersectionObserver(function(es){
@@ -305,7 +370,9 @@ els.url.addEventListener('keydown', e => {
 
 els.copyEmbed.addEventListener('click', async () => {
   if (!state.loaded) return;
-  if (state.thumbnailForTime !== state.trimStart || !state.thumbnailDataUrl) {
+  if (state.thumbnailForUrl !== state.url
+      || state.thumbnailForTime !== state.trimStart
+      || !state.thumbnailDataUrl) {
     clearTimeout(thumbTimer);
     setStatus('Genererer thumbnail før kopiering…');
     const res = await window.faktisk.generateThumbnail({
@@ -315,6 +382,7 @@ els.copyEmbed.addEventListener('click', async () => {
     if (res.ok) {
       state.thumbnailDataUrl = res.dataUrl;
       state.thumbnailForTime = state.trimStart;
+      state.thumbnailForUrl = state.url;
     }
   }
   const snippet = buildEmbedSnippet();
