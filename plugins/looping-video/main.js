@@ -1,16 +1,25 @@
 // Faktisk Studio · Looping Video-plugin
 
 const PLUGIN_ID = 'looping-video';
-const PLUGIN_VERSION = '0.5.4';
 const MAX_DURATION = 10;
 const MIN_DURATION = 1;
 
-// Vis app-versjon + plugin-versjon ved siden av logoen
+// Vis app-versjon + plugin-versjon ved siden av logoen. Plugin-versjon
+// hentes dynamisk fra installert manifest (via pluginStatus) så vi slipper
+// å bumpe en hardkodet konstant manuelt hver release.
 (async () => {
   try {
-    const v = await window.faktisk.appVersion();
+    const [appV, plugins] = await Promise.all([
+      window.faktisk.appVersion(),
+      window.faktisk.pluginStatus(),
+    ]);
+    const me = (plugins || []).find(p => p.id === PLUGIN_ID);
     const el = document.getElementById('appVersion');
-    if (el && v) el.textContent = 'v' + v + ' · plugin v' + PLUGIN_VERSION;
+    if (el && appV) {
+      el.textContent = me
+        ? 'v' + appV + ' · plugin v' + me.version
+        : 'v' + appV;
+    }
   } catch (e) {}
 })();
 
@@ -258,7 +267,12 @@ function buildEmbedSnippet() {
   const open = hasCaption ? `<figure style="margin:0;">` : '';
   const close = hasCaption ? `</figure>` : '';
 
-  const posterAttr = state.thumbnailDataUrl ? ` poster="${state.thumbnailDataUrl}"` : '';
+  // Cover-overlay som ALLTID viser thumbnail (eller transparent hvis ingen).
+  // Fjernes ved 'playing'-event når video har en frame rendret. Garantert
+  // ingen frame-0 flash, uavhengig av timing av v.src vs JS-execution.
+  const coverStyle = state.thumbnailDataUrl
+    ? `position:absolute;inset:0;background-image:url('${state.thumbnailDataUrl}');background-size:cover;background-position:center;transition:opacity 0.2s;pointer-events:none;`
+    : `position:absolute;inset:0;pointer-events:none;`;
   const vw = els.video.videoWidth || 16;
   const vh = els.video.videoHeight || 9;
   const aspect = (vw / vh).toFixed(4);
@@ -271,18 +285,24 @@ ${open}
   <!-- ▶ VIDEO — bytt ut URL-en under for å bruke et annet klipp -->
   <style>
     .fvl-container { container-type: inline-size; }
-    /* Caption sentreres KUN når figure er bred nok (fullWidth-embed).
-       På smale embeds (spalte/mobil) treffer ikke regelen, og caption
-       blir left-aligned uten ekstra padding — som Faktisks vanlige bilder. */
     @container (min-width: 1080px) {
-      .fvl-caption {
-        padding-left: calc(50cqw - var(--lab_page_width, 68rem) / 2 + 0.7rem);
-        padding-right: calc(50cqw - var(--lab_page_width, 68rem) / 2 + 0.7rem);
+      .fvl-container > .caption.fvl-caption {
+        padding-left: calc(50cqw - var(--lab_page_width, 68rem) / 2 + 0.7rem) !important;
+        padding-right: calc(50cqw - var(--lab_page_width, 68rem) / 2 + 0.7rem) !important;
+      }
+    }
+    @media (max-width: 768px) {
+      .fvl-container > .caption.fvl-caption {
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
       }
     }
   </style>
   <div class="fvl-container">
-    <video id="${id}" data-src="${baseUrl}#t=${ts},${te}"${posterAttr} muted autoplay loop playsinline webkit-playsinline disablepictureinpicture preload="auto" aria-label="Looping videoklipp" style="width:100%;aspect-ratio:${aspect};border-radius:8px;display:block;"></video>${innerCaption}
+    <div style="position:relative;width:100%;aspect-ratio:${aspect};border-radius:8px;overflow:hidden;${state.thumbnailDataUrl ? `background-image:url('${state.thumbnailDataUrl}');background-size:cover;background-position:center;` : 'background:#1a1a1a;'}">
+      <video id="${id}" data-src="${baseUrl}#t=${ts},${te}" muted autoplay loop playsinline webkit-playsinline disablepictureinpicture preload="auto" aria-label="Looping videoklipp" style="width:100%;height:100%;display:block;object-fit:cover;${state.thumbnailDataUrl ? `background-image:url('${state.thumbnailDataUrl}');background-size:cover;background-position:center;` : ''}"></video>
+      <div id="${id}-cover" style="${coverStyle}"></div>
+    </div>${innerCaption}
   </div>
 ${close}
 <script>
@@ -291,17 +311,6 @@ ${close}
   var S=${ts}, E=${te}, loaded=false, inView=false;
   function actuallyLoad(){
     if(loaded) return; loaded=true;
-    // Vis poster som CSS-background (fallback hvis browser flasher transparent
-    // under seek) OG skjul videoens innhold med opacity:0 (men hold layout).
-    // visibility:hidden kan få iOS Safari til å tro videoen ikke er synlig
-    // og avvise autoplay — opacity:0 unngår det problemet.
-    if(v.poster){
-      v.style.backgroundImage='url("'+v.poster+'")';
-      v.style.backgroundSize='cover';
-      v.style.backgroundPosition='center';
-    }
-    v.style.opacity='0';
-    v.style.transition='opacity 0.15s';
     v.src=v.dataset.src;
   }
   function tryLoad(){
@@ -325,14 +334,20 @@ ${close}
     });
   }
   v.addEventListener('loadedmetadata',function(){ v.currentTime=S; });
-  // Fade in video når den FAKTISK spiller en frame (playing-event).
-  // Da har browser dekodet og rendret en frame ved S — ingen sjanse for
-  // at den viser frame 0 eller en hvit ramme. 2 sek timeout som
-  // sikkerhetsnett hvis autoplay avvises (iOS Low Power osv).
-  var shownTimer = setTimeout(function(){ v.style.opacity='1'; }, 2000);
+  // Fade ut cover-overlay når video spiller en frame (playing-event).
+  // Cover-overlay er ALLTID synlig fra page-load — så ingen kan se frame 0
+  // selv om browser rendrer raskere enn JS rekker å sette opacity.
+  function hideCover(){
+    var cover = document.getElementById('${id}-cover');
+    if(cover){
+      cover.style.opacity = '0';
+      setTimeout(function(){ if(cover) cover.style.display = 'none'; }, 250);
+    }
+  }
+  var shownTimer = setTimeout(hideCover, 2000);
   v.addEventListener('playing', function(){
     clearTimeout(shownTimer);
-    v.style.opacity='1';
+    hideCover();
   }, {once:true});
   v.addEventListener('canplay', tryPlay);
   // Manuell loop via requestAnimationFrame (jevnere enn timeupdate som bare

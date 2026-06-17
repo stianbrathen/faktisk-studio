@@ -2,6 +2,7 @@
 
 const ELEMENT_TYPES = [
   { id: 'looping-video',   label: 'Looping videoklipp' },
+  { id: 'video-player',    label: 'Videoavspiller' },
   { id: 'bilde-annotert',  label: 'Bilde med piler og bokser' },
   { id: 'for-og-etter',    label: 'Før og etter slider' },
   { id: 'interaktiv-video',label: 'Interaktiv video' },
@@ -9,7 +10,6 @@ const ELEMENT_TYPES = [
   { id: 'kart',            label: 'Kart med markeringer' },
   { id: 'timeline-bilder', label: 'Timeline med bilder' },
   { id: 'timeline-horisontal', label: 'Horisontal timeline' },
-  { id: 'bilde-i-boks',    label: 'Bilde i boks med tekst' },
 ];
 
 async function renderHub() {
@@ -22,22 +22,39 @@ async function renderHub() {
   } catch (e) {
     console.error('Kunne ikke hente plugins:', e);
   }
-  const installedMap = new Map(installed.map(p => [p.id, p]));
+
+  // Bygg liste: installerte plugins først, så placeholders for ELEMENT_TYPES
+  // som ikke er installert ennå. Installerte plugins som ikke er i
+  // ELEMENT_TYPES (f.eks. nye via marketplace) får navn fra sin egen manifest.
+  const installedIds = new Set(installed.map(p => p.id));
+  const items = [
+    ...installed.map(p => {
+      const known = ELEMENT_TYPES.find(t => t.id === p.id);
+      return {
+        kind: 'installed',
+        plugin: p,
+        label: known ? known.label : (p.name || p.id),
+      };
+    }),
+    ...ELEMENT_TYPES.filter(t => !installedIds.has(t.id)).map(type => ({
+      kind: 'placeholder',
+      type,
+    })),
+  ];
 
   const columns = [[], [], []];
-  ELEMENT_TYPES.forEach((type, i) => {
-    columns[i % 3].push(type);
+  items.forEach((item, i) => {
+    columns[i % 3].push(item);
   });
 
-  columns.forEach(colTypes => {
+  columns.forEach(colItems => {
     const col = document.createElement('div');
     col.className = 'malside__column';
-
-    colTypes.forEach(type => {
-      const plugin = installedMap.get(type.id);
-      col.appendChild(plugin ? makeInstalledCard(plugin, type.label) : makePlaceholderCard(type));
+    colItems.forEach(item => {
+      col.appendChild(item.kind === 'installed'
+        ? makeInstalledCard(item.plugin, item.label)
+        : makePlaceholderCard(item.type));
     });
-
     grid.appendChild(col);
   });
 }
