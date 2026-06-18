@@ -12,52 +12,47 @@
 .plugin-sidebar {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
   padding: 0 4px 4px;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255,255,255,0.3) transparent;
-}
-.plugin-sidebar::-webkit-scrollbar { width: 8px; }
-.plugin-sidebar::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.3);
-  border-radius: 4px;
+  /* Sidebar skal IKKE scrolle selv — alt holder seg på siden,
+     og tekstboks-listen scroller internt. */
+  min-height: 0;
 }
 
+.plugin-sidebar__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
 .plugin-sidebar__title {
   font-family: var(--font-bold);
-  font-size: 27px;
+  font-size: 22px;
   font-weight: bold;
   color: #212121;
   margin: 0;
   line-height: 1.05;
 }
 
-.plugin-sidebar__desc {
-  font-family: var(--font-regular);
-  font-size: 15px;
-  color: #fff;
-  margin: 0;
-  line-height: 1.4;
-}
+.plugin-sidebar__desc { display: none; }
 
-.plugin-sidebar__spacer { flex: 1; }
+.plugin-sidebar__spacer { /* deaktivert — tb-section tar all ledig plass */ }
 
-.caption-section { display: flex; flex-direction: column; gap: 6px; }
+.caption-section { display: flex; flex-direction: column; gap: 3px; }
 .caption-input {
   background: var(--bg-input);
   border: 0;
   outline: 0;
-  border-radius: var(--radius-input);
-  padding: 10px 14px;
+  border-radius: 6px;
+  padding: 6px 11px;
   font-weight: bold;
-  font-size: 13px;
+  font-size: 12px;
   color: var(--text-input);
   resize: vertical;
-  line-height: 1.35;
+  line-height: 1.3;
   font-family: inherit;
 }
-.caption-input--single { height: 36px; padding: 8px 14px; }
+.caption-input--single { height: 32px; padding: 0 11px; }
 .caption-input::placeholder { color: #888; font-weight: normal; }
 
 .plugin-sidebar__status {
@@ -68,9 +63,10 @@
 }
 
 .url-section { display: flex; flex-direction: column; gap: 6px; }
+.url-section--compact { gap: 6px; }
 .url-section__label {
   font-family: var(--font-bold);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: bold;
   color: #fff;
 }
@@ -95,57 +91,66 @@
 
 .url-row {
   background: var(--bg-input);
-  height: 41px;
-  border-radius: var(--radius-input);
-  padding: 0 17px;
+  border-radius: 6px;
+  padding: 11px 14px;
   display: flex;
   align-items: center;
 }
 .url-row__input {
+  display: block;
   flex: 1;
-  background: transparent;
+  background: var(--bg-input);
   border: 0;
   outline: 0;
-  height: 100%;
+  padding: 11px 14px;
+  border-radius: 6px;
   font-family: var(--font-bold);
-  font-size: 13px;
+  font-size: 12px;
+  line-height: 1.3;
   color: var(--text-input);
   font-weight: bold;
   min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  appearance: none;
+  -webkit-appearance: none;
 }
 .url-row__input::placeholder { color: #888; font-weight: normal; }
 
+/* Legacy klasse — peker nå til samme stil som btn-mini */
 .btn-tiny {
   background: var(--faktisk-blue);
   color: #fff;
   font-family: var(--font-bold);
   font-weight: bold;
-  font-size: 13px;
-  height: 36px;
-  padding: 0 12px;
-  border-radius: var(--radius-input);
+  font-size: 12px;
+  padding: 5px 9px;
+  border-radius: 6px;
   white-space: nowrap;
+  border: 0;
+  cursor: pointer;
 }
 .btn-tiny:hover { background: var(--faktisk-blue-hover); }
 
-.project-row { display: flex; flex-direction: column; gap: 6px; }
+.project-row { display: flex; gap: 4px; }
+.project-row .project-select { flex: 1; }
 .project-select {
   width: 100%;
-  height: 36px;
+  height: 32px;
   background: var(--bg-input);
   border: 0;
-  border-radius: var(--radius-input);
-  padding: 0 32px 0 12px;
+  border-radius: 6px;
+  padding: 0 28px 0 11px;
   font-family: var(--font-bold);
   font-weight: bold;
-  font-size: 13px;
+  font-size: 12px;
   color: var(--text-input);
   cursor: pointer;
   appearance: none;
   -webkit-appearance: none;
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path d='M1 1l5 5 5-5' stroke='%23313131' stroke-width='2' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");
   background-repeat: no-repeat;
-  background-position: right 12px center;
+  background-position: right 10px center;
 }
 
 .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
@@ -154,19 +159,88 @@
 .plugin-canvas {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  /* IKKE overflow:hidden — tekstbokser skal kunne stikke ut av kart-området */
+  overflow: visible;
   min-width: 0;
+  gap: 20px;
+  padding: 8px 0;
 }
+
+/* «Før» / «Etter»-bokser over bildet */
+.slider-labels {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  pointer-events: none;
+  flex: 0 0 auto;
+}
+.slider-label {
+  background: #0050FC;
+  color: #fff;
+  font-family: var(--font-bold);
+  font-weight: bold;
+  font-size: clamp(14px, 1.8cqw, 22px);
+  padding: 0.3em 0.65em;
+  border-radius: 5px;
+  line-height: 1.25;
+}
+
+/* Sidebar: toggle + felt for Før/Etter-tekster */
+.labels-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #fff;
+  font-family: var(--font-bold);
+  font-weight: bold;
+  cursor: pointer;
+  user-select: none;
+}
+.check-row input[type="checkbox"] {
+  accent-color: var(--faktisk-blue);
+  margin: 0;
+  cursor: pointer;
+}
+.labels-inputs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+.labels-section.is-off .labels-inputs { display: none; }
+
+/* Liten kompakt input — brukt på Før/Etter-tekst-felter (mindre enn URL-felt) */
+.input-mini {
+  background: var(--bg-input);
+  border: 0;
+  outline: 0;
+  height: 32px;
+  padding: 0 11px;
+  border-radius: 6px;
+  font-family: var(--font-bold);
+  font-size: 12px;
+  color: var(--text-input);
+  font-weight: bold;
+  width: 100%;
+  box-sizing: border-box;
+}
+.input-mini::placeholder { color: #888; font-weight: normal; }
 
 .slider-stage {
   position: relative;
   flex: 1;
-  background: var(--bg-letterbox);
-  border-radius: 10px;
-  overflow: hidden;
+  background: transparent;
+  /* INGEN overflow:hidden her — slipper tekstbokser stikker ut.
+     Klippingen skjer på .slider-clipper innenfor. */
   display: flex;
   align-items: center;
   justify-content: center;
+  min-height: 0;
 }
 
 .slider-empty {
@@ -183,14 +257,18 @@
 
 .slider-preview {
   position: relative;
-  max-width: 100%;
-  max-height: 100%;
   width: 100%;
   height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   user-select: none;
+  container-type: inline-size;
+}
+/* Klipper for bildene + slider-handle + arrows/dots — tekstbokser ligger UTENFOR */
+.slider-clipper {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--bg-letterbox);
 }
 
 .slider-img {
@@ -216,7 +294,7 @@
   top: 0;
   bottom: 0;
   left: 50%;
-  width: 4px;
+  width: clamp(5px, 0.9cqw, 9px);
   background: #fff;
   transform: translateX(-50%);
   cursor: ew-resize;
@@ -234,85 +312,157 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 64px;
-  height: 30px;
+  width: clamp(28px, 4.2cqw, 38px);
+  height: clamp(20px, 3cqw, 28px);
   background: #fff;
-  border-radius: 6px;
+  border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
 }
 .slider-handle__knob svg {
-  width: 70%;
-  height: 70%;
+  width: 78%;
+  height: 78%;
 }
 
-/* Tekstboks-seksjon i sidebar */
-.tb-section { display: flex; flex-direction: column; gap: 6px; }
+/* Tekstboks-seksjon i sidebar — Figma-stil med scroll-container */
+.tb-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;          /* fyller all ledig plass i sidebar */
+  min-height: 120px;
+}
 .tb-section__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
 }
+/* Grå scroll-container som inneholder tekstboks-radene */
+.tb-list {
+  background: #929292;
+  border-radius: 6px;
+  padding: 10px 8px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: #6e6e6e #888;
+}
+.tb-list::-webkit-scrollbar { width: 8px; }
+.tb-list::-webkit-scrollbar-track { background: #888; border-radius: 4px; }
+.tb-list::-webkit-scrollbar-thumb { background: #6e6e6e; border-radius: 4px; }
+.tb-list:empty::before {
+  content: "Ingen tekstbokser ennå. Trykk «+ Legg til»";
+  color: rgba(255,255,255,0.85);
+  font-size: 12px;
+  font-style: italic;
+  padding: 4px 2px;
+}
+
 .tb-row {
   display: grid;
-  grid-template-columns: 32px 1fr 28px 28px;
-  gap: 6px;
+  grid-template-columns: 24px 1fr 24px 24px;
+  gap: 4px;
   align-items: flex-start;
 }
 .tb-row__chip {
-  height: 28px;
-  border-radius: 5px;
+  height: 24px;
+  border-radius: 6px;
   cursor: pointer;
   border: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: bold;
   font-family: var(--font-bold);
+  color: #fff;
 }
-.tb-row__chip--light { background: #D9D9D9; color: #212121; }
-.tb-row__chip--dark { background: var(--faktisk-blue); color: #fff; }
+.tb-row__chip--light { background: #a2a2a2; }
+.tb-row__chip--dark { background: var(--faktisk-blue); }
+
 .tb-row__input {
-  background: var(--bg-input);
+  background: #D4D4D4;
   border: 0;
   outline: 0;
-  border-radius: var(--radius-input);
-  padding: 6px 10px;
-  min-height: 28px;
+  border-radius: 6px;
+  padding: 4px 9px;
+  min-height: 24px;
   font-family: var(--font-bold);
   font-size: 12px;
-  color: var(--text-input);
+  color: #212121;
   font-weight: bold;
   resize: vertical;
   line-height: 1.3;
   font-family: inherit;
 }
-input.tb-row__input { height: 28px; padding: 0 10px; }
-textarea.tb-row__input { min-height: 44px; }
-.tb-row__del {
-  background: rgba(255,255,255,0.15);
+.tb-row__input::placeholder { color: #666; font-weight: normal; }
+input.tb-row__input { height: 24px; padding: 0 9px; }
+textarea.tb-row__input { min-height: 36px; }
+
+/* Peker-toggle (↗) og slett (×) — like små grå knapper */
+.tb-row__btn {
+  background: #a2a2a2;
   color: #fff;
   border: 0;
-  width: 28px;
-  height: 28px;
-  border-radius: 5px;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 12px;
+  font-weight: bold;
+  font-family: var(--font-bold);
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
-.tb-row__del:hover { background: rgba(255,80,80,0.6); }
+.tb-row__btn:hover { background: #888; }
+.tb-row__btn--active { background: #f18181; }   /* peker aktiv */
+.tb-row__btn--del:hover { background: #c95c5c; }
 
-/* Tekstbokser PÅ preview (drag-bare) */
+/* Kompakt Figma-knapp — brukes overalt i sidebar */
+.btn-mini {
+  background: var(--faktisk-blue);
+  color: #fff;
+  font-family: var(--font-bold);
+  font-weight: bold;
+  font-size: 12px;
+  padding: 5px 9px;
+  border-radius: 6px;
+  border: 0;
+  cursor: pointer;
+  white-space: nowrap;
+  line-height: 1.3;
+}
+.btn-mini:hover:not(:disabled) { background: var(--faktisk-blue-hover); }
+.btn-mini:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-mini--block { width: 100%; text-align: center; }
+.btn-mini--light { background: #a2a2a2; }
+.btn-mini--light:hover:not(:disabled) { background: #888; }
+
+.tb-add-buttons {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* Tekstbokser PÅ preview (drag-bare) — matcher embed-størrelser */
 .tb-overlay {
   position: absolute;
-  padding: 4px 10px;
+  padding: 0.3em 0.65em;
   border-radius: 5px;
   font-family: var(--font-bold);
   font-weight: bold;
-  font-size: clamp(11px, 1.6cqw, 22px);
+  font-size: clamp(14px, 1.8cqw, 26px);
+  line-height: 1.25;
   cursor: move;
   user-select: none;
   pointer-events: auto;
@@ -321,6 +471,51 @@ textarea.tb-row__input { min-height: 44px; }
   z-index: 4;
   box-shadow: 0 2px 6px rgba(0,0,0,0.3);
 }
-.tb-overlay--light { background: #D9D9D9; color: #212121; }
-.tb-overlay--dark { background: var(--faktisk-blue); color: #fff; }
+.tb-overlay--light {
+  background: #D9D9D9;
+  color: #212121;
+  font-weight: normal;
+  font-size: clamp(14px, 1.6cqw, 22px);
+  white-space: pre-wrap;
+  max-width: 38%;
+}
+.tb-overlay--dark { background: #0050fc; color: #fff; }
 .tb-overlay.is-selected { outline: 2px dashed #fff; outline-offset: 2px; }
+
+/* Peker-sirkel — bevarer proporsjon (HTML-div, ikke SVG) + puls-ring.
+   Farge styres via variant-modifier (--dot-color custom prop). */
+.tb-pointer-circle {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  transform: translate(-50%, -50%);
+  cursor: move;
+  z-index: 5;
+  pointer-events: auto;
+  --dot-color: #fff;
+}
+.tb-pointer-circle--dark { --dot-color: #0050fc; }
+.tb-pointer-circle--light { --dot-color: #fff; }
+.tb-pointer-dot-inner {
+  position: absolute;
+  inset: 0;
+  background: var(--dot-color);
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+  z-index: 2;
+}
+.tb-pointer-pulse {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--dot-color);
+  opacity: 0.55;
+  animation: tb-pulse 1.8s ease-out infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+@keyframes tb-pulse {
+  0%   { transform: scale(1);   opacity: 0.55; }
+  80%  { transform: scale(2.6); opacity: 0;    }
+  100% { transform: scale(2.6); opacity: 0;    }
+}

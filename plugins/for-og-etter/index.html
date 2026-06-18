@@ -27,46 +27,49 @@
   <main class="plugin-page">
 
     <aside class="plugin-sidebar">
-      <h2 class="plugin-sidebar__title">Før og etter slider</h2>
-
-      <p class="plugin-sidebar__desc">
-        Lim inn URL til to bilder som er lastet opp i Labrador. Brukere kan dra
-        slideren for å sammenligne før og etter.
-      </p>
-
-      <div class="url-section">
-        <div class="url-section__header">
-          <label class="url-section__label" for="urlBefore">Før-bilde</label>
-          <button id="openLabradorBtn" class="link-btn" type="button">
-            Åpne Labrador ↗
-          </button>
-        </div>
-        <div class="url-row">
-          <input type="text" id="urlBefore" class="url-row__input"
-                 placeholder="https://faktisk.no/uploads/…"
-                 spellcheck="false" autocomplete="off">
-        </div>
+      <div class="plugin-sidebar__head">
+        <h2 class="plugin-sidebar__title">Før og etter slider</h2>
+        <button id="openLabradorBtn" class="link-btn" type="button">Åpne Labrador ↗</button>
       </div>
 
-      <div class="url-section">
+      <div class="url-section url-section--compact">
+        <label class="url-section__label" for="urlBefore">Før-bilde</label>
+        <input type="text" id="urlBefore" class="url-row__input"
+               placeholder="https://faktisk.no/uploads/…"
+               spellcheck="false" autocomplete="off">
+      </div>
+
+      <div class="url-section url-section--compact">
         <label class="url-section__label" for="urlAfter">Etter-bilde</label>
-        <div class="url-row">
-          <input type="text" id="urlAfter" class="url-row__input"
-                 placeholder="https://faktisk.no/uploads/…"
-                 spellcheck="false" autocomplete="off">
-        </div>
+        <input type="text" id="urlAfter" class="url-row__input"
+               placeholder="https://faktisk.no/uploads/…"
+               spellcheck="false" autocomplete="off">
       </div>
 
-      <button id="loadBtn" class="btn-tiny">Hent bilder</button>
+      <button id="loadBtn" class="btn-mini btn-mini--block">Hent bilder</button>
+
+      <div class="labels-section">
+        <label class="check-row">
+          <input type="checkbox" id="labelsShow" checked>
+          <span>Vis «Før / Etter»-bokser over bildet</span>
+        </label>
+        <div class="labels-inputs" id="labelsInputs">
+          <input type="text" id="labelBeforeText" class="input-mini" value="Før" maxlength="30" spellcheck="false">
+          <input type="text" id="labelAfterText" class="input-mini" value="Etter" maxlength="30" spellcheck="false">
+        </div>
+      </div>
 
       <div class="plugin-sidebar__status" id="status"></div>
 
       <div class="tb-section" id="tbSection" style="display:none;">
         <div class="tb-section__header">
           <span class="url-section__label">Tekstbokser</span>
-          <button id="addTbBtn" class="btn-tiny" type="button" style="height:28px;padding:0 10px;font-size:12px;">+ Legg til</button>
+          <div class="tb-add-buttons">
+            <button id="addTbBtnDark" class="btn-mini" type="button" title="Legg til overskrift">+ Overskrift</button>
+            <button id="addTbBtnLight" class="btn-mini btn-mini--light" type="button" title="Legg til beskrivelse">+ Beskrivelse</button>
+          </div>
         </div>
-        <div id="tbList"></div>
+        <div id="tbList" class="tb-list"></div>
       </div>
 
       <div class="caption-section">
@@ -87,33 +90,41 @@
         <select id="projectSelect" class="project-select">
           <option value="">Velg lagret prosjekt…</option>
         </select>
-        <button id="saveProjectBtn" class="btn-tiny">Lagre…</button>
+        <button id="saveProjectBtn" class="btn-mini">Lagre…</button>
       </div>
 
-      <button id="copyEmbedBtn" class="btn-primary" disabled>
+      <button id="copyEmbedBtn" class="btn-mini btn-mini--block" disabled>
         Kopier embed
       </button>
     </aside>
 
     <section class="plugin-canvas">
+      <div class="slider-labels" id="sliderLabels" style="display:none;">
+        <div class="slider-label" id="sliderLabelBefore">Før</div>
+        <div class="slider-label" id="sliderLabelAfter">Etter</div>
+      </div>
       <div class="slider-stage" id="stage">
         <div class="slider-empty" id="emptyState">
           <p>Lim inn URL-er til to bilder lastet opp i Labrador (under 100 MB hver), og trykk «Hent bilder».</p>
         </div>
         <div class="slider-preview" id="preview" style="display:none;">
-          <img id="imgAfter" class="slider-img" alt="">
-          <div class="slider-clip" id="clip">
-            <img id="imgBefore" class="slider-img" alt="">
-          </div>
-          <div class="slider-handle" id="handle">
-            <div class="slider-handle__line"></div>
-            <div class="slider-handle__knob">
-              <svg viewBox="0 0 229.48 102.71" aria-hidden="true">
-                <path fill="#0050fc" d="M225.98,45.29L149.18.95c-4.67-2.69-10.5.67-10.5,6.06v88.69c0,5.39,5.83,8.76,10.5,6.06l76.8-44.34c4.67-2.69,4.67-9.43,0-12.12Z"/>
-                <path fill="#0050fc" d="M3.5,45.29L80.3.95c4.67-2.69,10.5.67,10.5,6.06v88.69c0,5.39-5.83,8.76-10.5,6.06L3.5,57.42c-4.67-2.69-4.67-9.43,0-12.12Z"/>
-              </svg>
+          <div class="slider-clipper" id="clipper">
+            <img id="imgAfter" class="slider-img" alt="">
+            <div class="slider-clip" id="clip">
+              <img id="imgBefore" class="slider-img" alt="">
             </div>
+            <div class="slider-handle" id="handle">
+              <div class="slider-handle__line"></div>
+              <div class="slider-handle__knob">
+                <svg viewBox="0 0 229.48 102.71" aria-hidden="true">
+                  <path fill="#0050fc" d="M225.98,45.29L149.18.95c-4.67-2.69-10.5.67-10.5,6.06v88.69c0,5.39,5.83,8.76,10.5,6.06l76.8-44.34c4.67-2.69,4.67-9.43,0-12.12Z"/>
+                  <path fill="#0050fc" d="M3.5,45.29L80.3.95c4.67-2.69,10.5.67,10.5,6.06v88.69c0,5.39-5.83,8.76-10.5,6.06L3.5,57.42c-4.67-2.69-4.67-9.43,0-12.12Z"/>
+                </svg>
+              </div>
+            </div>
+            <!-- ffes-arrow + .tb-pointer-circle blir append'et her av JS, så de klippes til bildet -->
           </div>
+          <!-- .tb-overlay blir append'et her av JS, så de KAN stikke utenfor bildet -->
         </div>
       </div>
     </section>

@@ -38,7 +38,15 @@ const els = {
   stage:         document.getElementById('stage'),
   tbSection:     document.getElementById('tbSection'),
   tbList:        document.getElementById('tbList'),
-  addTbBtn:      document.getElementById('addTbBtn'),
+  addTbBtnDark:  document.getElementById('addTbBtnDark'),
+  addTbBtnLight: document.getElementById('addTbBtnLight'),
+  sliderLabels:  document.getElementById('sliderLabels'),
+  sliderLabelBefore: document.getElementById('sliderLabelBefore'),
+  sliderLabelAfter:  document.getElementById('sliderLabelAfter'),
+  labelsSection: document.querySelector('.labels-section'),
+  labelsShow:    document.getElementById('labelsShow'),
+  labelBeforeText: document.getElementById('labelBeforeText'),
+  labelAfterText:  document.getElementById('labelAfterText'),
 };
 
 const state = {
@@ -47,7 +55,8 @@ const state = {
   loaded: false,
   sliderPos: 50,
   aspectRatio: 16/9,
-  textBoxes: [],   // { id, text, x, y, variant: 'light'|'dark' }
+  textBoxes: [],   // { id, text, x, y, variant: 'light'|'dark', pointer? }
+  labels: { show: true, before: 'Før', after: 'Etter' },
 };
 
 function setStatus(msg, isError) {
@@ -124,15 +133,15 @@ function updateClip() {
 // ============================================================
 //  Tekstbokser
 // ============================================================
-function addTextBox() {
+function addTextBox(variant) {
   const id = 'tb_' + Math.random().toString(36).slice(2, 7);
-  const variant = state.textBoxes.length % 2 === 0 ? 'light' : 'dark';
+  const v = (variant === 'light' || variant === 'dark') ? variant : 'dark';
   state.textBoxes.push({
     id,
-    text: 'Tekstboks',
+    text: v === 'dark' ? 'Overskrift' : 'Beskrivelse her…',
     x: 50,
     y: 30 + (state.textBoxes.length % 4) * 12,
-    variant,
+    variant: v,
   });
   renderTextBoxes();
   scheduleSaveState();
@@ -164,10 +173,8 @@ function renderTextBoxes() {
     const field = tb.variant === 'dark'
       ? `<input class="tb-row__input" value="${escapeHtml(tb.text)}" data-id="${tb.id}" data-act="edit" placeholder="Overskrift">`
       : `<textarea class="tb-row__input" rows="2" data-id="${tb.id}" data-act="edit" placeholder="Lengre forklaring…">${escapeHtml(tb.text)}</textarea>`;
-    const pointerBtn = tb.variant === 'light'
-      ? `<button class="tb-row__del" data-act="pointer" data-id="${tb.id}" title="${tb.pointer ? 'Fjern peker' : 'Legg til peker'}">${tb.pointer ? '✗↗' : '↗'}</button>`
-      : `<span></span>`;
-    row.innerHTML = chip + field + pointerBtn + `<button class="tb-row__del" data-act="del" data-id="${tb.id}" title="Slett">×</button>`;
+    const pointerBtn = `<button class="tb-row__btn ${tb.pointer ? 'tb-row__btn--active' : ''}" data-act="pointer" data-id="${tb.id}" title="${tb.pointer ? 'Fjern peker' : 'Legg til peker'}">&gt;</button>`;
+    row.innerHTML = chip + field + pointerBtn + `<button class="tb-row__btn tb-row__btn--del" data-act="del" data-id="${tb.id}" title="Slett">×</button>`;
     els.tbList.appendChild(row);
   });
   els.tbList.onclick = e => {
@@ -203,46 +210,50 @@ function togglePointer(id) {
 }
 
 function renderOverlays() {
-  // Fjern gamle overlays + arrow-SVG
-  els.preview.querySelectorAll('.tb-overlay, .tb-pointer-dot, .tb-arrow-svg').forEach(n => n.remove());
+  // Fjern gamle overlays + arrow-SVG + sirkler
+  els.preview.querySelectorAll('.tb-overlay, .tb-pointer-dot, .tb-pointer-circle, .tb-arrow-svg').forEach(n => n.remove());
+  // Klipperen er der piler + sirkler skal ligge (de skal være innenfor bildet)
+  const clipper = els.preview.querySelector('.slider-clipper');
 
-  // Tegn piler (SVG-overlay) først — under bokser
-  const arrows = state.textBoxes.filter(tb => tb.variant === 'light' && tb.pointer);
-  if (arrows.length) {
+  // Alle bokser (uansett variant) kan ha peker
+  const arrows = state.textBoxes.filter(tb => tb.pointer);
+  if (arrows.length && clipper) {
+    // Linjer: SVG med stroke som er "non-scaling" så stroke-tykkelse er konsistent.
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.classList.add('tb-arrow-svg');
     svg.setAttribute('viewBox', '0 0 100 100');
     svg.setAttribute('preserveAspectRatio', 'none');
     svg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:3;';
     arrows.forEach(tb => {
+      const color = tb.variant === 'dark' ? '#0050fc' : '#fff';
       const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
       line.setAttribute('x1', tb.x);
       line.setAttribute('y1', tb.y);
       line.setAttribute('x2', tb.pointer.x);
       line.setAttribute('y2', tb.pointer.y);
-      line.setAttribute('stroke', '#D9D9D9');
-      line.setAttribute('stroke-width', '0.4');
+      line.setAttribute('stroke', color);
+      line.setAttribute('stroke-width', '2.2');
+      line.setAttribute('stroke-linecap', 'round');
       line.setAttribute('vector-effect', 'non-scaling-stroke');
       svg.appendChild(line);
-      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-      circle.setAttribute('cx', tb.pointer.x);
-      circle.setAttribute('cy', tb.pointer.y);
-      circle.setAttribute('r', '1.2');
-      circle.setAttribute('fill', '#D9D9D9');
-      svg.appendChild(circle);
     });
-    els.preview.appendChild(svg);
+    clipper.appendChild(svg);
+
+    // Sirkel: HTML-div i clipper (klippes til bilde-grensen) + puls-animasjon
+    arrows.forEach(tb => {
+      const wrap = document.createElement('div');
+      wrap.className = 'tb-pointer-circle tb-pointer-circle--' + tb.variant;
+      wrap.style.left = tb.pointer.x + '%';
+      wrap.style.top = tb.pointer.y + '%';
+      wrap.innerHTML = '<span class="tb-pointer-pulse"></span><span class="tb-pointer-dot-inner"></span>';
+      clipper.appendChild(wrap);
+    });
   }
 
-  // Tekstbokser
+  // Tekstbokser — styling kommer fra CSS (.tb-overlay--light/dark)
   state.textBoxes.forEach(tb => {
     const el = document.createElement('div');
     el.className = 'tb-overlay tb-overlay--' + tb.variant;
-    if (tb.variant === 'light') {
-      el.style.whiteSpace = 'pre-wrap';
-      el.style.maxWidth = '32%';
-      el.style.fontWeight = 'normal';
-    }
     el.textContent = tb.text;
     el.style.left = tb.x + '%';
     el.style.top = tb.y + '%';
@@ -251,13 +262,9 @@ function renderOverlays() {
     els.preview.appendChild(el);
   });
 
-  // Draggable peker-dotter (for grå bokser med peker)
-  arrows.forEach(tb => {
-    const dot = document.createElement('div');
-    dot.className = 'tb-pointer-dot';
-    dot.style.cssText = `position:absolute;left:${tb.pointer.x}%;top:${tb.pointer.y}%;width:16px;height:16px;background:#D9D9D9;border-radius:50%;transform:translate(-50%,-50%);cursor:move;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.4);z-index:5;`;
-    attachOverlayDrag(dot, tb, 'pointer');
-    els.preview.appendChild(dot);
+  // Gjør de nyopprettede sirklene dragbare
+  els.preview.querySelectorAll('.tb-pointer-circle').forEach((dot, idx) => {
+    attachOverlayDrag(dot, arrows[idx], 'pointer');
   });
 }
 
@@ -266,15 +273,27 @@ function attachOverlayDrag(el, tb, kind) {
     e.preventDefault();
     e.stopPropagation();
     const rect = els.preview.getBoundingClientRect();
+    // Mål boksen NÅ — renderOverlays() inni move fjerner el fra DOM, så vi kan
+    // ikke kalle el.getBoundingClientRect() der (returnerer 0×0 etter første frame).
+    const boxRect0 = el.getBoundingClientRect();
+    const halfPctX = rect.width > 0 ? (boxRect0.width / 2) / rect.width * 100 : 0;
+    const halfPctY = rect.height > 0 ? (boxRect0.height / 2) / rect.height * 100 : 0;
+    // For peker-prikker: bruke sirkelens radius i prosent — så hele sirkelen
+    // forblir innenfor kart-arealet, ikke bare senteret.
+    const dotRadPctX = rect.width > 0 ? 14 / rect.width * 100 : 0;
+    const dotRadPctY = rect.height > 0 ? 14 / rect.height * 100 : 0;
     const move = ev => {
-      const x = Math.max(0, Math.min(100, ((ev.touches ? ev.touches[0].clientX : ev.clientX) - rect.left) / rect.width * 100));
-      const y = Math.max(0, Math.min(100, ((ev.touches ? ev.touches[0].clientY : ev.clientY) - rect.top) / rect.height * 100));
+      let x = ((ev.touches ? ev.touches[0].clientX : ev.clientX) - rect.left) / rect.width * 100;
+      let y = ((ev.touches ? ev.touches[0].clientY : ev.clientY) - rect.top) / rect.height * 100;
       if (kind === 'pointer') {
-        tb.pointer.x = x;
-        tb.pointer.y = y;
+        tb.pointer.x = Math.max(dotRadPctX, Math.min(100 - dotRadPctX, x));
+        tb.pointer.y = Math.max(dotRadPctY, Math.min(100 - dotRadPctY, y));
       } else {
-        tb.x = x;
-        tb.y = y;
+        // Tekstboks: HOLD HELE boksen innenfor kart-bredden horisontalt.
+        // Vertikalt: senteret klippes til 0–100 — litt overlapp på topp/bunn
+        // er OK (brukerens valg).
+        tb.x = Math.max(halfPctX, Math.min(100 - halfPctX, x));
+        tb.y = Math.max(0, Math.min(100, y));
       }
       renderOverlays();   // re-render så streken oppdateres
     };
@@ -288,7 +307,8 @@ function attachOverlayDrag(el, tb, kind) {
   });
 }
 
-els.addTbBtn.addEventListener('click', addTextBox);
+els.addTbBtnDark.addEventListener('click', () => addTextBox('dark'));
+els.addTbBtnLight.addEventListener('click', () => addTextBox('light'));
 
 // Drag-håndtering for slider
 function startDrag(e) {
@@ -342,7 +362,7 @@ function buildEmbedSnippet() {
 
   const innerCaption = hasCaption ? `
 
-  <div class="caption ffes-caption" style="margin-top:0.5rem;box-sizing:border-box;">${captionParts.join('')}
+  <div class="caption ffes-caption" style="margin-top:1.2rem;box-sizing:border-box;">${captionParts.join('')}
   </div>` : '';
 
   const open = hasCaption ? `<figure style="margin:0;">` : '';
@@ -367,15 +387,58 @@ ${open}
         padding-right: 1rem !important;
       }
     }
+    .ffes-container { padding: 0.7rem 0; }
     .ffes-stage-${id} {
       position: relative;
       width: 100%;
       aspect-ratio: ${aspect};
-      border-radius: 8px;
-      overflow: hidden;
+      /* INGEN overflow:hidden — tekstbokser kan stikke ut.
+         Klippingen skjer på .ffes-stage__clip-${id} innenfor. */
       user-select: none;
       touch-action: none;
+    }
+    .ffes-stage__clip-${id} {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      border-radius: 8px;
       background: #1a1a1a;
+    }
+    .ffes-labels-${id} {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      gap: 8px;
+      box-sizing: border-box;
+    }
+    .ffes-labels-${id} > span {
+      background: #0050FC;
+      color: #fff;
+      font-family: "Haas Grot Text 75 Bold", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      font-weight: bold;
+      font-size: clamp(14px, 1.8cqw, 26px);
+      padding: 0.3em 0.65em;
+      border-radius: 5px;
+      line-height: 1.25;
+    }
+    /* Når embed strekkes ut til full bredde i Labrador — match caption-padding
+       så Før/Etter-boksene følger samme tekst-kolonne som bildeteksten. */
+    @container (min-width: 1080px) {
+      .ffes-container > .ffes-labels-${id} {
+        padding-left: calc(50cqw - var(--lab_page_width, 68rem) / 2 + 0.7rem);
+        padding-right: calc(50cqw - var(--lab_page_width, 68rem) / 2 + 0.7rem);
+      }
+    }
+    @media (max-width: 768px) {
+      .ffes-container > .ffes-labels-${id} {
+        padding-left: 1rem;
+        padding-right: 1rem;
+        margin-bottom: 18px;
+      }
+      .ffes-container > .ffes-labels-${id} > span {
+        font-size: clamp(13px, 3.4cqw, 18px);
+      }
     }
     .ffes-stage-${id} img {
       position: absolute;
@@ -399,7 +462,7 @@ ${open}
       top: 0;
       bottom: 0;
       left: 50%;
-      width: 4px;
+      width: clamp(5px, 0.9cqw, 9px);
       background: #fff;
       transform: translateX(-50%);
       cursor: ew-resize;
@@ -411,18 +474,18 @@ ${open}
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      width: clamp(54px, 10cqw, 84px);
-      height: clamp(26px, 4.6cqw, 40px);
+      width: clamp(28px, 4.2cqw, 38px);
+      height: clamp(20px, 3cqw, 28px);
       background: #fff;
-      border-radius: 6px;
+      border-radius: 4px;
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
     }
     .ffes-stage-${id} .ffes-knob svg {
-      width: 70%;
-      height: 70%;
+      width: 78%;
+      height: 78%;
     }
     .ffes-stage-${id} .ffes-tb {
       position: absolute;
@@ -431,7 +494,7 @@ ${open}
       border-radius: 5px;
       font-family: "Haas Grot Text 75 Bold", "Helvetica Neue", Helvetica, Arial, sans-serif;
       font-weight: bold;
-      font-size: clamp(11px, 1.8cqw, 26px);
+      font-size: clamp(14px, 1.8cqw, 26px);
       box-shadow: 0 2px 6px rgba(0,0,0,0.3);
       pointer-events: none;
       z-index: 3;
@@ -448,7 +511,28 @@ ${open}
       white-space: pre-wrap;
       max-width: 38%;
       font-weight: normal;
-      font-size: clamp(10px, 1.5cqw, 20px);
+      font-size: clamp(13px, 1.6cqw, 22px);
+    }
+    /* Tekstbokser ligger i en egen overlay-container som krymper med 1rem-marg
+       på mobil — selve bildet (stage) holder seg full bredde. */
+    .ffes-tb-area-${id} {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 4;
+    }
+    .ffes-tb-area-${id} > * { pointer-events: auto; }
+    @media (max-width: 768px) {
+      .ffes-stage-${id} > .ffes-tb-area-${id} { inset: 0 1rem; }
+    }
+    @media (max-width: 600px) {
+      .ffes-stage-${id} .ffes-tb--light {
+        max-width: 60%;
+      }
+      .ffes-stage-${id} .ffes-tb--dark {
+        max-width: 60%;
+        white-space: normal;
+      }
     }
     .ffes-stage-${id} .ffes-arrow {
       position: absolute;
@@ -459,40 +543,86 @@ ${open}
       z-index: 2;
     }
     .ffes-stage-${id} .ffes-arrow line {
-      stroke: #D9D9D9;
-      stroke-width: 0.4;
+      stroke-width: 2.2;
+      stroke-linecap: round;
       vector-effect: non-scaling-stroke;
     }
-    .ffes-stage-${id} .ffes-arrow circle {
-      fill: #D9D9D9;
+    /* Peker-sirkel (HTML-div, bevarer proporsjon) + puls-ring.
+       Farge styres per prikk via --dot-color. */
+    .ffes-stage-${id} .ffes-dot {
+      position: absolute;
+      width: clamp(16px, 2.2cqw, 28px);
+      height: clamp(16px, 2.2cqw, 28px);
+      transform: translate(-50%, -50%);
+      z-index: 3;
+      pointer-events: none;
+      --dot-color: #fff;
+    }
+    .ffes-stage-${id} .ffes-dot::before,
+    .ffes-stage-${id} .ffes-dot::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      background: var(--dot-color);
+    }
+    .ffes-stage-${id} .ffes-dot::before {
+      box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+      z-index: 2;
+    }
+    .ffes-stage-${id} .ffes-dot::after {
+      opacity: 0.55;
+      animation: ffes-pulse-${id} 1.8s ease-out infinite;
+      z-index: 1;
+    }
+    @keyframes ffes-pulse-${id} {
+      0%   { transform: scale(1);   opacity: 0.55; }
+      80%  { transform: scale(2.6); opacity: 0;    }
+      100% { transform: scale(2.6); opacity: 0;    }
     }
   </style>
   <!-- ▶ BILDER — bytt ut URL-ene under for å bruke andre bilder -->
-  <div class="ffes-container">
+  <div class="ffes-container">${state.labels.show ? `
+    <!-- ▶ FØR / ETTER-BOKSER — endre teksten her, eller fjern hele blokken for å skjule -->
+    <div class="ffes-labels-${id}">
+      <span>${escapeHtml(state.labels.before || 'Før')}</span>
+      <span>${escapeHtml(state.labels.after || 'Etter')}</span>
+    </div>` : ''}
     <div class="ffes-stage-${id}" id="${id}" aria-label="Før og etter sammenligning — dra slideren for å bytte mellom bildene">
-      <img src="${urlA}" alt="" loading="lazy">
-      <div class="ffes-clip">
-        <img src="${urlB}" alt="" loading="lazy">
-      </div>
-      <div class="ffes-handle">
-        <div class="ffes-knob">
-          <svg viewBox="0 0 229.48 102.71" aria-hidden="true">
-            <path fill="#0050fc" d="M225.98,45.29L149.18.95c-4.67-2.69-10.5.67-10.5,6.06v88.69c0,5.39,5.83,8.76,10.5,6.06l76.8-44.34c4.67-2.69,4.67-9.43,0-12.12Z"/>
-            <path fill="#0050fc" d="M3.5,45.29L80.3.95c4.67-2.69,10.5.67,10.5,6.06v88.69c0,5.39-5.83,8.76-10.5,6.06L3.5,57.42c-4.67-2.69-4.67-9.43,0-12.12Z"/>
-          </svg>
+      <!-- Inner clipper: holder bilder, slider-handle og peker-elementer innenfor bilde-rammen.
+           Tekstboksene ligger UTENFOR denne (men inne i stage), og kan stikke ut. -->
+      <div class="ffes-stage__clip-${id}">
+        <img src="${urlA}" alt="" loading="lazy">
+        <div class="ffes-clip">
+          <img src="${urlB}" alt="" loading="lazy">
         </div>
-      </div>${(() => {
-        // SVG-overlay for piler (kun grå-bokser som har peker)
-        const arrows = state.textBoxes.filter(tb => tb.variant === 'light' && tb.pointer);
-        if (!arrows.length) return '';
-        return `
-      <svg class="ffes-arrow" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${arrows.map(tb => `
-        <line x1="${tb.x.toFixed(2)}" y1="${tb.y.toFixed(2)}" x2="${tb.pointer.x.toFixed(2)}" y2="${tb.pointer.y.toFixed(2)}"/>
-        <circle cx="${tb.pointer.x.toFixed(2)}" cy="${tb.pointer.y.toFixed(2)}" r="1.2"/>`).join('')}
-      </svg>`;
-      })()}${state.textBoxes.map(tb => `
-      <!-- ▶ ${tb.variant === 'dark' ? 'OVERSKRIFT' : 'BESKRIVELSE'} — endre teksten her -->
-      <div class="ffes-tb ffes-tb--${tb.variant}" style="left:${tb.x.toFixed(2)}%;top:${tb.y.toFixed(2)}%;">${escapeHtml(tb.text)}</div>`).join('')}
+        <div class="ffes-handle">
+          <div class="ffes-knob">
+            <svg viewBox="0 0 229.48 102.71" aria-hidden="true">
+              <path fill="#0050fc" d="M225.98,45.29L149.18.95c-4.67-2.69-10.5.67-10.5,6.06v88.69c0,5.39,5.83,8.76,10.5,6.06l76.8-44.34c4.67-2.69,4.67-9.43,0-12.12Z"/>
+              <path fill="#0050fc" d="M3.5,45.29L80.3.95c4.67-2.69,10.5.67,10.5,6.06v88.69c0,5.39-5.83,8.76-10.5,6.06L3.5,57.42c-4.67-2.69-4.67-9.43,0-12.12Z"/>
+            </svg>
+          </div>
+        </div>${(() => {
+          // Alle bokser (overskrift OG beskrivelse) kan ha peker.
+          // Linje + sirkel får samme farge som boksen den utgår fra.
+          const arrows = state.textBoxes.filter(tb => tb.pointer);
+          if (!arrows.length) return '';
+          const colorOf = tb => tb.variant === 'dark' ? '#0050fc' : '#fff';
+          const lines = `
+        <svg class="ffes-arrow" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${arrows.map(tb => `
+          <line x1="${tb.x.toFixed(2)}" y1="${tb.y.toFixed(2)}" x2="${tb.pointer.x.toFixed(2)}" y2="${tb.pointer.y.toFixed(2)}" stroke="${colorOf(tb)}"/>`).join('')}
+        </svg>`;
+          const dots = arrows.map(tb => `
+        <div class="ffes-dot" style="left:${tb.pointer.x.toFixed(2)}%;top:${tb.pointer.y.toFixed(2)}%;--dot-color:${colorOf(tb)};"></div>`).join('');
+          return lines + dots;
+        })()}
+      </div>${state.textBoxes.length ? `
+      <!-- Tekstbokser ligger i egen overlay-container som krymper med 1rem-marg på mobil -->
+      <div class="ffes-tb-area-${id}">${state.textBoxes.map(tb => `
+        <!-- ▶ ${tb.variant === 'dark' ? 'OVERSKRIFT' : 'BESKRIVELSE'} — endre teksten her -->
+        <div class="ffes-tb ffes-tb--${tb.variant}" style="left:${tb.x.toFixed(2)}%;top:${tb.y.toFixed(2)}%;">${escapeHtml(tb.text)}</div>`).join('')}
+      </div>` : ''}
     </div>${innerCaption}
   </div>
 ${close}
@@ -570,6 +700,7 @@ function serializeState() {
     textBoxes: state.textBoxes,
     captionText: els.captionText.value,
     photographer: els.photographer.value,
+    labels: state.labels,
   };
 }
 async function applyState(saved) {
@@ -578,6 +709,17 @@ async function applyState(saved) {
   try {
     els.captionText.value = saved.captionText || '';
     els.photographer.value = saved.photographer || '';
+    if (saved.labels && typeof saved.labels === 'object') {
+      state.labels = {
+        show: saved.labels.show !== false,
+        before: saved.labels.before || 'Før',
+        after:  saved.labels.after  || 'Etter',
+      };
+      els.labelsShow.checked      = state.labels.show;
+      els.labelBeforeText.value   = state.labels.before;
+      els.labelAfterText.value    = state.labels.after;
+      renderSliderLabels();
+    }
     if (saved.urlBefore && saved.urlAfter) {
       els.urlBefore.value = saved.urlBefore;
       els.urlAfter.value = saved.urlAfter;
@@ -595,6 +737,15 @@ async function applyState(saved) {
     isRestoring = false;
   }
 }
+
+function renderSliderLabels() {
+  els.sliderLabelBefore.textContent = state.labels.before;
+  els.sliderLabelAfter.textContent  = state.labels.after;
+  els.sliderLabels.style.display = state.labels.show ? 'flex' : 'none';
+  if (els.labelsSection) {
+    els.labelsSection.classList.toggle('is-off', !state.labels.show);
+  }
+}
 let saveTimer = null;
 function scheduleSaveState() {
   if (isRestoring) return;
@@ -609,6 +760,25 @@ function scheduleSaveState() {
   els.captionText.addEventListener(ev, scheduleSaveState);
   els.photographer.addEventListener(ev, scheduleSaveState);
 });
+
+// Før/Etter-bokser over bildene
+els.labelsShow.addEventListener('change', () => {
+  state.labels.show = els.labelsShow.checked;
+  renderSliderLabels();
+  scheduleSaveState();
+});
+els.labelBeforeText.addEventListener('input', () => {
+  state.labels.before = els.labelBeforeText.value || 'Før';
+  renderSliderLabels();
+  scheduleSaveState();
+});
+els.labelAfterText.addEventListener('input', () => {
+  state.labels.after = els.labelAfterText.value || 'Etter';
+  renderSliderLabels();
+  scheduleSaveState();
+});
+// Initial render (basert på defaults i state)
+renderSliderLabels();
 
 async function refreshProjectList() {
   try {
