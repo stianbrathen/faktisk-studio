@@ -3,7 +3,7 @@
 const ELEMENT_TYPES = [
   { id: 'looping-video',   label: 'Looping videoklipp' },
   { id: 'video-player',    label: 'Videoavspiller' },
-  { id: 'bilde-annotert',  label: 'Bilde med piler og bokser' },
+  { id: 'bilde-markering', label: 'Bilde med markering' },
   { id: 'for-og-etter',    label: 'Før og etter slider' },
   { id: 'interaktiv-video',label: 'Interaktiv video' },
   { id: 'parallax-collage',label: 'Parallax bildecollage' },

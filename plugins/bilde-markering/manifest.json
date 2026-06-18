@@ -1,0 +1,9 @@
+{
+  "id": "bilde-markering",
+  "name": "Bilde med markering",
+  "version": "0.1.0",
+  "entry": "index.html",
+  "description": "Marker viktige punkter på et bilde med tekstbokser, piler og skalerbare sirkler (fylt eller åpen ring).",
+  "category": "image",
+  "minStudioVersion": "0.2.0"
+}

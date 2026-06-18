@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bilde med markering · Faktisk Studio</title>
+<link rel="stylesheet" href="shared/style.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="studio">
+
+  <header class="topbar">
+    <div class="faktisk-logo" role="img" aria-label="Faktisk Studio"></div>
+    <span class="topbar__version" id="appVersion" title="Versjoner"></span>
+    <div class="topbar__title" role="img" aria-label="Labrador"></div>
+    <div class="topbar__actions">
+      <button class="btn-primary" id="backBtn">Malside</button>
+      <button class="btn-icon" id="fullscreenBtn" title="Fullskjerm" aria-label="Fullskjerm">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+          <path d="M5 5h5v2H7v3H5V5zm9 0h5v5h-2V7h-3V5zM5 14h2v3h3v2H5v-5zm12 0h2v5h-5v-2h3v-3z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="plugin-page">
+
+    <aside class="plugin-sidebar">
+      <div class="plugin-sidebar__head">
+        <h2 class="plugin-sidebar__title">Bilde med markering</h2>
+        <button id="openLabradorBtn" class="link-btn" type="button">Åpne Labrador ↗</button>
+      </div>
+
+      <div class="url-section url-section--compact">
+        <label class="url-section__label" for="urlImage">Bilde</label>
+        <input type="text" id="urlImage" class="url-row__input"
+               placeholder="https://faktisk.no/uploads/…"
+               spellcheck="false" autocomplete="off">
+      </div>
+
+      <button id="loadBtn" class="btn-mini btn-mini--block">Hent bilde</button>
+
+      <div class="plugin-sidebar__status" id="status"></div>
+
+      <div class="tb-section" id="tbSection" style="display:none;">
+        <div class="tb-section__header">
+          <span class="url-section__label">Tekstbokser</span>
+          <div class="tb-add-buttons">
+            <button id="addTbBtnDark" class="btn-mini" type="button" title="Legg til overskrift">+ Overskrift</button>
+            <button id="addTbBtnLight" class="btn-mini btn-mini--light" type="button" title="Legg til beskrivelse">+ Beskrivelse</button>
+          </div>
+        </div>
+        <div id="tbList" class="tb-list"></div>
+      </div>
+
+      <div class="marker-section" id="markerSection" style="display:none;">
+        <div class="tb-section__header">
+          <span class="url-section__label">Markeringer</span>
+          <div class="tb-add-buttons">
+            <button id="addMarkFilled" class="btn-mini" type="button" title="Legg til fylt prikk">+ Prikk</button>
+            <button id="addMarkOpen" class="btn-mini btn-mini--light" type="button" title="Legg til ring (åpen sirkel)">+ Ring</button>
+          </div>
+        </div>
+        <div id="markList" class="tb-list"></div>
+      </div>
+
+      <div class="caption-section">
+        <label class="url-section__label" for="captionText">Bildetekst (valgfri)</label>
+        <textarea id="captionText" class="caption-input" rows="2"
+                  placeholder="Kort beskrivelse av bildet…"
+                  spellcheck="true"></textarea>
+
+        <label class="url-section__label" for="photographerText" style="margin-top: 4px;">Fotograf / kilde (valgfri)</label>
+        <input type="text" id="photographerText" class="caption-input caption-input--single"
+               placeholder="Foto: Navn / Reuters"
+               spellcheck="false" autocomplete="off">
+      </div>
+
+      <div class="plugin-sidebar__spacer"></div>
+
+      <div class="project-row">
+        <select id="projectSelect" class="project-select">
+          <option value="">Velg lagret prosjekt…</option>
+        </select>
+        <button id="saveProjectBtn" class="btn-mini">Lagre…</button>
+      </div>
+
+      <button id="copyEmbedBtn" class="btn-mini btn-mini--block" disabled>
+        Kopier embed
+      </button>
+    </aside>
+
+    <section class="plugin-canvas">
+      <div class="slider-stage" id="stage">
+        <div class="slider-empty" id="emptyState">
+          <p>Lim inn URL til et bilde lastet opp i Labrador (under 100 MB), og trykk «Hent bilde».</p>
+        </div>
+        <div class="slider-preview" id="preview" style="display:none;">
+          <div class="slider-clipper" id="clipper">
+            <img id="imgMain" class="slider-img" alt="">
+            <!-- arrow-svg, tb-pointer-circle og markeringer plasseres her av JS -->
+          </div>
+          <!-- .tb-overlay plasseres her av JS, kan stikke utenfor bildet -->
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+</div>
+
+<script src="shared/dialog.js"></script>
+<script src="main.js"></script>
+</body>
+</html>
