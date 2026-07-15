@@ -3,9 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https:; font-src 'self' data:;">
 <title>Looping videoklipp · Faktisk Studio</title>
 <link rel="stylesheet" href="shared/style.css">
 <link rel="stylesheet" href="style.css">
+<script src="shared/embed-tokens.js"></script>
 </head>
 <body>
 <div class="studio">
@@ -16,6 +18,11 @@
     <div class="topbar__title" role="img" aria-label="Labrador"></div>
     <div class="topbar__actions">
       <button class="btn-primary" id="backBtn">Malside</button>
+      <button class="btn-icon" id="newProjectBtn" title="Nytt prosjekt (tøm gjeldende)" aria-label="Nytt prosjekt">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+          <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+        </svg>
+      </button>
       <button class="btn-icon" id="fullscreenBtn" title="Fullskjerm" aria-label="Fullskjerm">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
           <path d="M5 5h5v2H7v3H5V5zm9 0h5v5h-2V7h-3V5zM5 14h2v3h3v2H5v-5zm12 0h2v5h-5v-2h3v-3z"/>
@@ -111,6 +118,8 @@
 </div>
 
 <script src="shared/dialog.js"></script>
+<script>window.PLUGIN_ID = 'looping-video';</script>
+<script src="shared/new-project.js"></script>
 <script src="main.js"></script>
 </body>
 </html>

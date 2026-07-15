@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https:; font-src 'self' data:;">
+<title>Videohøydepunkter · Faktisk Studio</title>
+<link rel="stylesheet" href="shared/style.css">
+<link rel="stylesheet" href="style.css">
+<script src="shared/embed-tokens.js"></script>
+</head>
+<body>
+<div class="studio">
+
+  <header class="topbar">
+    <div class="faktisk-logo" role="img" aria-label="Faktisk Studio"></div>
+    <span class="topbar__version" id="appVersion" title="Versjoner"></span>
+    <div class="topbar__title" role="img" aria-label="Labrador"></div>
+    <div class="topbar__actions">
+      <button class="btn-primary" id="backBtn">Malside</button>
+      <button class="btn-icon" id="newProjectBtn" title="Nytt prosjekt (tøm gjeldende)" aria-label="Nytt prosjekt">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+          <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+        </svg>
+      </button>
+      <button class="btn-icon" id="fullscreenBtn" title="Fullskjerm" aria-label="Fullskjerm">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+          <path d="M5 5h5v2H7v3H5V5zm9 0h5v5h-2V7h-3V5zM5 14h2v3h3v2H5v-5zm12 0h2v5h-5v-2h3v-3z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="plugin-page">
+
+    <aside class="plugin-sidebar">
+      <h2 class="plugin-sidebar__title">Videohøydepunkter</h2>
+
+      <p class="plugin-sidebar__desc">
+        Marker høydepunkter i videoen, så kan leserne hoppe rett til dem —
+        og se dem i sakte film.
+      </p>
+
+      <div class="url-section">
+        <div class="url-section__header">
+          <label class="url-section__label" for="videoUrl">Lenke til video</label>
+          <button id="openLabradorBtn" class="link-btn" type="button">
+            Åpne Labrador ↗
+          </button>
+        </div>
+        <div class="url-row">
+          <input type="text" id="videoUrl" class="url-row__input"
+                 placeholder="https://faktisk.no/uploads/…"
+                 spellcheck="false" autocomplete="off">
+          <button id="loadVideoBtn" class="btn-tiny">Hent video</button>
+        </div>
+      </div>
+
+      <div class="plugin-sidebar__status" id="status"></div>
+
+      <div class="hl-section">
+        <span class="url-section__label">Høydepunkter</span>
+        <p class="hl-empty" id="hlEmpty">Spill videoen og bruk knappene
+          (eller tastene <b>I</b>/<b>O</b>) under tidslinjen for å markere.</p>
+        <div class="hl-list" id="hlList"></div>
+      </div>
+
+      <div class="settings-section">
+        <label class="url-section__label" for="slowRate">Sakte film-hastighet</label>
+        <select id="slowRate" class="project-select">
+          <option value="0.5" selected>0,5× (halv fart)</option>
+          <option value="0.25">0,25× (kvart fart)</option>
+        </select>
+        <label class="check-row">
+          <input type="checkbox" id="stopAtEnd" checked>
+          <span>Stopp når høydepunktet er ferdig</span>
+        </label>
+      </div>
+
+      <div class="plugin-sidebar__spacer"></div>
+
+      <div class="project-row">
+        <select id="projectSelect" class="project-select">
+          <option value="">Velg lagret prosjekt…</option>
+        </select>
+        <button id="saveProjectBtn" class="btn-tiny">Lagre…</button>
+      </div>
+
+      <button id="copyEmbedBtn" class="btn-primary" disabled>
+        Kopier embed
+      </button>
+    </aside>
+
+    <section class="plugin-canvas">
+      <div class="canvas-area" id="canvasArea">
+        <video id="videoEl" class="canvas-video" controls></video>
+        <div class="canvas-empty" id="canvasEmpty">
+          <p>Lim inn URL til en video lastet opp i Labrador (under 100 MB), og trykk «Hent video».</p>
+        </div>
+      </div>
+
+      <div class="timeline-stack" id="timelineStack">
+        <div class="timeline-row">
+          <span class="timeline-row__label">Høydepunkter</span>
+          <div class="timeline">
+            <div class="timeline__track" id="hlTrack">
+              <div class="hl-head" id="hlHead"></div>
+            </div>
+            <div class="timeline__labels">
+              <span id="labelPos">0,0s</span>
+              <span></span>
+              <span id="labelDur">0,0s</span>
+            </div>
+          </div>
+        </div>
+        <div class="markbar">
+          <button id="btnIn" class="btn-tiny" disabled>Sett inn-punkt <span class="key">I</span></button>
+          <button id="btnOut" class="btn-tiny" disabled>Sett ut-punkt <span class="key">O</span></button>
+          <span class="markbar__pend" id="pendLbl">Inn: – · Ut: –</span>
+          <button id="btnAdd" class="btn-tiny markbar__add" disabled>+ Legg til høydepunkt</button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+</div>
+
+<script src="shared/dialog.js"></script>
+<script>window.PLUGIN_ID = 'video-hoydepunkter';</script>
+<script src="shared/new-project.js"></script>
+<script src="main.js"></script>
+</body>
+</html>

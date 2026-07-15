@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https:; font-src 'self' data:;">
+<title>Bildeanalyse · Faktisk Studio</title>
+<link rel="stylesheet" href="shared/style.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="studio">
+
+  <header class="topbar">
+    <div class="faktisk-logo" role="img" aria-label="Faktisk Studio"></div>
+    <span class="topbar__version" id="appVersion" title="Versjoner"></span>
+    <div class="topbar__title" role="img" aria-label="Labrador"></div>
+    <div class="topbar__actions">
+      <button class="btn-primary" id="backBtn">Malside</button>
+      <button class="btn-icon" id="newProjectBtn" title="Nytt prosjekt (tøm gjeldende)" aria-label="Nytt prosjekt">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+          <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+        </svg>
+      </button>
+      <button class="btn-icon" id="fullscreenBtn" title="Fullskjerm" aria-label="Fullskjerm">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+          <path d="M5 5h5v2H7v3H5V5zm9 0h5v5h-2V7h-3V5zM5 14h2v3h3v2H5v-5zm12 0h2v5h-5v-2h3v-3z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="plugin-page">
+
+    <aside class="plugin-sidebar">
+      <div class="plugin-sidebar__head">
+        <h2 class="plugin-sidebar__title">Bildeanalyse</h2>
+        <button id="openLabradorBtn" class="link-btn" type="button">Åpne Labrador ↗</button>
+      </div>
+
+      <div class="url-section">
+        <div class="url-section__header">
+          <span class="url-section__label">Bilder</span>
+          <button id="addImageBtn" class="btn-mini" type="button">+ Legg til bilde</button>
+        </div>
+        <div id="imageList" class="image-list"></div>
+        <button id="loadBtn" class="btn-mini btn-mini--block">Hent bilder</button>
+      </div>
+
+      <div class="plugin-sidebar__status" id="status"></div>
+
+      <div class="pair-section" id="pairSection" style="display:none;">
+        <span class="url-section__label">Overskrift (valgfri)</span>
+        <input type="text" id="topHeading" class="caption-input caption-input--single" maxlength="120" placeholder="F.eks. tittel som tydeliggjør analysen">
+        <select id="headingStyle" class="project-select" title="Stil på overskrift">
+          <option value="h2">Stor (H2, serif)</option>
+          <option value="small">Mindre (sans-serif kapsel)</option>
+          <option value="none">Skjul overskrift</option>
+        </select>
+
+        <span class="url-section__label" style="margin-top:6px;">Par-oppsett</span>
+        <div class="pair-titles">
+          <input type="text" id="pairTitle1" class="input-mini" value="Bilde 1" maxlength="30" placeholder="Tittel venstre">
+          <input type="text" id="pairTitle2" class="input-mini" value="Bilde 2" maxlength="30" placeholder="Tittel høyre">
+        </div>
+        <select id="pairFormatSelect" class="project-select" title="Bildeformat">
+          <option value="9:16">Vertikalt (9:16)</option>
+          <option value="16:9">Horisontalt (16:9)</option>
+          <option value="1:1">Kvadratisk (1:1)</option>
+          <option value="auto">Auto (følg første bilde)</option>
+        </select>
+        <label class="check-row" style="margin-top:4px;">
+          <input type="checkbox" id="dimOutside">
+          <span>Demp bildet rundt markeringene</span>
+        </label>
+        <label class="check-row">
+          <input type="checkbox" id="abInCaption">
+          <span>Bruk A/B-sirkler i bildeteksten</span>
+        </label>
+        <p class="hint-text" id="abHint" style="display:none;">Skriv <code>[A]</code> eller <code>[B]</code> foran teksten — pluginen erstatter dem med sirkler. Du kan ha både A og B i samme tekst.</p>
+      </div>
+
+      <div class="groups-section" id="groupsSection" style="display:none;">
+        <div class="tb-section__header">
+          <span class="url-section__label">Fargegrupper</span>
+        </div>
+        <div id="groupList" class="tb-list"></div>
+        <p class="hint-text">Klikk på et bilde for å legge til ramme. I par-modus tegnes strek mellom rammer i samme fargegruppe.</p>
+      </div>
+
+      <div class="video-section" id="videoSection" style="display:none;">
+        <div class="url-section__header">
+          <span class="url-section__label">Kilde-videoer (valgfri)</span>
+          <button id="addVideoBtn" class="btn-mini" type="button">+ Legg til</button>
+        </div>
+        <div id="videoList" class="image-list"></div>
+        <p class="hint-text">Lim inn URL fra Labrador eller Mux (player.mux.com…). Auto-detekteres.</p>
+      </div>
+
+      <div class="caption-section">
+        <label class="url-section__label" for="captionText" id="captionLabel">Bildetekst (valgfri)</label>
+        <textarea id="captionText" class="caption-input" rows="2"
+                  placeholder="Forklar sammenhengen kort…"
+                  spellcheck="true"></textarea>
+
+        <label class="url-section__label" for="photographerText" style="margin-top: 4px;">Fotograf / kilde (valgfri)</label>
+        <input type="text" id="photographerText" class="caption-input caption-input--single"
+               placeholder="Foto: Navn / Reuters"
+               spellcheck="false" autocomplete="off">
+      </div>
+
+      <div class="project-row">
+        <select id="projectSelect" class="project-select">
+          <option value="">Velg lagret prosjekt…</option>
+        </select>
+        <button id="saveProjectBtn" class="btn-mini">Lagre…</button>
+      </div>
+
+      <button id="copyEmbedBtn" class="btn-mini btn-mini--block" disabled>
+        Kopier embed
+      </button>
+    </aside>
+
+    <section class="plugin-canvas">
+      <div class="analysis-stage" id="stage">
+        <div class="analysis-empty" id="emptyState">
+          <p>Legg til 2-16 bilder fra Labrador (1-8 par) og trykk «Hent bilder» for å starte.</p>
+        </div>
+        <div class="analysis-grid" id="grid" style="display:none;"></div>
+      </div>
+    </section>
+
+  </main>
+
+</div>
+
+<script src="shared/dialog.js"></script>
+<script>window.PLUGIN_ID = 'bildeanalyse';</script>
+<script src="shared/new-project.js"></script>
+<script src="main.js"></script>
+</body>
+</html>

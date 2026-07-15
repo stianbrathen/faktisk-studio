@@ -1,0 +1,812 @@
+// Faktisk Studio · Pop up-plugin
+// Bilde med lys grå ramme — klikk åpner stort i lightbox med caption + kreditt + X-knapp.
+
+const PLUGIN_ID = 'pop-up';
+
+// Vis app-versjon + plugin-versjon i topp-bar
+(async () => {
+  try {
+    const [appV, plugins] = await Promise.all([
+      window.faktisk.appVersion(),
+      window.faktisk.pluginStatus(),
+    ]);
+    const me = (plugins || []).find(p => p.id === PLUGIN_ID);
+    const el = document.getElementById('appVersion');
+    if (el && appV) {
+      el.textContent = me ? 'v' + appV + ' · plugin v' + me.version : 'v' + appV;
+    }
+  } catch (e) {}
+})();
+
+const els = {
+  modeSingleBtn: document.getElementById('modeSingleBtn'),
+  modeGalleryBtn: document.getElementById('modeGalleryBtn'),
+  imagesLabel:   document.getElementById('imagesLabel'),
+  addImageBtn:   document.getElementById('addImageBtn'),
+  imageList:     document.getElementById('imageList'),
+  galleryHint:   document.getElementById('galleryHint'),
+  logoSelect:    document.getElementById('logoSelect'),
+  photographer:  document.getElementById('photographerText'),
+  status:        document.getElementById('status'),
+  emptyState:    document.getElementById('emptyState'),
+  preview:       document.getElementById('preview'),
+  copyEmbed:     document.getElementById('copyEmbedBtn'),
+  back:          document.getElementById('backBtn'),
+  full:          document.getElementById('fullscreenBtn'),
+  openLabrador:  document.getElementById('openLabradorBtn'),
+  projectSelect: document.getElementById('projectSelect'),
+  saveProject:   document.getElementById('saveProjectBtn'),
+};
+
+const state = {
+  mode: 'single',                        // 'single' | 'gallery'
+  images: [{ url: '', caption: '' }],   // alltid minst én rad i single-modus
+  credit: '',
+  logo: 'none',                          // 'none' | 'x' (Twitter)
+};
+
+const MAX_GALLERY = 6;
+
+// SVG-markup for logo-merker. Tegnes hvit i sort sirkel.
+// Alle har 24x24 viewBox så de skalerer likt i .fpu-...-logo-containeren.
+const LOGO_SVGS = {
+  x: '<svg viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>',
+  facebook: '<svg viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.412c0-3.022 1.792-4.69 4.533-4.69 1.312 0 2.686.235 2.686.235v2.967h-1.514c-1.491 0-1.956.93-1.956 1.886v2.262h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/></svg>',
+  instagram: '<svg viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z"/></svg>',
+  tiktok: '<svg viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5.8 20.1a6.34 6.34 0 0 0 10.86-4.43V8.69a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1.84-.12z"/></svg>',
+  youtube: '<svg viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>',
+  threads: '<svg viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M12.186 24h-.007c-3.581-.024-6.334-1.205-8.184-3.509C2.35 18.44 1.5 15.586 1.472 12.01v-.017c.03-3.579.879-6.43 2.525-8.482C5.845 1.205 8.6.024 12.18 0h.014c2.746.02 5.043.725 6.826 2.098 1.677 1.29 2.858 3.13 3.509 5.467l-2.04.569c-1.104-3.96-3.898-5.984-8.304-6.015-2.91.022-5.11.936-6.54 2.717C4.307 6.504 3.616 8.914 3.589 12c.027 3.086.718 5.496 2.057 7.164 1.43 1.783 3.631 2.698 6.54 2.717 2.623-.02 4.358-.631 5.8-2.045 1.647-1.613 1.618-3.593 1.09-4.798-.31-.71-.873-1.3-1.634-1.75-.192 1.352-.622 2.446-1.284 3.272-.886 1.102-2.14 1.704-3.73 1.79-1.202.065-2.361-.218-3.259-.801-1.063-.689-1.685-1.74-1.752-2.964-.065-1.19.408-2.285 1.33-3.082.88-.76 2.119-1.207 3.583-1.291.475-.027.961-.04 1.45-.04.658 0 1.305.025 1.93.072-.085-.523-.207-1-.366-1.425-.293-.797-.83-1.495-1.494-1.974-.595-.431-1.282-.667-1.992-.667h-.01c-1.04 0-2.087.413-2.79 1.106l-1.397-1.4c1.13-1.117 2.594-1.71 4.187-1.71h.014c1.156 0 2.27.394 3.21 1.135 1.014.795 1.74 1.971 2.146 3.371.18.62.305 1.31.374 2.044.78.27 1.477.65 2.066 1.139 1.184.974 1.913 2.31 1.913 3.787 0 4.046-3.297 7.34-7.343 7.34zm1.018-9.628c-.234 0-.46.008-.677.02-1.834.102-2.978.97-2.917 2.005.06 1.099 1.275 1.604 2.45 1.541 1.083-.06 2.489-.484 2.756-3.451-.522-.075-1.078-.115-1.612-.115z"/></svg>',
+};
+
+// Brukervennlige navn til aria-label i embed-en
+const LOGO_LABELS = {
+  x: 'Fra X (Twitter)',
+  facebook: 'Fra Facebook',
+  instagram: 'Fra Instagram',
+  tiktok: 'Fra TikTok',
+  youtube: 'Fra YouTube',
+  threads: 'Fra Threads',
+};
+
+function logoSvg(key) {
+  return LOGO_SVGS[key] || '';
+}
+function isValidLogoKey(key) {
+  return key === 'none' || Object.prototype.hasOwnProperty.call(LOGO_SVGS, key);
+}
+
+function setStatus(msg, isError) {
+  els.status.textContent = msg || '';
+  els.status.style.color = isError ? '#FFB4B4' : '#fff';
+}
+
+function isValidImageUrl(s) {
+  if (!s) return false;
+  try {
+    const u = new URL(s);
+    return u.protocol === 'http:' || u.protocol === 'https:';
+  } catch (e) { return false; }
+}
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[<>&"']/g, c => ({
+    '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;',
+  }[c]));
+}
+
+// ---------- Rendering: sidebar image-liste ----------
+function renderImageList() {
+  els.imageList.innerHTML = '';
+  state.images.forEach((img, i) => {
+    const row = document.createElement('div');
+    row.className = 'image-list__row';
+
+    const num = document.createElement('div');
+    num.className = 'image-list__num';
+    num.textContent = String(i + 1);
+
+    const urlInput = document.createElement('input');
+    urlInput.type = 'text';
+    urlInput.className = 'url-row__input';
+    urlInput.placeholder = 'https://faktisk.no/uploads/…';
+    urlInput.value = img.url || '';
+    urlInput.spellcheck = false;
+    urlInput.autocomplete = 'off';
+    urlInput.addEventListener('input', () => {
+      state.images[i].url = urlInput.value.trim();
+      renderPreview();
+      updateExportButtons();
+      scheduleSaveState();
+    });
+
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'image-list__del';
+    del.title = 'Fjern bildet';
+    del.textContent = '×';
+    del.disabled = state.mode === 'single' || state.images.length <= 1;
+    del.style.visibility = (state.mode === 'gallery' && state.images.length > 1) ? 'visible' : 'hidden';
+    del.addEventListener('click', () => {
+      state.images.splice(i, 1);
+      renderImageList();
+      renderPreview();
+      updateExportButtons();
+      scheduleSaveState();
+    });
+
+    row.appendChild(num);
+    row.appendChild(urlInput);
+    row.appendChild(del);
+
+    // Caption-input under URL (spenner over kolonne 2-3)
+    const capInput = document.createElement('input');
+    capInput.type = 'text';
+    capInput.className = 'caption-input caption-input--single image-list__caption';
+    capInput.placeholder = state.mode === 'gallery' ? 'Bildetekst for dette bildet (valgfri)' : 'Bildetekst (valgfri)';
+    capInput.value = img.caption || '';
+    capInput.spellcheck = true;
+    capInput.addEventListener('input', () => {
+      state.images[i].caption = capInput.value;
+      renderPreview();
+      scheduleSaveState();
+    });
+    row.appendChild(capInput);
+
+    els.imageList.appendChild(row);
+  });
+
+  // Vis/skjul "+ Legg til bilde"-knapp avhengig av modus og antall
+  if (state.mode === 'gallery' && state.images.length < MAX_GALLERY) {
+    els.addImageBtn.style.display = '';
+  } else {
+    els.addImageBtn.style.display = 'none';
+  }
+}
+
+// ---------- Studio-preview (canvas) ----------
+function renderPreview() {
+  const validImages = state.images.filter(img => isValidImageUrl(img.url));
+  if (validImages.length === 0) {
+    els.emptyState.style.display = '';
+    els.preview.style.display = 'none';
+    return;
+  }
+  els.emptyState.style.display = 'none';
+  els.preview.style.display = '';
+
+  const isGallery = state.mode === 'gallery';
+  const gridClass = isGallery ? 'popup-preview__grid--gallery' : 'popup-preview__grid--single';
+
+  const hasLogo = state.logo && state.logo !== 'none';
+  const logoBadgeStudio = hasLogo
+    ? `<div class="popup-preview__logo">${logoSvg(state.logo)}</div>`
+    : '';
+  const hasAnyCapStudio = validImages.some(img => (img.caption || '').trim());
+
+  els.preview.innerHTML = `
+    <div class="popup-preview__label">Slik vises ${isGallery ? 'galleriet' : 'bildet'} i artikkelen</div>
+    <div class="popup-preview__grid ${gridClass}">
+      ${validImages.map((img, i) => {
+        const showLogoHere = hasLogo && i === 0;
+        const cap = (img.caption || '').trim();
+        let capRowHtml = '';
+        if (cap || showLogoHere) {
+          const capEl = cap ? `<p class="popup-preview__cap${showLogoHere ? ' is-centered' : ''}">${escapeHtml(cap)}</p>` : '';
+          capRowHtml = `<div class="popup-preview__cap-row${showLogoHere ? ' has-logo' : ''}">${showLogoHere ? logoBadgeStudio : ''}${capEl}</div>`;
+        }
+        return `
+        <div class="popup-preview__item">
+          <div class="popup-preview__thumb" data-i="${i}">
+            <img src="${escapeHtml(img.url)}" alt="${escapeHtml(cap)}">
+            <div class="popup-preview__thumb__icon" title="Forhåndsvis pop-up">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M15 3h6v6h-2V6.41l-4.29 4.3-1.42-1.42L17.59 5H15V3zM5 15H3v6h6v-2H6.41l4.3-4.29-1.42-1.42L5 17.59V15z"/>
+              </svg>
+            </div>
+          </div>
+          ${capRowHtml}
+        </div>`;
+      }).join('')}
+    </div>
+    ${hasLogo && !hasAnyCapStudio ? logoBadgeStudio : ''}
+    <div class="popup-preview__label" style="opacity:0.5;">Klikk en thumbnail for å forhåndsvise pop-up-en</div>
+  `;
+
+  els.preview.querySelectorAll('.popup-preview__thumb').forEach(thumb => {
+    thumb.addEventListener('click', () => {
+      const i = +thumb.dataset.i;
+      openStudioLightbox(validImages, i);
+    });
+  });
+}
+
+// ---------- Studio-intern lightbox (forhåndsvisning) ----------
+let studioLB = null;
+function openStudioLightbox(images, startIdx) {
+  closeStudioLightbox();
+  let idx = startIdx;
+  const credit = state.credit.trim();
+
+  const lb = document.createElement('div');
+  lb.className = 'studio-lightbox';
+  lb.innerHTML = `
+    <button class="studio-lightbox__close" aria-label="Lukk">✕</button>
+    ${images.length > 1 ? `
+      <button class="studio-lightbox__nav studio-lightbox__nav--prev" aria-label="Forrige">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+      </button>
+      <button class="studio-lightbox__nav studio-lightbox__nav--next" aria-label="Neste">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+      </button>
+    ` : ''}
+    <img alt="">
+    <div class="studio-lightbox__caption"></div>
+  `;
+  document.body.appendChild(lb);
+  studioLB = lb;
+
+  const imgEl = lb.querySelector('img');
+  const capEl = lb.querySelector('.studio-lightbox__caption');
+  function show(i) {
+    idx = (i + images.length) % images.length;
+    imgEl.src = images[idx].url;
+    const cap = images[idx].caption || '';
+    let html = '';
+    if (cap) html += escapeHtml(cap);
+    if (credit) html += (cap ? '<br>' : '') + '<span style="opacity:0.7;">Foto: ' + escapeHtml(credit) + '</span>';
+    capEl.innerHTML = html;
+  }
+  show(idx);
+
+  lb.querySelector('.studio-lightbox__close').addEventListener('click', closeStudioLightbox);
+  const prev = lb.querySelector('.studio-lightbox__nav--prev');
+  const next = lb.querySelector('.studio-lightbox__nav--next');
+  if (prev) prev.addEventListener('click', () => show(idx - 1));
+  if (next) next.addEventListener('click', () => show(idx + 1));
+  lb.addEventListener('click', (e) => {
+    if (e.target === lb) closeStudioLightbox();
+  });
+  function keyHandler(e) {
+    if (e.key === 'Escape') closeStudioLightbox();
+    else if (e.key === 'ArrowLeft' && images.length > 1) show(idx - 1);
+    else if (e.key === 'ArrowRight' && images.length > 1) show(idx + 1);
+  }
+  document.addEventListener('keydown', keyHandler);
+  lb._keyHandler = keyHandler;
+}
+function closeStudioLightbox() {
+  if (!studioLB) return;
+  if (studioLB._keyHandler) document.removeEventListener('keydown', studioLB._keyHandler);
+  studioLB.remove();
+  studioLB = null;
+}
+
+// ---------- Embed-snippet ----------
+function buildEmbedSnippet() {
+  const validImages = state.images.filter(img => isValidImageUrl(img.url));
+  if (validImages.length === 0) return '';
+
+  const id = 'fpu-' + Math.random().toString(36).slice(2, 8);
+  const isGallery = state.mode === 'gallery' && validImages.length > 1;
+  const credit = state.credit.trim();
+  const creditHtml = credit ? `<span class="fpu-${id}-credit">Foto: ${escapeHtml(credit)}</span>` : '';
+
+  // Bygg JSON-data som lightboxen kan lese
+  const imgData = validImages.map(img => ({
+    src: img.url,
+    cap: (img.caption || '').trim(),
+  }));
+  const imgDataJson = JSON.stringify(imgData).replace(/</g, '\\u003c');
+
+  // Logo-markup hentes ut én gang — brukes inline til venstre for caption hvis satt.
+  const hasLogo = state.logo && state.logo !== 'none';
+  const logoBadge = hasLogo
+    ? `<div class="fpu-${id}-logo" role="img" aria-label="${escapeHtml(LOGO_LABELS[state.logo] || '')}">${logoSvg(state.logo)}</div>`
+    : '';
+
+  // Thumbnail + caption-rad per element. Caption-raden har logo til venstre (hvis satt),
+  // tekst sentrert til høyre. Uten logo: tekst venstrejustert. I galleri-modus settes
+  // logoen kun på FØRSTE caption — så fungerer den som delt kilde-indikator.
+  const thumbsHtml = validImages.map((img, i) => {
+    const cap = (img.cap || img.caption || '').trim();
+    const showLogoHere = hasLogo && i === 0;
+    // Bygg caption-rad
+    let capRowHtml = '';
+    if (cap || showLogoHere) {
+      const capEl = cap
+        ? `<figcaption class="fpu-${id}-cap${showLogoHere ? ' is-centered' : ''}">${escapeHtml(cap)}</figcaption>`
+        : '';
+      capRowHtml = `<div class="fpu-${id}-cap-row${showLogoHere ? ' has-logo' : ''}">${showLogoHere ? logoBadge : ''}${capEl}</div>`;
+    }
+    return `
+    <div class="fpu-${id}-item">
+      <button class="fpu-${id}-thumb" type="button" data-i="${i}" aria-label="Åpne bilde i pop-up">
+        <img src="${escapeHtml(img.src || img.url)}" alt="${escapeHtml(cap)}" loading="lazy">
+        <span class="fpu-${id}-thumb-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M15 3h6v6h-2V6.41l-4.29 4.3-1.42-1.42L17.59 5H15V3zM5 15H3v6h6v-2H6.41l4.3-4.29-1.42-1.42L5 17.59V15z"/></svg>
+        </span>
+      </button>
+      ${capRowHtml}
+    </div>`;
+  }).join('');
+
+  // Edge-case: hvis logo er satt men INGEN av bildene har caption, vis logoen alene under
+  // griden (gammel oppførsel) — så indikatoren ikke forsvinner helt.
+  const hasAnyCaption = validImages.some(img => (img.cap || img.caption || '').trim());
+  const logoHtml = (hasLogo && !hasAnyCaption) ? logoBadge : '';
+
+  return `<!-- ============================================
+     FAKTISK · POP UP
+     Klikk bildet for å åpne stort i pop-up.
+     ============================================ -->
+<style>
+  .fpu-${id}-wrap { container-type: inline-size; }
+  .fpu-${id}-grid {
+    display: grid;
+    gap: clamp(10px, 1.4cqw, 18px);
+    align-items: start; /* lar thumbnails ha forskjellig høyde basert på bildets naturlige aspect */
+    ${isGallery
+      ? 'grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr));'
+      : 'grid-template-columns: 1fr;'}
+  }
+  .fpu-${id}-item {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+  }
+  .fpu-${id}-thumb {
+    position: relative;
+    display: block;
+    width: 100%;
+    padding: 0;
+    background: #fff;
+    border: 5px solid #D9D9D9;
+    border-radius: 12px;
+    overflow: hidden;
+    cursor: zoom-in;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    /* Sikkerhetsnett: ekstremt høye vertikalbilder kappes svakt på desktop slik at de
+       ikke fyller hele kolonnen. Pop-up-en viser uansett hele bildet i full størrelse. */
+    max-height: 80vh;
+  }
+  /* Caption-rad: kan inneholde logo til venstre + tekst sentrert til høyre,
+     eller bare tekst venstrejustert hvis ingen logo er valgt. */
+  .fpu-${id}-cap-row {
+    display: flex;
+    align-items: center;
+    gap: clamp(10px, 1.4cqw, 14px);
+  }
+  /* Med logo: bildetekst venstrejustert mot logoen, men sentrert vertikalt mot
+     sirkelens midte (align-items:center på cap-row gjør den vertikale biten).
+     Uten logo: tekst venstrejustert (tar hele bredden). */
+  .fpu-${id}-cap-row.has-logo .fpu-${id}-cap {
+    flex: 1;
+    text-align: left;
+  }
+  .fpu-${id}-cap-row:not(.has-logo) .fpu-${id}-cap {
+    flex: 1;
+    text-align: left;
+  }
+  /* Bildetekst under thumbnail på artikkelsiden (i tillegg til i pop-up-en) */
+  .fpu-${id}-cap {
+    margin: 0;
+    font-family: "Unica77", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: clamp(13px, 1.45cqw, 15px);
+    line-height: 1.45;
+    color: #555;
+    font-style: italic;
+  }
+  /* Logo-badge — sort sirkel med hvit logo. Brukes både inline i caption-raden
+     og som standalone-merke under figuren hvis det ikke er noen bildetekst. */
+  .fpu-${id}-logo {
+    width: clamp(34px, 4cqw, 42px);
+    height: clamp(34px, 4cqw, 42px);
+    background: #000;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+    flex: 0 0 auto;
+  }
+  /* Inline i cap-rad: ingen toppmargin */
+  .fpu-${id}-cap-row .fpu-${id}-logo { margin: 0; }
+  /* Standalone (når ingen caption finnes): sentrert under griden med margin */
+  .fpu-${id}-wrap > .fpu-${id}-logo {
+    margin: clamp(8px, 1.2cqw, 14px) auto 0;
+  }
+  .fpu-${id}-logo svg {
+    width: 52%;
+    height: 52%;
+    display: block;
+  }
+  .fpu-${id}-thumb:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+    border-color: #BFBFBF;
+  }
+  .fpu-${id}-thumb img {
+    width: 100%;
+    height: auto;
+    display: block;
+    /* object-fit dropper vi — uten aspect-ratio bestemmer bildet sin egen høyde. */
+  }
+  .fpu-${id}-thumb-icon {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    width: 32px;
+    height: 32px;
+    background: rgba(0,0,0,0.72);
+    color: #fff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.18s;
+  }
+  .fpu-${id}-thumb:hover .fpu-${id}-thumb-icon { opacity: 1; }
+  .fpu-${id}-thumb-icon svg { width: 16px; height: 16px; fill: currentColor; }
+
+  /* Lightbox / pop-up */
+  .fpu-${id}-lb {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.88);
+    z-index: 9999;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 24px;
+    flex-direction: column;
+    gap: 16px;
+    animation: fpu-${id}-in 0.18s ease-out;
+  }
+  .fpu-${id}-lb.is-open { display: flex; }
+  @keyframes fpu-${id}-in { from { opacity: 0; } to { opacity: 1; } }
+  .fpu-${id}-lb__img-wrap {
+    max-width: min(1200px, 92vw);
+    max-height: 78vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .fpu-${id}-lb img {
+    max-width: 100%;
+    max-height: 78vh;
+    object-fit: contain;
+    display: block;
+    border-radius: 4px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+  }
+  .fpu-${id}-lb__caption {
+    color: #fff;
+    font-family: "Unica77", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 15px;
+    max-width: 720px;
+    text-align: center;
+    line-height: 1.5;
+    margin: 0;
+    padding: 0 8px;
+  }
+  .fpu-${id}-credit {
+    display: block;
+    opacity: 0.65;
+    font-size: 13px;
+    margin-top: 6px;
+  }
+  .fpu-${id}-lb__close,
+  .fpu-${id}-lb__nav {
+    position: absolute;
+    background: rgba(255,255,255,0.15);
+    border: 0;
+    color: #fff;
+    cursor: pointer;
+    backdrop-filter: blur(4px);
+    transition: background 0.15s;
+    font-family: inherit;
+  }
+  .fpu-${id}-lb__close:hover,
+  .fpu-${id}-lb__nav:hover { background: rgba(255,255,255,0.28); }
+  .fpu-${id}-lb__close {
+    top: 16px;
+    right: 16px;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    font-size: 22px;
+    line-height: 1;
+  }
+  .fpu-${id}-lb__nav {
+    top: 50%;
+    transform: translateY(-50%);
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .fpu-${id}-lb__nav svg { width: 24px; height: 24px; fill: currentColor; }
+  .fpu-${id}-lb__nav--prev { left: 16px; }
+  .fpu-${id}-lb__nav--next { right: 16px; }
+
+  @media (max-width: 600px) {
+    .fpu-${id}-lb { padding: 20px 12px; }
+    .fpu-${id}-lb__nav { width: 44px; height: 44px; }
+    .fpu-${id}-lb__close { width: 40px; height: 40px; top: 10px; right: 10px; }
+  }
+</style>
+
+<div class="fpu-${id}-wrap">
+  <div class="fpu-${id}-grid">${thumbsHtml}
+  </div>${logoHtml}
+</div>
+
+<div class="fpu-${id}-lb" id="${id}-lb" role="dialog" aria-modal="true" aria-label="Bilde-pop-up">
+  <button class="fpu-${id}-lb__close" id="${id}-close" type="button" aria-label="Lukk">✕</button>
+  ${isGallery ? `
+  <button class="fpu-${id}-lb__nav fpu-${id}-lb__nav--prev" id="${id}-prev" type="button" aria-label="Forrige bilde">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+  </button>
+  <button class="fpu-${id}-lb__nav fpu-${id}-lb__nav--next" id="${id}-next" type="button" aria-label="Neste bilde">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+  </button>` : ''}
+  <div class="fpu-${id}-lb__img-wrap">
+    <img id="${id}-img" alt="">
+  </div>
+  <p class="fpu-${id}-lb__caption" id="${id}-cap"></p>
+</div>
+
+<script>
+(function(){
+  var data = ${imgDataJson};
+  var credit = ${JSON.stringify(credit)};
+  var idx = 0;
+  var lb = document.getElementById('${id}-lb');
+  var img = document.getElementById('${id}-img');
+  var cap = document.getElementById('${id}-cap');
+  var closeBtn = document.getElementById('${id}-close');
+  var prev = document.getElementById('${id}-prev');
+  var next = document.getElementById('${id}-next');
+  function esc(s){ return String(s).replace(/[<>&"]/g, function(c){ return ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]); }); }
+  function show(i){
+    if (!data.length) return;
+    idx = (i + data.length) % data.length;
+    img.src = data[idx].src;
+    img.alt = data[idx].cap || '';
+    var html = '';
+    if (data[idx].cap) html += esc(data[idx].cap);
+    if (credit) html += (data[idx].cap ? '<br>' : '') + '<span class="fpu-${id}-credit">Foto: ' + esc(credit) + '</span>';
+    cap.innerHTML = html;
+  }
+  function open(i){
+    show(i);
+    lb.classList.add('is-open');
+    document.body.style.overflow = 'hidden';
+  }
+  function close(){
+    lb.classList.remove('is-open');
+    document.body.style.overflow = '';
+  }
+  var thumbs = document.querySelectorAll('.fpu-${id}-thumb');
+  thumbs.forEach(function(t){
+    t.addEventListener('click', function(){ open(+t.dataset.i); });
+  });
+  closeBtn.addEventListener('click', close);
+  if (prev) prev.addEventListener('click', function(){ show(idx - 1); });
+  if (next) next.addEventListener('click', function(){ show(idx + 1); });
+  lb.addEventListener('click', function(e){
+    if (e.target === lb) close();
+  });
+  document.addEventListener('keydown', function(e){
+    if (!lb.classList.contains('is-open')) return;
+    if (e.key === 'Escape') close();
+    else if (e.key === 'ArrowLeft' && data.length > 1) show(idx - 1);
+    else if (e.key === 'ArrowRight' && data.length > 1) show(idx + 1);
+  });
+})();
+</script>
+`;
+}
+
+// ---------- Mode toggle ----------
+function setMode(mode) {
+  if (state.mode === mode) return;
+  state.mode = mode;
+  els.modeSingleBtn.classList.toggle('is-active', mode === 'single');
+  els.modeGalleryBtn.classList.toggle('is-active', mode === 'gallery');
+  els.imagesLabel.textContent = mode === 'gallery' ? 'Bilder' : 'Bilde';
+  els.galleryHint.style.display = mode === 'gallery' ? '' : 'none';
+
+  if (mode === 'single') {
+    // Behold første bilde, dropp resten
+    state.images = state.images.slice(0, 1);
+    if (state.images.length === 0) state.images = [{ url: '', caption: '' }];
+  } else {
+    // Sørg for at vi har minst 2 rader så det er åpenbart at det er galleri
+    if (state.images.length < 2) {
+      while (state.images.length < 2) state.images.push({ url: '', caption: '' });
+    }
+  }
+  renderImageList();
+  renderPreview();
+  updateExportButtons();
+  scheduleSaveState();
+}
+
+els.modeSingleBtn.addEventListener('click', () => setMode('single'));
+els.modeGalleryBtn.addEventListener('click', () => setMode('gallery'));
+els.addImageBtn.addEventListener('click', () => {
+  if (state.images.length >= MAX_GALLERY) return;
+  state.images.push({ url: '', caption: '' });
+  renderImageList();
+  renderPreview();
+  scheduleSaveState();
+});
+
+// ---------- Copy embed ----------
+function updateExportButtons() {
+  const validCount = state.images.filter(img => isValidImageUrl(img.url)).length;
+  els.copyEmbed.disabled = validCount === 0;
+}
+
+els.copyEmbed.addEventListener('click', async () => {
+  const snippet = buildEmbedSnippet();
+  if (!snippet) { setStatus('Legg til minst ett gyldig bilde.', true); return; }
+  try {
+    await window.faktisk.copyToClipboard(snippet);
+    const orig = els.copyEmbed.textContent;
+    els.copyEmbed.textContent = '✅ Kopiert! Slå av «Validate input» i Labrador';
+    setStatus('Embed-koden er kopiert.');
+    setTimeout(() => { els.copyEmbed.textContent = orig; }, 2000);
+  } catch (e) {
+    setStatus('Kunne ikke kopiere: ' + e.message, true);
+  }
+});
+
+// ---------- Photographer input ----------
+els.photographer.addEventListener('input', () => {
+  state.credit = els.photographer.value;
+  scheduleSaveState();
+});
+
+// ---------- Logo-velger ----------
+if (els.logoSelect) {
+  els.logoSelect.addEventListener('change', () => {
+    var v = els.logoSelect.value;
+    state.logo = isValidLogoKey(v) ? v : 'none';
+    renderPreview();
+    scheduleSaveState();
+  });
+}
+
+// ---------- Topbar ----------
+els.back.addEventListener('click', async () => { await window.faktisk.goHome(); });
+els.full.addEventListener('click', async () => { await window.faktisk.toggleFullscreen(); });
+els.openLabrador.addEventListener('click', async () => {
+  await window.faktisk.openExternal('https://labrador.faktisk.no/settings/upload-file');
+});
+
+// ---------- Save / load state ----------
+let isRestoring = false;
+function serializeState() {
+  return {
+    mode: state.mode,
+    images: state.images.map(img => ({ url: img.url, caption: img.caption })),
+    credit: state.credit,
+    logo: state.logo,
+  };
+}
+async function applyState(saved) {
+  if (!saved) return;
+  isRestoring = true;
+  try {
+    if (saved.mode === 'single' || saved.mode === 'gallery') {
+      state.mode = saved.mode;
+      els.modeSingleBtn.classList.toggle('is-active', state.mode === 'single');
+      els.modeGalleryBtn.classList.toggle('is-active', state.mode === 'gallery');
+      els.imagesLabel.textContent = state.mode === 'gallery' ? 'Bilder' : 'Bilde';
+      els.galleryHint.style.display = state.mode === 'gallery' ? '' : 'none';
+    }
+    if (Array.isArray(saved.images) && saved.images.length > 0) {
+      state.images = saved.images.map(img => ({
+        url: typeof img.url === 'string' ? img.url : '',
+        caption: typeof img.caption === 'string' ? img.caption : '',
+      })).slice(0, MAX_GALLERY);
+    }
+    if (typeof saved.credit === 'string') {
+      state.credit = saved.credit;
+      els.photographer.value = saved.credit;
+    }
+    if (typeof saved.logo === 'string' && isValidLogoKey(saved.logo)) {
+      state.logo = saved.logo;
+      if (els.logoSelect) els.logoSelect.value = saved.logo;
+    }
+    renderImageList();
+    renderPreview();
+    updateExportButtons();
+  } finally {
+    isRestoring = false;
+  }
+}
+let saveTimer = null;
+function scheduleSaveState() {
+  if (isRestoring) return;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    window.faktisk.stateSave(PLUGIN_ID, serializeState()).catch(console.error);
+  }, 400);
+}
+
+// ---------- Project list ----------
+async function refreshProjectList() {
+  try {
+    const res = await window.faktisk.projectList(PLUGIN_ID);
+    if (!res.ok) return;
+    const sel = els.projectSelect;
+    while (sel.options.length > 1) sel.remove(1);
+    res.projects.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.fileId;
+      opt.textContent = p.name;
+      sel.appendChild(opt);
+    });
+  } catch (e) { console.error(e); }
+}
+
+els.saveProject.addEventListener('click', async () => {
+  const firstCap = (state.images.find(i => i.caption) || {}).caption || '';
+  const defaultName = firstCap.slice(0, 40).trim()
+    || `Pop up ${new Date().toLocaleDateString('no')}`;
+  const name = await window.faktiskDialog.prompt('Lagre prosjekt som:', defaultName);
+  if (!name || !name.trim()) return;
+  const res = await window.faktisk.projectSave(PLUGIN_ID, name.trim(), serializeState());
+  if (res.ok) {
+    setStatus('Lagret: «' + res.name + '».');
+    await refreshProjectList();
+  } else {
+    setStatus('Kunne ikke lagre: ' + (res.error || 'ukjent feil'), true);
+  }
+});
+
+els.projectSelect.addEventListener('change', async () => {
+  const fileId = els.projectSelect.value;
+  if (!fileId) return;
+  const res = await window.faktisk.projectLoad(PLUGIN_ID, fileId);
+  if (res.ok && res.state) {
+    setStatus('Åpner «' + res.name + '»…');
+    await applyState(res.state);
+    setStatus('Åpnet «' + res.name + '».');
+  }
+});
+
+// ---------- Init ----------
+(async function init() {
+  renderImageList();
+  renderPreview();
+  updateExportButtons();
+  await refreshProjectList();
+  const pending = localStorage.getItem('faktisk-pending-project');
+  if (pending) {
+    try {
+      const { pluginId, fileId } = JSON.parse(pending);
+      localStorage.removeItem('faktisk-pending-project');
+      if (pluginId === PLUGIN_ID) {
+        const res = await window.faktisk.projectLoad(pluginId, fileId);
+        if (res.ok && res.state) {
+          await applyState(res.state);
+          els.projectSelect.value = fileId;
+          return;
+        }
+      }
+    } catch (e) { console.error(e); }
+  }
+  try {
+    const res = await window.faktisk.stateLoad(PLUGIN_ID);
+    if (res.ok && res.state) await applyState(res.state);
+  } catch (e) { console.error(e); }
+})();

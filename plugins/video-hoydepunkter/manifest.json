@@ -1,0 +1,9 @@
+{
+  "id": "video-hoydepunkter",
+  "name": "Videohøydepunkter",
+  "version": "0.1.0",
+  "entry": "index.html",
+  "description": "Marker høydepunkter i en video og la leserne hoppe rett til dem — med valgfri sakte film. Genererer embed med klikkbar tidslinje og høydepunkt-knapper.",
+  "category": "video",
+  "minStudioVersion": "0.2.0"
+}

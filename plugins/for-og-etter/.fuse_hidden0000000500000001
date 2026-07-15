@@ -1,0 +1,840 @@
+// Faktisk Studio · Før og etter slider-plugin (MVP)
+
+const PLUGIN_ID = 'for-og-etter';
+
+(async () => {
+  try {
+    const [appV, plugins] = await Promise.all([
+      window.faktisk.appVersion(),
+      window.faktisk.pluginStatus(),
+    ]);
+    const me = (plugins || []).find(p => p.id === PLUGIN_ID);
+    const el = document.getElementById('appVersion');
+    if (el && appV) {
+      el.textContent = me ? 'v' + appV + ' · plugin v' + me.version : 'v' + appV;
+    }
+  } catch (e) {}
+})();
+
+const els = {
+  urlBefore:     document.getElementById('urlBefore'),
+  urlAfter:      document.getElementById('urlAfter'),
+  loadBtn:       document.getElementById('loadBtn'),
+  imgBefore:     document.getElementById('imgBefore'),
+  imgAfter:      document.getElementById('imgAfter'),
+  clip:          document.getElementById('clip'),
+  handle:        document.getElementById('handle'),
+  preview:       document.getElementById('preview'),
+  empty:         document.getElementById('emptyState'),
+  copyEmbed:     document.getElementById('copyEmbedBtn'),
+  status:        document.getElementById('status'),
+  back:          document.getElementById('backBtn'),
+  full:          document.getElementById('fullscreenBtn'),
+  captionText:   document.getElementById('captionText'),
+  photographer:  document.getElementById('photographerText'),
+  openLabrador:  document.getElementById('openLabradorBtn'),
+  projectSelect: document.getElementById('projectSelect'),
+  saveProject:   document.getElementById('saveProjectBtn'),
+  stage:         document.getElementById('stage'),
+  tbSection:     document.getElementById('tbSection'),
+  tbList:        document.getElementById('tbList'),
+  addTbBtnDark:  document.getElementById('addTbBtnDark'),
+  addTbBtnLight: document.getElementById('addTbBtnLight'),
+  sliderLabels:  document.getElementById('sliderLabels'),
+  sliderLabelBefore: document.getElementById('sliderLabelBefore'),
+  sliderLabelAfter:  document.getElementById('sliderLabelAfter'),
+  labelsSection: document.querySelector('.labels-section'),
+  labelsShow:    document.getElementById('labelsShow'),
+  labelBeforeText: document.getElementById('labelBeforeText'),
+  labelAfterText:  document.getElementById('labelAfterText'),
+};
+
+const state = {
+  urlBefore: '',
+  urlAfter: '',
+  loaded: false,
+  sliderPos: 50,
+  aspectRatio: 16/9,
+  textBoxes: [],   // { id, text, x, y, variant: 'light'|'dark', pointer? }
+  labels: { show: true, before: 'Før', after: 'Etter' },
+};
+
+function setStatus(msg, isError) {
+  els.status.textContent = msg || '';
+  els.status.style.color = isError ? '#FFB4B4' : '#fff';
+}
+
+function isValidUrl(s) {
+  try {
+    const u = new URL(s);
+    return u.protocol === 'http:' || u.protocol === 'https:';
+  } catch (e) { return false; }
+}
+
+async function loadImage(url) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('Kunne ikke laste: ' + url));
+    img.crossOrigin = 'anonymous';
+    img.src = url;
+  });
+}
+
+async function loadImages() {
+  const urlB = els.urlBefore.value.trim();
+  const urlA = els.urlAfter.value.trim();
+  if (!urlB || !urlA) {
+    setStatus('Lim inn URL til begge bildene.', true);
+    return;
+  }
+  if (!isValidUrl(urlB) || !isValidUrl(urlA)) {
+    setStatus('Ugyldig URL.', true);
+    return;
+  }
+
+  setStatus('Laster bilder…');
+  try {
+    const [imgB, imgA] = await Promise.all([loadImage(urlB), loadImage(urlA)]);
+    state.urlBefore = urlB;
+    state.urlAfter = urlA;
+    state.aspectRatio = imgA.naturalWidth / imgA.naturalHeight;
+    state.loaded = true;
+    els.imgBefore.src = urlB;
+    els.imgAfter.src = urlA;
+    els.empty.style.display = 'none';
+    els.preview.style.display = 'flex';
+    els.tbSection.style.display = 'flex';
+    applyAspectRatio();
+    updateClip();
+    renderTextBoxes();
+    updateExportButtons();
+    setStatus(`Lastet · ${imgA.naturalWidth}×${imgA.naturalHeight}`);
+    scheduleSaveState();
+  } catch (e) {
+    setStatus(e.message, true);
+    state.loaded = false;
+    updateExportButtons();
+  }
+}
+
+function applyAspectRatio() {
+  // Sett preview-elementet til riktig aspect ratio
+  els.preview.style.aspectRatio = state.aspectRatio.toFixed(4);
+  els.preview.style.maxHeight = '100%';
+  els.preview.style.height = 'auto';
+}
+
+function updateClip() {
+  els.clip.style.clipPath = `inset(0 ${100 - state.sliderPos}% 0 0)`;
+  els.handle.style.left = state.sliderPos + '%';
+}
+
+// ============================================================
+//  Tekstbokser
+// ============================================================
+function addTextBox(variant) {
+  const id = 'tb_' + Math.random().toString(36).slice(2, 7);
+  const v = (variant === 'light' || variant === 'dark') ? variant : 'dark';
+  state.textBoxes.push({
+    id,
+    text: v === 'dark' ? 'Overskrift' : 'Beskrivelse her…',
+    x: 50,
+    y: 30 + (state.textBoxes.length % 4) * 12,
+    variant: v,
+  });
+  renderTextBoxes();
+  scheduleSaveState();
+}
+
+function deleteTextBox(id) {
+  state.textBoxes = state.textBoxes.filter(t => t.id !== id);
+  renderTextBoxes();
+  scheduleSaveState();
+}
+
+function toggleVariant(id) {
+  const tb = state.textBoxes.find(t => t.id === id);
+  if (!tb) return;
+  tb.variant = tb.variant === 'light' ? 'dark' : 'light';
+  renderTextBoxes();
+  scheduleSaveState();
+}
+
+function renderTextBoxes() {
+  // Sidebar-rader. Dark = overskrift (input), Light = beskrivelse (textarea + peker)
+  els.tbList.innerHTML = '';
+  state.textBoxes.forEach(tb => {
+    const row = document.createElement('div');
+    row.className = 'tb-row';
+    const chip = tb.variant === 'dark'
+      ? `<button class="tb-row__chip tb-row__chip--dark" data-act="toggle" data-id="${tb.id}" title="Bytt til beskrivelse">H</button>`
+      : `<button class="tb-row__chip tb-row__chip--light" data-act="toggle" data-id="${tb.id}" title="Bytt til overskrift">¶</button>`;
+    const field = tb.variant === 'dark'
+      ? `<input class="tb-row__input" value="${escapeHtml(tb.text)}" data-id="${tb.id}" data-act="edit" placeholder="Overskrift">`
+      : `<textarea class="tb-row__input" rows="2" data-id="${tb.id}" data-act="edit" placeholder="Lengre forklaring…">${escapeHtml(tb.text)}</textarea>`;
+    const pointerBtn = `<button class="tb-row__btn ${tb.pointer ? 'tb-row__btn--active' : ''}" data-act="pointer" data-id="${tb.id}" title="${tb.pointer ? 'Fjern peker' : 'Legg til peker'}">&gt;</button>`;
+    row.innerHTML = chip + field + pointerBtn + `<button class="tb-row__btn tb-row__btn--del" data-act="del" data-id="${tb.id}" title="Slett">×</button>`;
+    els.tbList.appendChild(row);
+  });
+  els.tbList.onclick = e => {
+    const act = e.target.dataset.act;
+    const id = e.target.dataset.id;
+    if (act === 'del') deleteTextBox(id);
+    if (act === 'toggle') toggleVariant(id);
+    if (act === 'pointer') togglePointer(id);
+  };
+  els.tbList.oninput = e => {
+    if (e.target.dataset.act === 'edit') {
+      const tb = state.textBoxes.find(t => t.id === e.target.dataset.id);
+      if (tb) { tb.text = e.target.value; renderOverlays(); scheduleSaveState(); }
+    }
+  };
+  renderOverlays();
+}
+
+function togglePointer(id) {
+  const tb = state.textBoxes.find(t => t.id === id);
+  if (!tb) return;
+  if (tb.pointer) {
+    tb.pointer = null;
+  } else {
+    // Plasser peker litt diagonalt fra boksen som start
+    tb.pointer = {
+      x: Math.min(95, tb.x + 20),
+      y: Math.min(95, tb.y + 15),
+    };
+  }
+  renderTextBoxes();
+  scheduleSaveState();
+}
+
+function renderOverlays() {
+  // Fjern gamle overlays + arrow-SVG + sirkler
+  els.preview.querySelectorAll('.tb-overlay, .tb-pointer-dot, .tb-pointer-circle, .tb-arrow-svg').forEach(n => n.remove());
+  // Klipperen er der piler + sirkler skal ligge (de skal være innenfor bildet)
+  const clipper = els.preview.querySelector('.slider-clipper');
+
+  // Alle bokser (uansett variant) kan ha peker
+  const arrows = state.textBoxes.filter(tb => tb.pointer);
+  if (arrows.length && clipper) {
+    // Linjer: SVG med stroke som er "non-scaling" så stroke-tykkelse er konsistent.
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.classList.add('tb-arrow-svg');
+    svg.setAttribute('viewBox', '0 0 100 100');
+    svg.setAttribute('preserveAspectRatio', 'none');
+    svg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:3;';
+    arrows.forEach(tb => {
+      const color = tb.variant === 'dark' ? '#0050fc' : '#fff';
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.setAttribute('x1', tb.x);
+      line.setAttribute('y1', tb.y);
+      line.setAttribute('x2', tb.pointer.x);
+      line.setAttribute('y2', tb.pointer.y);
+      line.setAttribute('stroke', color);
+      line.setAttribute('stroke-width', '2.2');
+      line.setAttribute('stroke-linecap', 'round');
+      line.setAttribute('vector-effect', 'non-scaling-stroke');
+      svg.appendChild(line);
+    });
+    clipper.appendChild(svg);
+
+    // Sirkel: HTML-div i clipper (klippes til bilde-grensen) + puls-animasjon
+    arrows.forEach(tb => {
+      const wrap = document.createElement('div');
+      wrap.className = 'tb-pointer-circle tb-pointer-circle--' + tb.variant;
+      wrap.style.left = tb.pointer.x + '%';
+      wrap.style.top = tb.pointer.y + '%';
+      wrap.innerHTML = '<span class="tb-pointer-pulse"></span><span class="tb-pointer-dot-inner"></span>';
+      clipper.appendChild(wrap);
+    });
+  }
+
+  // Tekstbokser — styling kommer fra CSS (.tb-overlay--light/dark)
+  state.textBoxes.forEach(tb => {
+    const el = document.createElement('div');
+    el.className = 'tb-overlay tb-overlay--' + tb.variant;
+    el.textContent = tb.text;
+    el.style.left = tb.x + '%';
+    el.style.top = tb.y + '%';
+    el.dataset.id = tb.id;
+    attachOverlayDrag(el, tb, 'box');
+    els.preview.appendChild(el);
+  });
+
+  // Gjør de nyopprettede sirklene dragbare
+  els.preview.querySelectorAll('.tb-pointer-circle').forEach((dot, idx) => {
+    attachOverlayDrag(dot, arrows[idx], 'pointer');
+  });
+}
+
+function attachOverlayDrag(el, tb, kind) {
+  el.addEventListener('mousedown', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = els.preview.getBoundingClientRect();
+    // Mål boksen NÅ — renderOverlays() inni move fjerner el fra DOM, så vi kan
+    // ikke kalle el.getBoundingClientRect() der (returnerer 0×0 etter første frame).
+    const boxRect0 = el.getBoundingClientRect();
+    const halfPctX = rect.width > 0 ? (boxRect0.width / 2) / rect.width * 100 : 0;
+    const halfPctY = rect.height > 0 ? (boxRect0.height / 2) / rect.height * 100 : 0;
+    // For peker-prikker: bruke sirkelens radius i prosent — så hele sirkelen
+    // forblir innenfor kart-arealet, ikke bare senteret.
+    const dotRadPctX = rect.width > 0 ? 14 / rect.width * 100 : 0;
+    const dotRadPctY = rect.height > 0 ? 14 / rect.height * 100 : 0;
+    const move = ev => {
+      let x = ((ev.touches ? ev.touches[0].clientX : ev.clientX) - rect.left) / rect.width * 100;
+      let y = ((ev.touches ? ev.touches[0].clientY : ev.clientY) - rect.top) / rect.height * 100;
+      if (kind === 'pointer') {
+        tb.pointer.x = Math.max(dotRadPctX, Math.min(100 - dotRadPctX, x));
+        tb.pointer.y = Math.max(dotRadPctY, Math.min(100 - dotRadPctY, y));
+      } else {
+        // Tekstboks: HOLD HELE boksen innenfor kart-bredden horisontalt.
+        // Vertikalt: senteret klippes til 0–100 — litt overlapp på topp/bunn
+        // er OK (brukerens valg).
+        tb.x = Math.max(halfPctX, Math.min(100 - halfPctX, x));
+        tb.y = Math.max(0, Math.min(100, y));
+      }
+      renderOverlays();   // re-render så streken oppdateres
+    };
+    const up = () => {
+      document.removeEventListener('mousemove', move);
+      document.removeEventListener('mouseup', up);
+      scheduleSaveState();
+    };
+    document.addEventListener('mousemove', move);
+    document.addEventListener('mouseup', up);
+  });
+}
+
+els.addTbBtnDark.addEventListener('click', () => addTextBox('dark'));
+els.addTbBtnLight.addEventListener('click', () => addTextBox('light'));
+
+// Drag-håndtering for slider
+function startDrag(e) {
+  e.preventDefault();
+  const rect = els.preview.getBoundingClientRect();
+  const move = (ev) => {
+    const x = (ev.touches ? ev.touches[0].clientX : ev.clientX) - rect.left;
+    const pct = Math.max(0, Math.min(100, (x / rect.width) * 100));
+    state.sliderPos = pct;
+    updateClip();
+  };
+  const up = () => {
+    document.removeEventListener('mousemove', move);
+    document.removeEventListener('mouseup', up);
+    document.removeEventListener('touchmove', move);
+    document.removeEventListener('touchend', up);
+    scheduleSaveState();
+  };
+  document.addEventListener('mousemove', move);
+  document.addEventListener('mouseup', up);
+  document.addEventListener('touchmove', move, { passive: false });
+  document.addEventListener('touchend', up);
+  move(e);
+}
+els.handle.addEventListener('mousedown', startDrag);
+els.handle.addEventListener('touchstart', startDrag, { passive: false });
+els.preview.addEventListener('click', startDrag);
+
+function escapeHtml(s) {
+  return String(s).replace(/[<>&"]/g, c => ({
+    '<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'
+  }[c]));
+}
+
+function buildEmbedSnippet() {
+  const urlB = escapeHtml(state.urlBefore);
+  const urlA = escapeHtml(state.urlAfter);
+  const id = 'ffes-' + Math.random().toString(36).slice(2, 8);
+  const aspect = state.aspectRatio.toFixed(4);
+  const caption = (els.captionText.value || '').trim();
+  const photographer = (els.photographer.value || '').trim();
+  const hasCaption = caption || photographer;
+
+  const captionParts = [];
+  if (caption) captionParts.push(`
+    <!-- ▶ BILDETEKST -->
+    <figcaption itemprop="caption">${escapeHtml(caption)}</figcaption>`);
+  if (photographer) captionParts.push(`
+    <!-- ▶ FOTOGRAF / KILDE ("Foto: " kommer automatisk) -->
+    <figcaption itemprop="author" data-byline-prefix="Foto:">${escapeHtml(photographer)}</figcaption>`);
+
+  const innerCaption = hasCaption ? `
+
+  <div class="caption ffes-caption" style="margin-top:1.2rem;box-sizing:border-box;">${captionParts.join('')}
+  </div>` : '';
+
+  const open = hasCaption ? `<figure style="margin:0;">` : '';
+  const close = hasCaption ? `</figure>` : '';
+
+  return `<!-- ============================================
+     FAKTISK · FØR OG ETTER SLIDER
+     Endre teksten i feltene merket med ▶
+     ============================================ -->
+${open}
+  <style>
+    .ffes-container { container-type: inline-size; }
+    @container (min-width: 1080px) {
+      .ffes-container > .caption.ffes-caption {
+        padding-left: calc(50cqw - var(--lab_page_width, 68rem) / 2 + 0.7rem) !important;
+        padding-right: calc(50cqw - var(--lab_page_width, 68rem) / 2 + 0.7rem) !important;
+      }
+    }
+    @media (max-width: 768px) {
+      .ffes-container > .caption.ffes-caption {
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+      }
+    }
+    .ffes-container { padding: 0.7rem 0; }
+    .ffes-stage-${id} {
+      position: relative;
+      width: 100%;
+      aspect-ratio: ${aspect};
+      /* INGEN overflow:hidden — tekstbokser kan stikke ut.
+         Klippingen skjer på .ffes-stage__clip-${id} innenfor. */
+      user-select: none;
+      touch-action: none;
+    }
+    .ffes-stage__clip-${id} {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      border-radius: 8px;
+      background: #1a1a1a;
+    }
+    .ffes-labels-${id} {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      gap: 8px;
+      box-sizing: border-box;
+    }
+    .ffes-labels-${id} > span {
+      background: #0050FC;
+      color: #fff;
+      font-family: "Unica77", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      font-weight: bold;
+      font-size: clamp(14px, 1.8cqw, 26px);
+      padding: 0.3em 0.65em;
+      border-radius: 5px;
+      line-height: 1.25;
+    }
+    /* Når embed strekkes ut til full bredde i Labrador — match caption-padding
+       så Før/Etter-boksene følger samme tekst-kolonne som bildeteksten. */
+    @container (min-width: 1080px) {
+      .ffes-container > .ffes-labels-${id} {
+        padding-left: calc(50cqw - var(--lab_page_width, 68rem) / 2 + 0.7rem);
+        padding-right: calc(50cqw - var(--lab_page_width, 68rem) / 2 + 0.7rem);
+      }
+    }
+    @media (max-width: 768px) {
+      .ffes-container > .ffes-labels-${id} {
+        padding-left: 1rem;
+        padding-right: 1rem;
+        margin-bottom: 18px;
+      }
+      .ffes-container > .ffes-labels-${id} > span {
+        font-size: clamp(13px, 3.4cqw, 18px);
+      }
+    }
+    .ffes-stage-${id} img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      pointer-events: none;
+      user-select: none;
+    }
+    .ffes-stage-${id} .ffes-clip {
+      position: absolute;
+      inset: 0;
+      clip-path: inset(0 50% 0 0);
+      pointer-events: none;
+      will-change: clip-path;
+    }
+    .ffes-stage-${id} .ffes-handle {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 50%;
+      width: clamp(5px, 0.9cqw, 9px);
+      background: #fff;
+      transform: translateX(-50%);
+      cursor: ew-resize;
+      z-index: 2;
+      will-change: left;
+    }
+    .ffes-stage-${id} .ffes-knob {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: clamp(28px, 4.2cqw, 38px);
+      height: clamp(20px, 3cqw, 28px);
+      background: #fff;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    }
+    .ffes-stage-${id} .ffes-knob svg {
+      width: 78%;
+      height: 78%;
+    }
+    .ffes-stage-${id} .ffes-tb {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      padding: 0.3em 0.65em;
+      border-radius: 5px;
+      font-family: "Unica77", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      font-weight: bold;
+      font-size: clamp(14px, 1.8cqw, 26px);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      pointer-events: none;
+      z-index: 3;
+      line-height: 1.25;
+    }
+    .ffes-stage-${id} .ffes-tb--dark {
+      background: #0050fc;
+      color: #fff;
+      white-space: nowrap;
+    }
+    .ffes-stage-${id} .ffes-tb--light {
+      background: #D9D9D9;
+      color: #212121;
+      white-space: pre-wrap;
+      max-width: 38%;
+      font-weight: normal;
+      font-size: clamp(13px, 1.6cqw, 22px);
+    }
+    /* Tekstbokser ligger i en egen overlay-container som krymper med 1rem-marg
+       på mobil — selve bildet (stage) holder seg full bredde. */
+    .ffes-tb-area-${id} {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 4;
+    }
+    .ffes-tb-area-${id} > * { pointer-events: auto; }
+    @media (max-width: 768px) {
+      .ffes-stage-${id} > .ffes-tb-area-${id} { inset: 0 1rem; }
+    }
+    @media (max-width: 600px) {
+      .ffes-stage-${id} .ffes-tb--light {
+        max-width: 60%;
+      }
+      .ffes-stage-${id} .ffes-tb--dark {
+        max-width: 60%;
+        white-space: normal;
+      }
+    }
+    .ffes-stage-${id} .ffes-arrow {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 2;
+    }
+    .ffes-stage-${id} .ffes-arrow line {
+      stroke-width: 2.2;
+      stroke-linecap: round;
+      vector-effect: non-scaling-stroke;
+    }
+    /* Peker-sirkel (HTML-div, bevarer proporsjon) + puls-ring.
+       Farge styres per prikk via --dot-color. */
+    .ffes-stage-${id} .ffes-dot {
+      position: absolute;
+      width: clamp(16px, 2.2cqw, 28px);
+      height: clamp(16px, 2.2cqw, 28px);
+      transform: translate(-50%, -50%);
+      z-index: 3;
+      pointer-events: none;
+      --dot-color: #fff;
+    }
+    .ffes-stage-${id} .ffes-dot::before,
+    .ffes-stage-${id} .ffes-dot::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      background: var(--dot-color);
+    }
+    .ffes-stage-${id} .ffes-dot::before {
+      box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+      z-index: 2;
+    }
+    .ffes-stage-${id} .ffes-dot::after {
+      opacity: 0.55;
+      animation: ffes-pulse-${id} 1.8s ease-out infinite;
+      z-index: 1;
+    }
+    @keyframes ffes-pulse-${id} {
+      0%   { transform: scale(1);   opacity: 0.55; }
+      80%  { transform: scale(2.6); opacity: 0;    }
+      100% { transform: scale(2.6); opacity: 0;    }
+    }
+  </style>
+  <!-- ▶ BILDER — bytt ut URL-ene under for å bruke andre bilder -->
+  <div class="ffes-container">${state.labels.show ? `
+    <!-- ▶ FØR / ETTER-BOKSER — endre teksten her, eller fjern hele blokken for å skjule -->
+    <div class="ffes-labels-${id}">
+      <span>${escapeHtml(state.labels.before || 'Før')}</span>
+      <span>${escapeHtml(state.labels.after || 'Etter')}</span>
+    </div>` : ''}
+    <div class="ffes-stage-${id}" id="${id}" aria-label="Før og etter sammenligning — dra slideren for å bytte mellom bildene">
+      <!-- Inner clipper: holder bilder, slider-handle og peker-elementer innenfor bilde-rammen.
+           Tekstboksene ligger UTENFOR denne (men inne i stage), og kan stikke ut. -->
+      <div class="ffes-stage__clip-${id}">
+        <img src="${urlA}" alt="" loading="lazy">
+        <div class="ffes-clip">
+          <img src="${urlB}" alt="" loading="lazy">
+        </div>
+        <div class="ffes-handle">
+          <div class="ffes-knob">
+            <svg viewBox="0 0 229.48 102.71" aria-hidden="true">
+              <path fill="#0050fc" d="M225.98,45.29L149.18.95c-4.67-2.69-10.5.67-10.5,6.06v88.69c0,5.39,5.83,8.76,10.5,6.06l76.8-44.34c4.67-2.69,4.67-9.43,0-12.12Z"/>
+              <path fill="#0050fc" d="M3.5,45.29L80.3.95c4.67-2.69,10.5.67,10.5,6.06v88.69c0,5.39-5.83,8.76-10.5,6.06L3.5,57.42c-4.67-2.69-4.67-9.43,0-12.12Z"/>
+            </svg>
+          </div>
+        </div>${(() => {
+          // Alle bokser (overskrift OG beskrivelse) kan ha peker.
+          // Linje + sirkel får samme farge som boksen den utgår fra.
+          const arrows = state.textBoxes.filter(tb => tb.pointer);
+          if (!arrows.length) return '';
+          const colorOf = tb => tb.variant === 'dark' ? '#0050fc' : '#fff';
+          const lines = `
+        <svg class="ffes-arrow" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${arrows.map(tb => `
+          <line x1="${tb.x.toFixed(2)}" y1="${tb.y.toFixed(2)}" x2="${tb.pointer.x.toFixed(2)}" y2="${tb.pointer.y.toFixed(2)}" stroke="${colorOf(tb)}"/>`).join('')}
+        </svg>`;
+          const dots = arrows.map(tb => `
+        <div class="ffes-dot" style="left:${tb.pointer.x.toFixed(2)}%;top:${tb.pointer.y.toFixed(2)}%;--dot-color:${colorOf(tb)};"></div>`).join('');
+          return lines + dots;
+        })()}
+      </div>${state.textBoxes.length ? `
+      <!-- Tekstbokser ligger i egen overlay-container som krymper med 1rem-marg på mobil -->
+      <div class="ffes-tb-area-${id}">${state.textBoxes.map(tb => `
+        <!-- ▶ ${tb.variant === 'dark' ? 'OVERSKRIFT' : 'BESKRIVELSE'} — endre teksten her -->
+        <div class="ffes-tb ffes-tb--${tb.variant}" style="left:${tb.x.toFixed(2)}%;top:${tb.y.toFixed(2)}%;">${escapeHtml(tb.text)}</div>`).join('')}
+      </div>` : ''}
+    </div>${innerCaption}
+  </div>
+${close}
+<script>
+(function(){
+  var stage = document.getElementById('${id}');
+  if(!stage) return;
+  var clip = stage.querySelector('.ffes-clip');
+  var handle = stage.querySelector('.ffes-handle');
+  var pos = 50;
+  function setPos(pct){
+    pos = Math.max(0, Math.min(100, pct));
+    clip.style.clipPath = 'inset(0 ' + (100-pos) + '% 0 0)';
+    handle.style.left = pos + '%';
+  }
+  function move(ev){
+    var rect = stage.getBoundingClientRect();
+    var x = (ev.touches ? ev.touches[0].clientX : ev.clientX) - rect.left;
+    setPos((x / rect.width) * 100);
+    if(ev.cancelable) ev.preventDefault();
+  }
+  function startDrag(e){
+    move(e);
+    document.addEventListener('mousemove', move);
+    document.addEventListener('touchmove', move, {passive:false});
+    document.addEventListener('mouseup', endDrag);
+    document.addEventListener('touchend', endDrag);
+  }
+  function endDrag(){
+    document.removeEventListener('mousemove', move);
+    document.removeEventListener('touchmove', move);
+    document.removeEventListener('mouseup', endDrag);
+    document.removeEventListener('touchend', endDrag);
+  }
+  stage.addEventListener('mousedown', startDrag);
+  stage.addEventListener('touchstart', startDrag, {passive:false});
+})();
+</script>
+`;
+}
+
+function updateExportButtons() {
+  els.copyEmbed.disabled = !state.loaded;
+}
+
+els.loadBtn.addEventListener('click', loadImages);
+
+els.copyEmbed.addEventListener('click', async () => {
+  if (!state.loaded) return;
+  const snippet = buildEmbedSnippet();
+  try {
+    await window.faktisk.copyToClipboard(snippet);
+    const orig = els.copyEmbed.textContent;
+    els.copyEmbed.textContent = '✅ Kopiert!';
+    setStatus('Embed-koden er kopiert.');
+    setTimeout(() => { els.copyEmbed.textContent = orig; }, 2000);
+  } catch (e) {
+    setStatus('Kunne ikke kopiere: ' + e.message, true);
+  }
+});
+
+els.back.addEventListener('click', async () => { await window.faktisk.goHome(); });
+els.full.addEventListener('click', async () => { await window.faktisk.toggleFullscreen(); });
+els.openLabrador.addEventListener('click', async () => {
+  await window.faktisk.openExternal('https://labrador.faktisk.no/settings/upload-file');
+});
+
+// Arkivering
+let isRestoring = false;
+function serializeState() {
+  return {
+    urlBefore: els.urlBefore.value,
+    urlAfter: els.urlAfter.value,
+    sliderPos: state.sliderPos,
+    textBoxes: state.textBoxes,
+    captionText: els.captionText.value,
+    photographer: els.photographer.value,
+    labels: state.labels,
+  };
+}
+async function applyState(saved) {
+  if (!saved) return;
+  isRestoring = true;
+  try {
+    els.captionText.value = saved.captionText || '';
+    els.photographer.value = saved.photographer || '';
+    if (saved.labels && typeof saved.labels === 'object') {
+      state.labels = {
+        show: saved.labels.show !== false,
+        before: saved.labels.before || 'Før',
+        after:  saved.labels.after  || 'Etter',
+      };
+      els.labelsShow.checked      = state.labels.show;
+      els.labelBeforeText.value   = state.labels.before;
+      els.labelAfterText.value    = state.labels.after;
+      renderSliderLabels();
+    }
+    if (saved.urlBefore && saved.urlAfter) {
+      els.urlBefore.value = saved.urlBefore;
+      els.urlAfter.value = saved.urlAfter;
+      await loadImages();
+      if (state.loaded && typeof saved.sliderPos === 'number') {
+        state.sliderPos = saved.sliderPos;
+        updateClip();
+      }
+      if (Array.isArray(saved.textBoxes)) {
+        state.textBoxes = saved.textBoxes;
+        renderTextBoxes();
+      }
+    }
+  } finally {
+    isRestoring = false;
+  }
+}
+
+function renderSliderLabels() {
+  els.sliderLabelBefore.textContent = state.labels.before;
+  els.sliderLabelAfter.textContent  = state.labels.after;
+  els.sliderLabels.style.display = state.labels.show ? 'flex' : 'none';
+  if (els.labelsSection) {
+    els.labelsSection.classList.toggle('is-off', !state.labels.show);
+  }
+}
+let saveTimer = null;
+function scheduleSaveState() {
+  if (isRestoring) return;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    window.faktisk.stateSave(PLUGIN_ID, serializeState()).catch(console.error);
+  }, 400);
+}
+['input', 'change'].forEach(ev => {
+  els.urlBefore.addEventListener(ev, scheduleSaveState);
+  els.urlAfter.addEventListener(ev, scheduleSaveState);
+  els.captionText.addEventListener(ev, scheduleSaveState);
+  els.photographer.addEventListener(ev, scheduleSaveState);
+});
+
+// Før/Etter-bokser over bildene
+els.labelsShow.addEventListener('change', () => {
+  state.labels.show = els.labelsShow.checked;
+  renderSliderLabels();
+  scheduleSaveState();
+});
+els.labelBeforeText.addEventListener('input', () => {
+  state.labels.before = els.labelBeforeText.value || 'Før';
+  renderSliderLabels();
+  scheduleSaveState();
+});
+els.labelAfterText.addEventListener('input', () => {
+  state.labels.after = els.labelAfterText.value || 'Etter';
+  renderSliderLabels();
+  scheduleSaveState();
+});
+// Initial render (basert på defaults i state)
+renderSliderLabels();
+
+async function refreshProjectList() {
+  try {
+    const res = await window.faktisk.projectList(PLUGIN_ID);
+    if (!res.ok) return;
+    const sel = els.projectSelect;
+    while (sel.options.length > 1) sel.remove(1);
+    res.projects.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.fileId;
+      opt.textContent = p.name;
+      sel.appendChild(opt);
+    });
+  } catch (e) { console.error(e); }
+}
+els.saveProject.addEventListener('click', async () => {
+  const defaultName = (els.captionText.value || '').slice(0, 40).trim()
+    || `Slider ${new Date().toLocaleDateString('no')}`;
+  const name = await window.faktiskDialog.prompt('Lagre prosjekt som:', defaultName);
+  if (!name || !name.trim()) return;
+  const res = await window.faktisk.projectSave(PLUGIN_ID, name.trim(), serializeState());
+  if (res.ok) {
+    setStatus('Lagret: «' + res.name + '».');
+    await refreshProjectList();
+  }
+});
+els.projectSelect.addEventListener('change', async () => {
+  const fileId = els.projectSelect.value;
+  if (!fileId) return;
+  const res = await window.faktisk.projectLoad(PLUGIN_ID, fileId);
+  if (res.ok && res.state) {
+    setStatus('Åpner «' + res.name + '»…');
+    await applyState(res.state);
+  }
+});
+
+(async function init() {
+  updateExportButtons();
+  await refreshProjectList();
+  const pending = localStorage.getItem('faktisk-pending-project');
+  if (pending) {
+    try {
+      const { pluginId, fileId } = JSON.parse(pending);
+      localStorage.removeItem('faktisk-pending-project');
+      if (pluginId === PLUGIN_ID) {
+        const res = await window.faktisk.projectLoad(pluginId, fileId);
+        if (res.ok && res.state) {
+          await applyState(res.state);
+          els.projectSelect.value = fileId;
+          return;
+        }
+      }
+    } catch (e) {}
+  }
+  try {
+    const res = await window.faktisk.stateLoad(PLUGIN_ID);
+    if (res.ok && res.state) await applyState(res.state);
+  } catch (e) {}
+})();

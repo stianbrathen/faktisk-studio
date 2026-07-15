@@ -368,12 +368,19 @@ function buildEmbedSnippet() {
   const open = hasCaption ? `<figure style="margin:0;">` : '';
   const close = hasCaption ? `</figure>` : '';
 
+  // Base-CSS med design-tokens fra shared/embed-tokens.js.
+  // Inkluderer --fk-* CSS-variabler + arv-standarder for font/color.
+  // Definert på .ffes-container så alle underelementer arver.
+  const baseCss = (typeof window !== 'undefined' && window.FaktiskEmbedBase)
+    ? window.FaktiskEmbedBase.getBaseCss('ffes-container')
+    : '';
+
   return `<!-- ============================================
      FAKTISK · FØR OG ETTER SLIDER
      Endre teksten i feltene merket med ▶
      ============================================ -->
 ${open}
-  <style>
+  <style>${baseCss}
     .ffes-container { container-type: inline-size; }
     @container (min-width: 1080px) {
       .ffes-container > .caption.ffes-caption {
@@ -413,10 +420,10 @@ ${open}
       box-sizing: border-box;
     }
     .ffes-labels-${id} > span {
-      background: #0050FC;
-      color: #fff;
-      font-family: "Haas Grot Text 75 Bold", "Helvetica Neue", Helvetica, Arial, sans-serif;
-      font-weight: bold;
+      background: var(--fk-blue);
+      color: var(--fk-white);
+      /* font-family/weight arves fra .ffes-container (base-CSS) */
+      font-weight: var(--fk-fw-bold);
       font-size: clamp(14px, 1.8cqw, 26px);
       padding: 0.3em 0.65em;
       border-radius: 5px;
@@ -492,8 +499,8 @@ ${open}
       transform: translate(-50%, -50%);
       padding: 0.3em 0.65em;
       border-radius: 5px;
-      font-family: "Haas Grot Text 75 Bold", "Helvetica Neue", Helvetica, Arial, sans-serif;
-      font-weight: bold;
+      /* font-family arves fra .ffes-container (base-CSS) */
+      font-weight: var(--fk-fw-bold);
       font-size: clamp(14px, 1.8cqw, 26px);
       box-shadow: 0 2px 6px rgba(0,0,0,0.3);
       pointer-events: none;
@@ -501,13 +508,13 @@ ${open}
       line-height: 1.25;
     }
     .ffes-stage-${id} .ffes-tb--dark {
-      background: #0050fc;
-      color: #fff;
+      background: var(--fk-blue);
+      color: var(--fk-white);
       white-space: nowrap;
     }
     .ffes-stage-${id} .ffes-tb--light {
-      background: #D9D9D9;
-      color: #212121;
+      background: var(--fk-surface);
+      color: var(--fk-ink);
       white-space: pre-wrap;
       max-width: 38%;
       font-weight: normal;
@@ -572,8 +579,14 @@ ${open}
     }
     .ffes-stage-${id} .ffes-dot::after {
       opacity: 0.55;
+    @media (prefers-reduced-motion: reduce) {
+      .ffes-stage-${id} .ffes-dot::after { animation: none !important; }
+    }
       animation: ffes-pulse-${id} 1.8s ease-out infinite;
       z-index: 1;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .ffes-stage-${id} .ffes-dot::after { animation: none !important; }
     }
     @keyframes ffes-pulse-${id} {
       0%   { transform: scale(1);   opacity: 0.55; }
@@ -676,9 +689,9 @@ els.copyEmbed.addEventListener('click', async () => {
   try {
     await window.faktisk.copyToClipboard(snippet);
     const orig = els.copyEmbed.textContent;
-    els.copyEmbed.textContent = '✅ Kopiert!';
+    els.copyEmbed.textContent = '✅ Kopiert! Slå av «Validate input» i Labrador';
     setStatus('Embed-koden er kopiert.');
-    setTimeout(() => { els.copyEmbed.textContent = orig; }, 2000);
+    setTimeout(() => { els.copyEmbed.textContent = orig; }, 4500);
   } catch (e) {
     setStatus('Kunne ikke kopiere: ' + e.message, true);
   }

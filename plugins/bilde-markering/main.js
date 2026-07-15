@@ -113,13 +113,16 @@ function applyAspectRatio() {
 function addTextBox(variant) {
   const id = 'tb_' + Math.random().toString(36).slice(2, 7);
   const v = (variant === 'light' || variant === 'dark') ? variant : 'dark';
-  state.textBoxes.push({
+  const tb = {
     id,
     text: v === 'dark' ? 'Overskrift' : 'Beskrivelse her…',
     x: 50,
     y: 30 + (state.textBoxes.length % 4) * 12,
     variant: v,
-  });
+  };
+  // Light-bokser har justerbar bredde (prosent av container)
+  if (v === 'light') tb.width = 28;
+  state.textBoxes.push(tb);
   renderTextBoxes();
   scheduleSaveState();
 }
@@ -134,20 +137,28 @@ function toggleVariant(id) {
   const tb = state.textBoxes.find(t => t.id === id);
   if (!tb) return;
   tb.variant = tb.variant === 'light' ? 'dark' : 'light';
+  if (tb.variant === 'light' && !tb.width) tb.width = 28;
   renderTextBoxes();
   scheduleSaveState();
 }
 
+// Cycle peker-stil: ingen → fylt → åpen ring → ingen
 function togglePointer(id) {
   const tb = state.textBoxes.find(t => t.id === id);
   if (!tb) return;
-  if (tb.pointer) {
-    tb.pointer = null;
-  } else {
+  if (!tb.pointer) {
     tb.pointer = {
       x: Math.min(95, tb.x + 20),
       y: Math.min(95, tb.y + 15),
+      style: 'filled',
+      radius: 2.5,   // prosent av bilde-bredden
     };
+  } else if (tb.pointer.style === 'filled') {
+    tb.pointer.style = 'open';
+    // Når den blir åpen ring, gjør den litt større som standard så den er synlig
+    if (!tb.pointer.radius || tb.pointer.radius < 3) tb.pointer.radius = 4;
+  } else {
+    tb.pointer = null;
   }
   renderTextBoxes();
   scheduleSaveState();
@@ -164,7 +175,9 @@ function renderTextBoxes() {
     const field = tb.variant === 'dark'
       ? `<input class="tb-row__input" value="${escapeHtml(tb.text)}" data-id="${tb.id}" data-act="edit" placeholder="Overskrift">`
       : `<textarea class="tb-row__input" rows="2" data-id="${tb.id}" data-act="edit" placeholder="Lengre forklaring…">${escapeHtml(tb.text)}</textarea>`;
-    const pointerBtn = `<button class="tb-row__btn ${tb.pointer ? 'tb-row__btn--active' : ''}" data-act="pointer" data-id="${tb.id}" title="${tb.pointer ? 'Fjern peker' : 'Legg til peker'}">&gt;</button>`;
+    const pointerLabel = !tb.pointer ? '&gt;' : (tb.pointer.style === 'open' ? '&gt;○' : '&gt;●');
+    const pointerTitle = !tb.pointer ? 'Legg til peker' : (tb.pointer.style === 'open' ? 'Klikk for å fjerne' : 'Klikk for åpen ring');
+    const pointerBtn = `<button class="tb-row__btn ${tb.pointer ? 'tb-row__btn--active' : ''}" data-act="pointer" data-id="${tb.id}" title="${pointerTitle}">${pointerLabel}</button>`;
     row.innerHTML = chip + field + pointerBtn + `<button class="tb-row__btn tb-row__btn--del" data-act="del" data-id="${tb.id}" title="Slett">×</button>`;
     els.tbList.appendChild(row);
   });
@@ -194,8 +207,9 @@ function addMarker(style) {
     id,
     x: 50,
     y: 50 + (state.markers.length % 3) * 8,
-    radius: 5,    // prosent av bildebredden
+    radius: 5,
     style: s,
+    color: 'blue',   // 'blue' | 'white'
   });
   renderMarkers();
   scheduleSaveState();
@@ -215,6 +229,14 @@ function toggleMarkerStyle(id) {
   scheduleSaveState();
 }
 
+function toggleMarkerColor(id) {
+  const m = state.markers.find(m => m.id === id);
+  if (!m) return;
+  m.color = m.color === 'white' ? 'blue' : 'white';
+  renderMarkers();
+  scheduleSaveState();
+}
+
 function renderMarkers() {
   els.markList.innerHTML = '';
   state.markers.forEach(m => {
@@ -224,8 +246,10 @@ function renderMarkers() {
       ? `<button class="tb-row__chip tb-row__chip--dark" data-act="toggleMark" data-id="${m.id}" title="Bytt til ring">●</button>`
       : `<button class="tb-row__chip tb-row__chip--light" data-act="toggleMark" data-id="${m.id}" title="Bytt til fylt prikk">○</button>`;
     const sizeLabel = `<span class="tb-row__input" style="display:flex;align-items:center;justify-content:center;font-size:11px;color:#666;background:#D4D4D4;height:24px;">${m.radius.toFixed(1)}%</span>`;
-    row.innerHTML = chip + sizeLabel +
-      `<span></span>` +
+    // Fargevalg-knapp: viser nåværende farge, klikk for å veksle
+    const isWhite = m.color === 'white';
+    const colorBtn = `<button class="tb-row__btn" data-act="toggleColor" data-id="${m.id}" title="Bytt farge (${isWhite ? 'hvit' : 'blå'})" style="background:${isWhite ? '#fff' : '#0050fc'};border:1px solid #888;">${isWhite ? '' : ''}</button>`;
+    row.innerHTML = chip + sizeLabel + colorBtn +
       `<button class="tb-row__btn tb-row__btn--del" data-act="delMark" data-id="${m.id}" title="Slett">×</button>`;
     els.markList.appendChild(row);
   });
@@ -234,6 +258,7 @@ function renderMarkers() {
     const id = e.target.dataset.id;
     if (act === 'delMark') deleteMarker(id);
     if (act === 'toggleMark') toggleMarkerStyle(id);
+    if (act === 'toggleColor') toggleMarkerColor(id);
   };
   renderOverlays();
 }
@@ -247,7 +272,7 @@ function renderOverlays() {
   const clipper = els.preview.querySelector('.slider-clipper');
   if (!clipper) return;
 
-  // 1) Peker-piler fra tekstbokser
+  // 1) Peker-piler fra tekstbokser — streken ender ved ringens kant
   const arrows = state.textBoxes.filter(tb => tb.pointer);
   if (arrows.length) {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -255,13 +280,27 @@ function renderOverlays() {
     svg.setAttribute('viewBox', '0 0 100 100');
     svg.setAttribute('preserveAspectRatio', 'none');
     svg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:3;';
+    // Aspect-justert kant-beregning: prosent på X-akse og Y-akse refererer til
+    // ulike pixel-dimensjoner. For å treffe ringens kant korrekt må vi normalisere
+    // y-komponenten med aspect (W/H) før vi beregner enhets-vektor.
+    const aspect = state.aspectRatio || 1;
     arrows.forEach(tb => {
       const color = tb.variant === 'dark' ? '#0050fc' : '#fff';
+      const r = tb.pointer.radius || 2.5;   // radius i prosent av X-akse (bredde)
+      const dx = tb.pointer.x - tb.x;
+      const dy = tb.pointer.y - tb.y;
+      // Lengde målt i x-enheter (slik at sirkel-radius og lengde er sammenliknbare)
+      const L = Math.sqrt(dx*dx + (dy/aspect)*(dy/aspect));
+      let x2 = tb.pointer.x, y2 = tb.pointer.y;
+      if (L > r) {
+        x2 = tb.pointer.x - (dx / L) * r;
+        y2 = tb.pointer.y - (dy / L) * r;
+      }
       const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
       line.setAttribute('x1', tb.x);
       line.setAttribute('y1', tb.y);
-      line.setAttribute('x2', tb.pointer.x);
-      line.setAttribute('y2', tb.pointer.y);
+      line.setAttribute('x2', x2);
+      line.setAttribute('y2', y2);
       line.setAttribute('stroke', color);
       line.setAttribute('stroke-width', '2.2');
       line.setAttribute('stroke-linecap', 'round');
@@ -272,10 +311,16 @@ function renderOverlays() {
 
     arrows.forEach(tb => {
       const wrap = document.createElement('div');
-      wrap.className = 'tb-pointer-circle tb-pointer-circle--' + tb.variant;
+      const style = tb.pointer.style === 'open' ? 'open' : 'filled';
+      const r = tb.pointer.radius || 2.5;
+      wrap.className = 'tb-pointer-circle tb-pointer-circle--' + tb.variant + ' tb-pointer-circle--' + style;
       wrap.style.left = tb.pointer.x + '%';
       wrap.style.top = tb.pointer.y + '%';
-      wrap.innerHTML = '<span class="tb-pointer-pulse"></span><span class="tb-pointer-dot-inner"></span>';
+      // Bruk prosent-bredde så ringen skalerer med bildet
+      wrap.style.width = (r * 2) + '%';
+      wrap.style.aspectRatio = '1';
+      wrap.style.height = 'auto';
+      wrap.innerHTML = '<span class="tb-pointer-pulse"></span><span class="tb-pointer-dot-inner"></span><div class="tb-pointer-scale" title="Dra for å skalere"></div>';
       clipper.appendChild(wrap);
     });
   }
@@ -283,13 +328,14 @@ function renderOverlays() {
   // 2) Frittstående markeringer (fylte sirkler eller åpne ringer)
   state.markers.forEach(m => {
     const wrap = document.createElement('div');
+    const color = m.color === 'white' ? '#fff' : '#0050fc';
     wrap.className = 'bm-marker bm-marker--' + m.style;
+    wrap.style.setProperty('--mark-color', color);
     wrap.style.left = m.x + '%';
     wrap.style.top = m.y + '%';
     wrap.style.width = (m.radius * 2) + '%';
     wrap.style.aspectRatio = '1';
     wrap.dataset.id = m.id;
-    // Skalerings-håndtak (nedre-høyre)
     const handle = document.createElement('div');
     handle.className = 'bm-marker__scale';
     handle.title = 'Dra for å skalere';
@@ -299,21 +345,32 @@ function renderOverlays() {
     clipper.appendChild(wrap);
   });
 
-  // 3) Tekstbokser — UTENFOR clipper, kan stikke ut
+  // 3) Tekstbokser — UTENFOR clipper, kan stikke ut.
+  // Light-bokser: justerbar bredde + auto-wrap. Drag-håndtak nedre-høyre.
   state.textBoxes.forEach(tb => {
     const el = document.createElement('div');
     el.className = 'tb-overlay tb-overlay--' + tb.variant;
     el.textContent = tb.text;
     el.style.left = tb.x + '%';
     el.style.top = tb.y + '%';
+    if (tb.variant === 'light') {
+      el.style.setProperty('--tb-w', (tb.width || 28) + '%');
+      const handle = document.createElement('div');
+      handle.className = 'tb-overlay__resize';
+      handle.title = 'Dra for å endre bredde';
+      el.appendChild(handle);
+      attachOverlayDrag(handle, tb, 'tb-resize');
+    }
     el.dataset.id = tb.id;
     attachOverlayDrag(el, tb, 'box');
     els.preview.appendChild(el);
   });
 
-  // 4) Gjør peker-sirklene dragbare
+  // 4) Gjør peker-sirklene dragbare (selv flytting) + skalerings-håndtak
   els.preview.querySelectorAll('.tb-pointer-circle').forEach((dot, idx) => {
     attachOverlayDrag(dot, arrows[idx], 'pointer');
+    const handle = dot.querySelector('.tb-pointer-scale');
+    if (handle) attachOverlayDrag(handle, arrows[idx], 'pointer-scale');
   });
 }
 
@@ -327,16 +384,37 @@ function attachOverlayDrag(el, tb, kind) {
     const rect = els.preview.getBoundingClientRect();
     const boxRect0 = el.getBoundingClientRect();
     const halfPctX = rect.width > 0 ? (boxRect0.width / 2) / rect.width * 100 : 0;
-    const dotRadPctX = rect.width > 0 ? 14 / rect.width * 100 : 0;
-    const dotRadPctY = rect.height > 0 ? 14 / rect.height * 100 : 0;
+    // For 'pointer-scale' og 'tb-resize': bevar startverdier
+    const startX = e.touches ? e.touches[0].clientX : e.clientX;
+    const startY = e.touches ? e.touches[0].clientY : e.clientY;
+    const r0 = tb.pointer ? (tb.pointer.radius || 2.5) : 0;
+    const w0 = tb.width || 28;
     const move = ev => {
       let x = ((ev.touches ? ev.touches[0].clientX : ev.clientX) - rect.left) / rect.width * 100;
       let y = ((ev.touches ? ev.touches[0].clientY : ev.clientY) - rect.top) / rect.height * 100;
-      if (kind === 'pointer') {
-        tb.pointer.x = Math.max(dotRadPctX, Math.min(100 - dotRadPctX, x));
-        tb.pointer.y = Math.max(dotRadPctY, Math.min(100 - dotRadPctY, y));
+      if (kind === 'tb-resize') {
+        const cx = ev.touches ? ev.touches[0].clientX : ev.clientX;
+        const dxPct = (cx - startX) / rect.width * 100;
+        // Boks-bredden er sentrert, så for å øke høyre-kant med Δ må vi øke
+        // total bredde med 2*Δ (siden translate(-50%) holder senter)
+        tb.width = Math.max(8, Math.min(80, w0 + dxPct * 2));
+      } else if (kind === 'pointer-scale') {
+        const cx = ev.touches ? ev.touches[0].clientX : ev.clientX;
+        const cy = ev.touches ? ev.touches[0].clientY : ev.clientY;
+        const dxPct = (cx - startX) / rect.width * 100;
+        const dyPct = (cy - startY) / rect.height * 100;
+        const newR = Math.max(1, Math.min(20, r0 + Math.max(dxPct, dyPct)));
+        tb.pointer.radius = newR;
+      } else if (kind === 'pointer') {
+        const r = tb.pointer.radius || 2.5;
+        tb.pointer.x = Math.max(r, Math.min(100 - r, x));
+        tb.pointer.y = Math.max(r, Math.min(100 - r, y));
       } else {
-        tb.x = Math.max(halfPctX, Math.min(100 - halfPctX, x));
+        // Tekstboks: light har deterministisk bredde (tb.width) — vi kan klippe
+        // så hele boksen forblir innenfor preview, uansett innhold.
+        // Dark (overskrift) er kort og kan stikke ut halv-bredde.
+        const halfW = tb.variant === 'light' ? (tb.width || 28) / 2 : 0;
+        tb.x = Math.max(halfW, Math.min(100 - halfW, x));
         tb.y = Math.max(0, Math.min(100, y));
       }
       renderOverlays();
@@ -429,12 +507,18 @@ function buildEmbedSnippet() {
   const open = hasCaption ? `<figure style="margin:0;">` : '';
   const close = hasCaption ? `</figure>` : '';
 
+  // Base-CSS med design-tokens fra shared/embed-tokens.js.
+  // Alle --fk-* CSS-variabler + font/color-arv fra rot-scope.
+  const baseCss = (typeof window !== "undefined" && window.FaktiskEmbedBase)
+    ? window.FaktiskEmbedBase.getBaseCss(`bmrk-container`)
+    : "";
+
   return `<!-- ============================================
      FAKTISK · BILDE MED MARKERING
      Endre teksten i feltene merket med ▶
      ============================================ -->
 ${open}
-  <style>
+  <style>${baseCss}
     .bmrk-container { container-type: inline-size; padding: 0.7rem 0; }
     @container (min-width: 1080px) {
       .bmrk-container > .caption.bmrk-caption {
@@ -473,9 +557,9 @@ ${open}
     .bmrk-stage-${id} .bmrk-tb {
       position: absolute;
       transform: translate(-50%, -50%);
-      padding: 0.3em 0.65em;
+      padding: 0.45em 0.95em;
       border-radius: 5px;
-      font-family: "Haas Grot Text 75 Bold", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      font-family: "Unica77", "Helvetica Neue", Helvetica, Arial, sans-serif;
       font-weight: bold;
       font-size: clamp(14px, 1.8cqw, 26px);
       box-shadow: 0 2px 6px rgba(0,0,0,0.3);
@@ -491,10 +575,12 @@ ${open}
     .bmrk-stage-${id} .bmrk-tb--light {
       background: #D9D9D9;
       color: #212121;
-      white-space: pre-wrap;
-      max-width: 38%;
+      white-space: normal;
+      word-break: break-word;
       font-weight: normal;
       font-size: clamp(13px, 1.6cqw, 22px);
+      /* Bredden settes fra inline --tb-w (brukerens valg). */
+      width: var(--tb-w, 28%);
     }
     .bmrk-tb-area-${id} {
       position: absolute;
@@ -507,10 +593,15 @@ ${open}
       .bmrk-stage-${id} > .bmrk-tb-area-${id} { inset: 0 1rem; }
     }
     @media (max-width: 600px) {
-      .bmrk-stage-${id} .bmrk-tb--light, .bmrk-stage-${id} .bmrk-tb--dark {
-        max-width: 60%;
+      .bmrk-stage-${id} .bmrk-tb--dark {
+        max-width: 70%;
+        white-space: normal;
       }
-      .bmrk-stage-${id} .bmrk-tb--dark { white-space: normal; }
+      /* På mobil overstyrer vi brukerens bredde-valg så teksten ikke radbrukkes.
+         max(brukerens valg, 70%) — brukeren får aldri smalere boks enn 70%. */
+      .bmrk-stage-${id} .bmrk-tb--light {
+        width: max(var(--tb-w, 28%), 70%);
+      }
     }
     .bmrk-stage-${id} .bmrk-arrow {
       position: absolute;
@@ -527,8 +618,6 @@ ${open}
     }
     .bmrk-stage-${id} .bmrk-dot {
       position: absolute;
-      width: clamp(16px, 2.2cqw, 28px);
-      height: clamp(16px, 2.2cqw, 28px);
       transform: translate(-50%, -50%);
       z-index: 3;
       pointer-events: none;
@@ -548,8 +637,26 @@ ${open}
     }
     .bmrk-stage-${id} .bmrk-dot::after {
       opacity: 0.55;
+    @media (prefers-reduced-motion: reduce) {
+      .bmrk-stage-${id} .bmrk-dot::after { animation: none !important; }
+    }
       animation: bmrk-pulse-${id} 1.8s ease-out infinite;
       z-index: 1;
+    }
+    /* Åpen ring: bare border, ingen fyll */
+    .bmrk-stage-${id} .bmrk-dot--open::before {
+      background: transparent;
+      border: clamp(2px, 0.3cqw, 4px) solid var(--dot-color);
+      box-sizing: border-box;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+    }
+    .bmrk-stage-${id} .bmrk-dot--open::after {
+      background: transparent;
+      border: clamp(2px, 0.3cqw, 4px) solid var(--dot-color);
+      box-sizing: border-box;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .bmrk-stage-${id} .bmrk-dot::after { animation: none !important; }
     }
     @keyframes bmrk-pulse-${id} {
       0%   { transform: scale(1);   opacity: 0.55; }
@@ -565,12 +672,12 @@ ${open}
       z-index: 2;
     }
     .bmrk-stage-${id} .bmrk-marker--filled {
-      background: #0050fc;
+      background: var(--mark-color, #0050fc);
       border-radius: 50%;
       box-shadow: 0 2px 6px rgba(0,0,0,0.4);
     }
     .bmrk-stage-${id} .bmrk-marker--open {
-      border: clamp(3px, 0.5cqw, 5px) solid #0050fc;
+      border: clamp(3px, 0.5cqw, 5px) solid var(--mark-color, #0050fc);
       border-radius: 50%;
       box-shadow: 0 2px 6px rgba(0,0,0,0.4);
     }
@@ -583,21 +690,47 @@ ${open}
           const arrows = state.textBoxes.filter(tb => tb.pointer);
           if (!arrows.length) return '';
           const colorOf = tb => tb.variant === 'dark' ? '#0050fc' : '#fff';
+          // Strek ender ved ringens kant — aspect-justert beregning så det
+          // treffer riktig kant uansett bilde-format.
+          const _aspect = state.aspectRatio || 1;
+          const endpoint = tb => {
+            const r = tb.pointer.radius || 2.5;
+            const dx = tb.pointer.x - tb.x;
+            const dy = tb.pointer.y - tb.y;
+            const L = Math.sqrt(dx*dx + (dy/_aspect)*(dy/_aspect));
+            if (L <= r) return { x: tb.pointer.x, y: tb.pointer.y };
+            return { x: tb.pointer.x - (dx/L)*r, y: tb.pointer.y - (dy/L)*r };
+          };
           const lines = `
-        <svg class="bmrk-arrow" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${arrows.map(tb => `
-          <line x1="${tb.x.toFixed(2)}" y1="${tb.y.toFixed(2)}" x2="${tb.pointer.x.toFixed(2)}" y2="${tb.pointer.y.toFixed(2)}" stroke="${colorOf(tb)}"/>`).join('')}
+        <svg class="bmrk-arrow" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${arrows.map(tb => {
+          const ep = endpoint(tb);
+          return `
+          <line x1="${tb.x.toFixed(2)}" y1="${tb.y.toFixed(2)}" x2="${ep.x.toFixed(2)}" y2="${ep.y.toFixed(2)}" stroke="${colorOf(tb)}"/>`;
+        }).join('')}
         </svg>`;
-          const dots = arrows.map(tb => `
-        <div class="bmrk-dot" style="left:${tb.pointer.x.toFixed(2)}%;top:${tb.pointer.y.toFixed(2)}%;--dot-color:${colorOf(tb)};"></div>`).join('');
+          const dots = arrows.map(tb => {
+            const r = tb.pointer.radius || 2.5;
+            return `
+        <div class="bmrk-dot ${tb.pointer.style === 'open' ? 'bmrk-dot--open' : ''}" style="left:${tb.pointer.x.toFixed(2)}%;top:${tb.pointer.y.toFixed(2)}%;width:${(r*2).toFixed(2)}%;aspect-ratio:1;height:auto;--dot-color:${colorOf(tb)};"></div>`;
+          }).join('');
           return lines + dots;
-        })()}${state.markers.map(m => `
-        <!-- ▶ MARKERING (${m.style === 'filled' ? 'fylt' : 'åpen ring'}) — flytt eller skaler -->
-        <div class="bmrk-marker bmrk-marker--${m.style}" style="left:${m.x.toFixed(2)}%;top:${m.y.toFixed(2)}%;width:${(m.radius*2).toFixed(2)}%;"></div>`).join('')}
+        })()}${state.markers.map(m => {
+          const c = m.color === 'white' ? '#fff' : '#0050fc';
+          return `
+        <!-- ▶ MARKERING (${m.style === 'filled' ? 'fylt' : 'åpen ring'}, ${m.color || 'blå'}) -->
+        <div class="bmrk-marker bmrk-marker--${m.style}" style="left:${m.x.toFixed(2)}%;top:${m.y.toFixed(2)}%;width:${(m.radius*2).toFixed(2)}%;--mark-color:${c};"></div>`;
+        }).join('')}
       </div>${state.textBoxes.length ? `
       <!-- Tekstbokser — kan stikke ut over bildet på mobil holdes innenfor 1rem -->
-      <div class="bmrk-tb-area-${id}">${state.textBoxes.map(tb => `
+      <div class="bmrk-tb-area-${id}">${state.textBoxes.map(tb => {
+        // For light-bokser: bredden settes som CSS-variabel så mobil-media-query
+        // kan øke den til lesbar minstebredde uten å miste brukerens valg.
+        const widthVar = tb.variant === 'light' && tb.width ? `--tb-w:${tb.width.toFixed(2)}%;` : '';
+        const cleanText = String(tb.text || '').replace(/\s+/g, ' ').trim();
+        return `
         <!-- ▶ ${tb.variant === 'dark' ? 'OVERSKRIFT' : 'BESKRIVELSE'} — endre teksten her -->
-        <div class="bmrk-tb bmrk-tb--${tb.variant}" style="left:${tb.x.toFixed(2)}%;top:${tb.y.toFixed(2)}%;">${escapeHtml(tb.text)}</div>`).join('')}
+        <div class="bmrk-tb bmrk-tb--${tb.variant}" style="left:${tb.x.toFixed(2)}%;top:${tb.y.toFixed(2)}%;${widthVar}">${escapeHtml(cleanText)}</div>`;
+      }).join('')}
       </div>` : ''}
     </div>${innerCaption}
   </div>
@@ -617,9 +750,9 @@ els.copyEmbed.addEventListener('click', async () => {
   try {
     await window.faktisk.copyToClipboard(snippet);
     const orig = els.copyEmbed.textContent;
-    els.copyEmbed.textContent = '✅ Kopiert!';
+    els.copyEmbed.textContent = '✅ Kopiert! Slå av «Validate input» i Labrador';
     setStatus('Embed-koden er kopiert.');
-    setTimeout(() => { els.copyEmbed.textContent = orig; }, 2000);
+    setTimeout(() => { els.copyEmbed.textContent = orig; }, 4500);
   } catch (e) {
     setStatus('Kunne ikke kopiere: ' + e.message, true);
   }

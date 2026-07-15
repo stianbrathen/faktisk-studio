@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https:; font-src 'self' data:;">
+<title>Bildemal · Faktisk Studio</title>
+<link rel="stylesheet" href="shared/style.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="studio">
+
+  <header class="topbar">
+    <div class="faktisk-logo" role="img" aria-label="Faktisk Studio"></div>
+    <span class="topbar__version" id="appVersion" title="Versjoner"></span>
+    <div class="topbar__title" role="img" aria-label="Labrador"></div>
+    <div class="topbar__actions">
+      <button class="btn-primary" id="backBtn">Malside</button>
+      <button class="btn-icon" id="newProjectBtn" title="Nytt prosjekt (tøm gjeldende)" aria-label="Nytt prosjekt">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+          <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+        </svg>
+      </button>
+      <button class="btn-icon" id="fullscreenBtn" title="Fullskjerm" aria-label="Fullskjerm">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+          <path d="M5 5h5v2H7v3H5V5zm9 0h5v5h-2V7h-3V5zM5 14h2v3h3v2H5v-5zm12 0h2v5h-5v-2h3v-3z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="plugin-page">
+
+    <aside class="plugin-sidebar">
+      <div class="plugin-sidebar__head">
+        <h2 class="plugin-sidebar__title">Bildemal</h2>
+      </div>
+
+      <div class="url-section">
+        <span class="url-section__label">Canvas-format</span>
+        <select id="canvasSize" class="project-select">
+          <option value="1920x1080">1920 × 1080 (16:9)</option>
+          <option value="1080x1080">1080 × 1080 (kvadrat)</option>
+        </select>
+      </div>
+
+      <div class="url-section">
+        <span class="url-section__label">Bakgrunnsbilde</span>
+        <div class="src-tabs">
+          <button type="button" class="src-tab is-active" data-src="url" id="bgTabUrl">URL</button>
+          <button type="button" class="src-tab" data-src="file" id="bgTabFile">Last opp</button>
+        </div>
+        <div id="bgSrcUrl" class="src-panel">
+          <input type="text" id="bgUrl" class="url-row__input" placeholder="https://faktisk.no/uploads/…" spellcheck="false" autocomplete="off">
+          <button id="bgLoadUrl" class="btn-mini btn-mini--block">Hent bakgrunn</button>
+        </div>
+        <div id="bgSrcFile" class="src-panel" style="display:none;">
+          <input type="file" id="bgFile" accept="image/*" style="display:none;">
+          <button id="bgPickFile" class="btn-mini btn-mini--block">Velg fil…</button>
+          <p class="hint-text" id="bgFileName">Ingen fil valgt</p>
+        </div>
+        <p class="hint-text">Dra bakgrunnen for å plassere, scroll for å zoome.</p>
+      </div>
+
+      <div class="url-section">
+        <div class="url-section__header">
+          <span class="url-section__label">Bokser / sirkler</span>
+          <span class="hint-text" id="shapesCount" style="margin:0;">0 stk</span>
+        </div>
+        <div class="btn-row">
+          <button id="addRectBtn" class="btn-mini">+ Rektangel</button>
+          <button id="addCircleBtn" class="btn-mini">+ Sirkel</button>
+        </div>
+        <div id="shapeList" class="shape-list"></div>
+      </div>
+
+      <div class="url-section" id="shapeProps" style="display:none;">
+        <span class="url-section__label">Valgt boks</span>
+        <label class="prop-row">
+          <span>Ramme-tykkelse</span>
+          <input type="range" id="propStroke" min="2" max="20" step="1" value="6">
+          <span class="prop-row__val" id="propStrokeVal">6 px</span>
+        </label>
+        <label class="prop-row" id="propRadiusRow">
+          <span>Hjørne-radius</span>
+          <input type="range" id="propRadius" min="0" max="80" step="2" value="20">
+          <span class="prop-row__val" id="propRadiusVal">20 px</span>
+        </label>
+        <label class="prop-row">
+          <span>Drop shadow</span>
+          <input type="range" id="propShadow" min="0" max="100" step="5" value="50">
+          <span class="prop-row__val" id="propShadowVal">50 %</span>
+        </label>
+
+        <span class="url-section__label" style="margin-top:8px;">Bilde i boksen</span>
+        <div class="src-tabs">
+          <button type="button" class="src-tab is-active" data-src="url" id="shapeTabUrl">URL</button>
+          <button type="button" class="src-tab" data-src="file" id="shapeTabFile">Last opp</button>
+        </div>
+        <div id="shapeSrcUrl" class="src-panel">
+          <input type="text" id="shapeUrl" class="url-row__input" placeholder="https://…" spellcheck="false">
+          <button id="shapeLoadUrl" class="btn-mini btn-mini--block">Hent bilde</button>
+        </div>
+        <div id="shapeSrcFile" class="src-panel" style="display:none;">
+          <input type="file" id="shapeFile" accept="image/*" style="display:none;">
+          <button id="shapePickFile" class="btn-mini btn-mini--block">Velg fil…</button>
+          <p class="hint-text" id="shapeFileName">Ingen fil valgt</p>
+        </div>
+        <p class="hint-text">Dra bildet i boksen for å plassere, scroll for å zoome.</p>
+
+        <button id="deleteShapeBtn" class="btn-mini btn-mini--block btn-mini--danger" style="margin-top:8px;">Slett boks</button>
+      </div>
+
+      <div class="url-section">
+        <span class="url-section__label">Mørk fade-overlay</span>
+        <label class="prop-row">
+          <span>Fra topp</span>
+          <input type="range" id="fadeTop" min="0" max="100" step="5" value="0">
+          <span class="prop-row__val" id="fadeTopVal">0 %</span>
+        </label>
+        <label class="prop-row">
+          <span>Fra bunn</span>
+          <input type="range" id="fadeBottom" min="0" max="100" step="5" value="0">
+          <span class="prop-row__val" id="fadeBottomVal">0 %</span>
+        </label>
+      </div>
+
+      <div class="project-row">
+        <select id="projectSelect" class="project-select">
+          <option value="">Velg lagret prosjekt…</option>
+        </select>
+        <button id="saveProjectBtn" class="btn-mini">Lagre…</button>
+      </div>
+
+      <div class="btn-row btn-row--export">
+        <button id="exportPngBtn" class="btn-mini btn-mini--block" disabled>Last ned PNG</button>
+        <button id="exportJpgBtn" class="btn-mini btn-mini--block" disabled>Last ned JPG</button>
+      </div>
+      <button id="copyClipBtn" class="btn-mini btn-mini--block" disabled>Kopier til utklippstavle</button>
+
+      <div class="plugin-sidebar__status" id="status"></div>
+    </aside>
+
+    <section class="plugin-canvas">
+      <div class="canvas-stage" id="stage">
+        <div class="canvas-frame" id="frame">
+          <!-- Stack-rekkefølge fra bunn til topp: bakgrunn → fade → shapes.
+               Slik ligger fade-overlay PÅ bakgrunnen, men UNDER boksene
+               som er lagt oppå hovedbildet. -->
+          <div class="canvas-bg" id="bgLayer"></div>
+          <div class="canvas-fade canvas-fade--top" id="fadeTopLayer"></div>
+          <div class="canvas-fade canvas-fade--bottom" id="fadeBottomLayer"></div>
+          <div class="canvas-shapes" id="shapesLayer"></div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+</div>
+
+<script src="shared/dialog.js"></script>
+<script>window.PLUGIN_ID = 'bildemal';</script>
+<script src="shared/new-project.js"></script>
+<script src="main.js"></script>
+</body>
+</html>

@@ -1,0 +1,354 @@
+/* Bildemal — plugin-spesifikk styling */
+
+.plugin-page {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 313px 1fr;
+  gap: 22px;
+  overflow: hidden;
+  padding: 4px;
+}
+
+.plugin-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 4px 4px;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.3) transparent;
+}
+.plugin-sidebar::-webkit-scrollbar { width: 8px; }
+.plugin-sidebar::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.3);
+  border-radius: 4px;
+}
+
+.plugin-sidebar__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.plugin-sidebar__title {
+  font-family: var(--font-bold);
+  font-size: 22px;
+  font-weight: bold;
+  color: #212121;
+  margin: 0;
+  line-height: 1.05;
+}
+.plugin-sidebar__status {
+  font-size: 13px;
+  color: #fff;
+  min-height: 18px;
+  opacity: 0.85;
+}
+
+.url-section { display: flex; flex-direction: column; gap: 6px; }
+.url-section__label {
+  font-family: var(--font-bold);
+  font-size: 12px;
+  font-weight: bold;
+  color: #fff;
+}
+.url-section__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.url-row__input {
+  display: block;
+  width: 100%;
+  background: var(--bg-input);
+  border: 0;
+  outline: 0;
+  padding: 9px 11px;
+  border-radius: 6px;
+  font-family: var(--font-bold);
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--text-input);
+  font-weight: bold;
+  box-sizing: border-box;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.url-row__input::placeholder { color: #888; font-weight: normal; }
+
+.hint-text {
+  font-size: 11px;
+  color: rgba(255,255,255,0.7);
+  margin: 4px 0 0;
+  line-height: 1.3;
+  font-style: italic;
+}
+
+.btn-mini {
+  background: var(--faktisk-blue);
+  color: #fff;
+  font-family: var(--font-bold);
+  font-weight: bold;
+  font-size: 12px;
+  padding: 6px 9px;
+  border-radius: 6px;
+  border: 0;
+  cursor: pointer;
+  white-space: nowrap;
+  line-height: 1.3;
+}
+.btn-mini:hover:not(:disabled) { background: var(--faktisk-blue-hover); }
+.btn-mini:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-mini--block { width: 100%; text-align: center; padding: 8px 14px; }
+.btn-mini--light { background: #a2a2a2; }
+.btn-mini--danger { background: #c95c5c; }
+.btn-mini--danger:hover { background: #b14848; }
+
+.btn-row { display: flex; gap: 6px; }
+.btn-row--export { margin-top: 4px; }
+
+.project-row { display: flex; gap: 4px; }
+.project-row .project-select { flex: 1; }
+.project-select {
+  width: 100%;
+  height: 32px;
+  background: var(--bg-input);
+  border: 0;
+  border-radius: 6px;
+  padding: 0 28px 0 11px;
+  font-family: var(--font-bold);
+  font-weight: bold;
+  font-size: 12px;
+  color: var(--text-input);
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path d='M1 1l5 5 5-5' stroke='%23313131' stroke-width='2' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+}
+
+/* Tabs for URL vs Last opp */
+.src-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: var(--bg-input);
+  border-radius: 6px;
+  padding: 3px;
+  gap: 3px;
+}
+.src-tab {
+  background: transparent;
+  border: 0;
+  color: var(--text-input);
+  font-family: var(--font-bold);
+  font-weight: bold;
+  font-size: 11px;
+  padding: 5px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0.6;
+}
+.src-tab.is-active {
+  background: #fff;
+  opacity: 1;
+}
+.src-panel { display: flex; flex-direction: column; gap: 6px; }
+
+/* Prop-row med slider */
+.prop-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 4px 8px;
+  color: #fff;
+  font-size: 11px;
+}
+.prop-row > span:first-child { font-family: var(--font-bold); font-weight: bold; }
+.prop-row input[type="range"] {
+  grid-column: 1 / 3;
+  width: 100%;
+  margin: 2px 0;
+  accent-color: var(--faktisk-blue);
+}
+.prop-row__val {
+  font-family: var(--font-bold);
+  font-weight: bold;
+  font-size: 11px;
+  color: rgba(255,255,255,0.85);
+  text-align: right;
+}
+
+/* Liste over bokser */
+.shape-list { display: flex; flex-direction: column; gap: 4px; }
+.shape-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 6px;
+  cursor: pointer;
+  border: 2px solid transparent;
+}
+.shape-row.is-selected {
+  border-color: var(--faktisk-blue);
+  background: rgba(0, 80, 252, 0.15);
+}
+.shape-row:hover:not(.is-selected) { background: rgba(255,255,255,0.10); }
+.shape-row__icon {
+  width: 22px;
+  height: 22px;
+  border: 2px solid #fff;
+  flex: 0 0 auto;
+}
+.shape-row__icon--rect { border-radius: 4px; }
+.shape-row__icon--circle { border-radius: 50%; }
+.shape-row__label {
+  flex: 1;
+  font-size: 12px;
+  color: #fff;
+  font-family: var(--font-bold);
+  font-weight: bold;
+}
+.shape-row__del {
+  background: #a2a2a2;
+  color: #fff;
+  border: 0;
+  border-radius: 4px;
+  width: 22px;
+  height: 22px;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+.shape-row__del:hover { background: #c95c5c; }
+
+/* Canvas-stage */
+.plugin-canvas {
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+  min-width: 0;
+  padding: 12px;
+  align-items: center;
+  justify-content: center;
+}
+.canvas-stage {
+  width: 100%;
+  max-width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.canvas-frame {
+  position: relative;
+  width: 100%;
+  max-width: min(1400px, 100%);
+  /* aspect-ratio settes inline av JS basert på valgt canvas-størrelse */
+  background: #1a1a1a;
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.4);
+}
+.canvas-bg, .canvas-shapes {
+  position: absolute;
+  inset: 0;
+}
+/* shapes-laget fyller hele canvas-en, men slipper pointer-events gjennom til
+   bakgrunnen i tomrommet. Hver konkret .shape fanger sine egne events. */
+.canvas-shapes { pointer-events: none; }
+.canvas-shapes .shape { pointer-events: auto; }
+.canvas-bg img {
+  position: absolute;
+  /* top/left/width/height settes inline av JS */
+  display: block;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.canvas-bg.is-dragging { cursor: grabbing; }
+.canvas-bg:not(.is-dragging) { cursor: grab; }
+
+.canvas-fade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+}
+.canvas-fade--top {
+  top: 0;
+  height: 50%;
+  background: linear-gradient(to bottom, rgba(0,0,0,var(--fade-top, 0)) 0%, rgba(0,0,0,0) 100%);
+}
+.canvas-fade--bottom {
+  bottom: 0;
+  height: 50%;
+  background: linear-gradient(to top, rgba(0,0,0,var(--fade-bottom, 0)) 0%, rgba(0,0,0,0) 100%);
+}
+
+/* Boks/sirkel-shapes — tre lag:
+   - .shape: ytre wrapper (overflow:visible, resize-håndtak)
+   - .shape__clip: klipper innholdsbildet med border-radius (INDRE radius, ingen border)
+   - .shape__stroke: SVG som tegner ringen rundt med uniform stroke
+     (bedre rendering enn CSS border + lik kurvatur opplevd visuelt) */
+.shape {
+  position: absolute;
+  /* top/left/width/height settes inline av JS */
+  cursor: move;
+}
+.shape__clip {
+  position: absolute;
+  /* inset (= stroke-tykkelse) og border-radius (= indre radius) settes inline av JS */
+  background: rgba(0,0,0,0);
+  overflow: hidden;
+}
+.shape__stroke {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  filter: drop-shadow(0 6px 12px rgba(0,0,0,var(--shadow-alpha, 0.5)));
+}
+.shape__stroke svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+}
+.shape.is-selected {
+  outline: 2px dashed var(--faktisk-blue);
+  outline-offset: 6px;
+}
+.shape__img {
+  position: absolute;
+  /* top/left/width/height settes inline av JS */
+  display: block;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.shape__img-grab {
+  position: absolute;
+  inset: 0;
+  cursor: grab;
+}
+.shape__img-grab.is-dragging { cursor: grabbing; }
+/* Resize-handles for shape — ligger PÅ ytre .shape så de aldri klippes. */
+.shape__handle {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  background: var(--faktisk-blue);
+  border: 2px solid #fff;
+  border-radius: 50%;
+  pointer-events: auto;
+  z-index: 3;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+}
+.shape__handle--nw { top: -7px; left: -7px; cursor: nwse-resize; }
+.shape__handle--ne { top: -7px; right: -7px; cursor: nesw-resize; }
+.shape__handle--sw { bottom: -7px; left: -7px; cursor: nesw-resize; }
+.shape__handle--se { bottom: -7px; right: -7px; cursor: nwse-resize; }

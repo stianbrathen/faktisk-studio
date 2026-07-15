@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('faktisk', {
 
   stateSave: (pluginId, state) => ipcRenderer.invoke('state-save', pluginId, state),
   stateLoad: (pluginId) => ipcRenderer.invoke('state-load', pluginId),
+  stateClear: (pluginId) => ipcRenderer.invoke('state-clear', pluginId),
 
   projectSave: (pluginId, name, state) => ipcRenderer.invoke('project-save', pluginId, name, state),
   projectList: (pluginId) => ipcRenderer.invoke('project-list', pluginId),
@@ -33,5 +34,34 @@ contextBridge.exposeInMainWorld('faktisk', {
     return () => ipcRenderer.removeListener('video-export-progress', listener);
   },
   revealInFinder: (filePath) => ipcRenderer.invoke('reveal-in-finder', filePath),
+  censorExport: (opts) => ipcRenderer.invoke('censor-export', opts),
+  censorTrack: (opts) => ipcRenderer.invoke('censor-track', opts),
+  onCensorTrackProgress: (cb) => {
+    const listener = (_e, msg) => cb(msg);
+    ipcRenderer.on('censor-track-progress', listener);
+    return () => ipcRenderer.removeListener('censor-track-progress', listener);
+  },
+  onCensorProgress: (cb) => {
+    const listener = (_e, msg) => cb(msg);
+    ipcRenderer.on('censor-export-progress', listener);
+    return () => ipcRenderer.removeListener('censor-export-progress', listener);
+  },
   generateThumbnail: (opts) => ipcRenderer.invoke('generate-thumbnail', opts),
+
+  // Labrador-integrasjon
+  openLabrador: (url) => ipcRenderer.invoke('open-labrador', url),
+  recentFileAdd: (entry) => ipcRenderer.invoke('recent-file-add', entry),
+  recentFileList: (opts) => ipcRenderer.invoke('recent-file-list', opts),
+  recentFileRemove: (url) => ipcRenderer.invoke('recent-file-remove', url),
+  recentFileClear: () => ipcRenderer.invoke('recent-file-clear'),
+
+  // Auto-updater (electron-updater)
+  updaterGetState: () => ipcRenderer.invoke('updater-get-state'),
+  updaterCheck: () => ipcRenderer.invoke('updater-check'),
+  updaterQuitAndInstall: () => ipcRenderer.invoke('updater-quit-and-install'),
+  onUpdaterState: (cb) => {
+    const listener = (_e, state) => cb(state);
+    ipcRenderer.on('updater-state', listener);
+    return () => ipcRenderer.removeListener('updater-state', listener);
+  },
 });

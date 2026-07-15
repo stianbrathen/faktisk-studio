@@ -277,13 +277,19 @@ function buildEmbedSnippet() {
   const vh = els.video.videoHeight || 9;
   const aspect = (vw / vh).toFixed(4);
 
+  // Base-CSS med design-tokens fra shared/embed-tokens.js.
+  // Alle --fk-* CSS-variabler + font/color-arv fra rot-scope.
+  const baseCss = (typeof window !== "undefined" && window.FaktiskEmbedBase)
+    ? window.FaktiskEmbedBase.getBaseCss(`fvl-container`)
+    : "";
+
   return `<!-- ============================================
      FAKTISK · LOOPING VIDEO
      Endre teksten i feltene merket med ▶
      ============================================ -->
 ${open}
   <!-- ▶ VIDEO — bytt ut URL-en under for å bruke et annet klipp -->
-  <style>
+  <style>${baseCss}
     .fvl-container { container-type: inline-size; }
     @container (min-width: 1080px) {
       .fvl-container > .caption.fvl-caption {
@@ -404,9 +410,9 @@ els.copyEmbed.addEventListener('click', async () => {
   try {
     await window.faktisk.copyToClipboard(snippet);
     const orig = els.copyEmbed.textContent;
-    els.copyEmbed.textContent = '✅ Kopiert!';
+    els.copyEmbed.textContent = '✅ Kopiert! Slå av «Validate input» i Labrador';
     setStatus('Embed-koden er kopiert — lim inn i Labrador Markup-boks.');
-    setTimeout(() => { els.copyEmbed.textContent = orig; }, 2000);
+    setTimeout(() => { els.copyEmbed.textContent = orig; }, 4500);
   } catch (e) {
     setStatus('Kunne ikke kopiere: ' + e.message, true);
   }

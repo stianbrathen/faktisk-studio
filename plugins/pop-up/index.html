@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https:; font-src 'self' data:;">
+<title>Pop up · Faktisk Studio</title>
+<link rel="stylesheet" href="shared/style.css">
+<link rel="stylesheet" href="style.css">
+<script src="shared/embed-tokens.js"></script>
+</head>
+<body>
+<div class="studio">
+
+  <header class="topbar">
+    <div class="faktisk-logo" role="img" aria-label="Faktisk Studio"></div>
+    <span class="topbar__version" id="appVersion" title="Versjoner"></span>
+    <div class="topbar__title" role="img" aria-label="Labrador"></div>
+    <div class="topbar__actions">
+      <button class="btn-primary" id="backBtn">Malside</button>
+      <button class="btn-icon" id="newProjectBtn" title="Nytt prosjekt (tøm gjeldende)" aria-label="Nytt prosjekt">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+          <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+        </svg>
+      </button>
+      <button class="btn-icon" id="fullscreenBtn" title="Fullskjerm" aria-label="Fullskjerm">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+          <path d="M5 5h5v2H7v3H5V5zm9 0h5v5h-2V7h-3V5zM5 14h2v3h3v2H5v-5zm12 0h2v5h-5v-2h3v-3z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="plugin-page">
+
+    <aside class="plugin-sidebar">
+      <div class="plugin-sidebar__head">
+        <h2 class="plugin-sidebar__title">Pop up</h2>
+        <button id="openLabradorBtn" class="link-btn" type="button">Åpne Labrador ↗</button>
+      </div>
+
+      <p class="plugin-sidebar__desc">
+        Lim inn lenke til ett eller flere bilder. I artikkelen vises bildet med
+        en lys grå ramme — klikk og det åpner seg stort i en pop up.
+      </p>
+
+      <div class="mode-section">
+        <span class="url-section__label">Modus</span>
+        <div class="seg" role="tablist" aria-label="Pop-up-modus">
+          <button type="button" class="seg__btn is-active" data-mode="single" id="modeSingleBtn">Enkelt bilde</button>
+          <button type="button" class="seg__btn" data-mode="gallery" id="modeGalleryBtn">Galleri</button>
+        </div>
+      </div>
+
+      <div class="url-section">
+        <div class="url-section__header">
+          <span class="url-section__label" id="imagesLabel">Bilde</span>
+          <button id="addImageBtn" class="btn-mini" type="button" style="display:none;">+ Legg til bilde</button>
+        </div>
+        <div id="imageList" class="image-list"></div>
+        <p class="hint-text" id="galleryHint" style="display:none;">2-6 bilder. Klikk på en thumbnail for å åpne pop-up med navigasjon.</p>
+      </div>
+
+      <div class="plugin-sidebar__status" id="status"></div>
+
+      <div class="caption-section">
+        <label class="url-section__label" for="logoSelect">Logo-merke (valgfri)</label>
+        <select id="logoSelect" class="project-select">
+          <option value="none">Ingen logo</option>
+          <option value="x">X (Twitter)</option>
+          <option value="facebook">Facebook</option>
+          <option value="instagram">Instagram</option>
+          <option value="tiktok">TikTok</option>
+          <option value="youtube">YouTube</option>
+          <option value="threads">Threads</option>
+        </select>
+        <p class="hint-text">Liten sort sirkel med logo vises under bildet — signaliserer at innholdet er fra denne plattformen.</p>
+
+        <label class="url-section__label" for="photographerText" style="margin-top:8px;">Fotograf / kilde (valgfri)</label>
+        <input type="text" id="photographerText" class="caption-input caption-input--single"
+               placeholder="Foto: Navn / Reuters"
+               spellcheck="false" autocomplete="off">
+        <p class="hint-text">Vises i pop up-en under bildet. Samme kreditt brukes for hele galleriet.</p>
+      </div>
+
+      <div class="project-row">
+        <select id="projectSelect" class="project-select">
+          <option value="">Velg lagret prosjekt…</option>
+        </select>
+        <button id="saveProjectBtn" class="btn-mini">Lagre…</button>
+      </div>
+
+      <button id="copyEmbedBtn" class="btn-mini btn-mini--block" disabled>
+        Kopier embed
+      </button>
+    </aside>
+
+    <section class="plugin-canvas">
+      <div class="popup-stage" id="stage">
+        <div class="popup-empty" id="emptyState">
+          <p>Lim inn URL-er til bilder fra Labrador for å se forhåndsvisning.</p>
+        </div>
+        <div class="popup-preview" id="preview" style="display:none;"></div>
+      </div>
+    </section>
+
+  </main>
+
+</div>
+
+<script src="shared/dialog.js"></script>
+<script>window.PLUGIN_ID = 'pop-up';</script>
+<script src="shared/new-project.js"></script>
+<script src="main.js"></script>
+</body>
+</html>

@@ -1,0 +1,1011 @@
+/* Før og etter slider — plugin-spesifikk styling */
+
+.plugin-page {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 313px 1fr;
+  gap: 22px;
+  overflow: hidden;
+  padding: 4px;
+}
+
+.plugin-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 4px 4px;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.3) transparent;
+}
+.plugin-sidebar::-webkit-scrollbar { width: 8px; }
+.plugin-sidebar::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.3);
+  border-radius: 4px;
+}
+/* Kopier embed-knappen pinnes nede så den alltid er synlig */
+#copyEmbedBtn {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  box-shadow: 0 -10px 14px -4px rgba(157,157,157,0.7);
+}
+
+.plugin-sidebar__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.plugin-sidebar__title {
+  font-family: var(--font-bold);
+  font-size: 22px;
+  font-weight: bold;
+  color: #212121;
+  margin: 0;
+  line-height: 1.05;
+}
+
+.plugin-sidebar__desc { display: none; }
+
+.plugin-sidebar__spacer { /* deaktivert — tb-section tar all ledig plass */ }
+
+.caption-section { display: flex; flex-direction: column; gap: 3px; }
+.caption-input {
+  background: var(--bg-input);
+  border: 0;
+  outline: 0;
+  border-radius: 6px;
+  padding: 6px 11px;
+  font-weight: bold;
+  font-size: 12px;
+  color: var(--text-input);
+  resize: vertical;
+  line-height: 1.3;
+  font-family: inherit;
+}
+.caption-input--single { height: 32px; padding: 0 11px; }
+.caption-input::placeholder { color: #888; font-weight: normal; }
+
+.plugin-sidebar__status {
+  font-size: 13px;
+  color: #fff;
+  min-height: 18px;
+  opacity: 0.85;
+}
+
+.url-section { display: flex; flex-direction: column; gap: 6px; }
+.url-section--compact { gap: 6px; }
+.url-section__label {
+  font-family: var(--font-bold);
+  font-size: 12px;
+  font-weight: bold;
+  color: #fff;
+}
+.url-section__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.link-btn {
+  background: transparent;
+  color: #fff;
+  font-family: var(--font-bold);
+  font-weight: bold;
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: rgba(255,255,255,0.5);
+  text-underline-offset: 3px;
+}
+.link-btn:hover { text-decoration-color: #fff; }
+
+.url-row {
+  background: var(--bg-input);
+  border-radius: 6px;
+  padding: 11px 14px;
+  display: flex;
+  align-items: center;
+}
+.url-row__input {
+  display: block;
+  flex: 1;
+  background: var(--bg-input);
+  border: 0;
+  outline: 0;
+  padding: 11px 14px;
+  border-radius: 6px;
+  font-family: var(--font-bold);
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--text-input);
+  font-weight: bold;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.url-row__input::placeholder { color: #888; font-weight: normal; }
+
+/* Legacy klasse — peker nå til samme stil som btn-mini */
+.btn-tiny {
+  background: var(--faktisk-blue);
+  color: #fff;
+  font-family: var(--font-bold);
+  font-weight: bold;
+  font-size: 12px;
+  padding: 5px 9px;
+  border-radius: 6px;
+  white-space: nowrap;
+  border: 0;
+  cursor: pointer;
+}
+.btn-tiny:hover { background: var(--faktisk-blue-hover); }
+
+.project-row { display: flex; gap: 4px; }
+.project-row .project-select { flex: 1; }
+.project-select {
+  width: 100%;
+  height: 32px;
+  background: var(--bg-input);
+  border: 0;
+  border-radius: 6px;
+  padding: 0 28px 0 11px;
+  font-family: var(--font-bold);
+  font-weight: bold;
+  font-size: 12px;
+  color: var(--text-input);
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path d='M1 1l5 5 5-5' stroke='%23313131' stroke-width='2' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+}
+
+.btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ============================================
+   Bildeanalyse-spesifikk styling
+   ============================================ */
+.image-list { display: flex; flex-direction: column; gap: 10px; margin: 6px 0 8px; }
+.image-list__row { display: grid; grid-template-columns: 36px 1fr 28px; gap: 6px; align-items: center; }
+
+/* Par-gruppering: to bildeinputs som hører sammen wrapes i én container
+   med dempet bakgrunn og «Par N»-label, så det er visuelt åpenbart hva som er en par-enhet. */
+.image-pair {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 8px 8px 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  border-left: 3px solid rgba(255, 255, 255, 0.25);
+  position: relative;
+}
+.image-pair--incomplete {
+  background: rgba(255, 180, 100, 0.10);
+  border-left-color: rgba(255, 180, 100, 0.6);
+}
+.image-pair__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+.image-pair__label {
+  font-family: var(--font-bold);
+  font-weight: bold;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #fff;
+  opacity: 0.6;
+}
+.image-pair--incomplete .image-pair__label {
+  color: #FFB46A;
+  opacity: 0.95;
+}
+.image-list__row .url-row__input {
+  height: 32px;
+  padding: 0 11px;
+}
+.image-label-input {
+  height: 32px;
+  background: var(--bg-input);
+  border: 0;
+  outline: 0;
+  border-radius: 6px;
+  padding: 0;
+  text-align: center;
+  font-family: var(--font-bold);
+  font-weight: bold;
+  font-size: 14px;
+  color: var(--text-input);
+  text-transform: uppercase;
+}
+
+.groups-section { display: flex; flex-direction: column; gap: 8px; flex: 0 0 auto; }
+.video-section { display: flex; flex-direction: column; gap: 6px; flex: 0 0 auto; }
+.hint-text {
+  font-size: 11px;
+  color: rgba(255,255,255,0.7);
+  margin: 4px 0 0;
+  line-height: 1.3;
+  font-style: italic;
+}
+
+.group-chip {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: 2px solid rgba(255,255,255,0.3);
+  cursor: pointer;
+  padding: 0;
+}
+.group-chip--selected {
+  border-color: #fff;
+  outline: 2px solid #fff;
+  outline-offset: 1px;
+}
+.group-count {
+  font-size: 12px;
+  color: rgba(255,255,255,0.7);
+  text-align: center;
+  align-self: center;
+}
+.group-color-picker {
+  width: 28px;
+  height: 24px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.group-color-picker::-webkit-color-swatch-wrapper { padding: 0; }
+.group-color-picker::-webkit-color-swatch { border: 2px solid rgba(255,255,255,0.3); border-radius: 4px; }
+.tb-row {
+  grid-template-columns: 24px 1fr 28px 28px;
+}
+
+/* Canvas — bildeanalyse grid */
+.plugin-canvas {
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+  min-width: 0;
+  padding: 8px 0;
+}
+
+.analysis-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.analysis-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 40px;
+  text-align: center;
+}
+.analysis-empty p {
+  max-width: 420px;
+  font-size: 16px;
+  color: #fff;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.analysis-grid {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+}
+
+.analysis-cell {
+  position: relative;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #1a1a1a;
+  cursor: crosshair;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+}
+.analysis-cell img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  pointer-events: none;
+}
+.analysis-cell__label {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: rgba(0,0,0,0.7);
+  color: #fff;
+  font-family: var(--font-bold);
+  font-weight: bold;
+  font-size: 13px;
+  padding: 4px 9px;
+  border-radius: 6px;
+  letter-spacing: 0.04em;
+  z-index: 1;
+  pointer-events: auto;
+  backdrop-filter: blur(4px);
+}
+
+.analysis-mark {
+  position: absolute;
+  border: 4px solid var(--mark-color, #fff);
+  box-sizing: border-box;
+  border-radius: 4px;
+  cursor: move;
+}
+.analysis-mark__scale {
+  position: absolute;
+  right: -8px;
+  bottom: -8px;
+  width: 16px;
+  height: 16px;
+  background: #fff;
+  border: 2px solid var(--mark-color, #0050fc);
+  border-radius: 50%;
+  cursor: nwse-resize;
+  z-index: 2;
+}
+.analysis-mark__del {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  width: 22px;
+  height: 22px;
+  background: rgba(0,0,0,0.7);
+  color: #fff;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  font-size: 14px;
+  font-weight: bold;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  z-index: 3;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.analysis-mark:hover .analysis-mark__del { opacity: 1; }
+
+/* ============================================
+   Par-modus — to bilder side om side med grå container
+   ============================================ */
+.pair-section { display: flex; flex-direction: column; gap: 6px; flex: 0 0 auto; }
+.pair-titles { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+
+.pair-wrapper {
+  background: #C3C3C3;
+  border-radius: 4px;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 1058px;
+  margin: 0 auto;
+}
+.pair-wrapper--dimmed .analysis-mark {
+  box-shadow: 0 0 0 9999px rgba(0,0,0,0.25);
+}
+.pair-heading {
+  font-family: "Tiempos Fine", "Tiempos", Georgia, "Times New Roman", serif;
+  font-weight: 500;
+  font-size: 1.75rem;
+  line-height: 1.25;
+  margin: 0;
+  color: #212121;
+}
+.pair-heading--small {
+  font-family: "Haas Grot Text 75 Bold", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-weight: bold;
+  font-size: 0.85rem;
+  line-height: 1.2;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #4a4a4a;
+}
+/* Top-tekst INNE i hvert bilde — sort overlay, venstre/høyre justert */
+.pair-cell-title {
+  position: absolute;
+  top: 10px;
+  background: rgba(0,0,0,0.75);
+  color: #fff;
+  font-family: var(--font-bold);
+  font-weight: bold;
+  font-size: 13px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  z-index: 5;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  letter-spacing: 0.02em;
+  pointer-events: none;
+}
+.pair-cell-title--left { left: 10px; }
+.pair-cell-title--right { right: 10px; }
+.pair-images {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 30px;
+}
+.pair-cell {
+  position: relative;
+  overflow: hidden;
+  border-radius: 4px;
+  background: #1a1a1a;
+  cursor: crosshair;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+.pair-cell img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  pointer-events: none;
+}
+/* Label sirkel — B-default på topp-VENSTRE av markeringen.
+   For A (venstre bilde) brukes --right-modifier som plasserer den på topp-HØYRE.
+   Symmetrisk inn-peking mot connector-streken: A → strek → B. */
+.analysis-mark__label {
+  position: absolute;
+  top: -16px;
+  left: -16px;
+  background: #fff;
+  color: #212121;
+  font-family: var(--font-bold);
+  font-weight: bold;
+  font-size: 18px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+  z-index: 3;
+  pointer-events: none;
+}
+.analysis-mark__label--right {
+  left: auto;
+  right: -16px;
+}
+.pair-connector {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+}
+.pair-caption {
+  background: #fff;
+  color: #212121;
+  padding: 14px 18px;
+  border-radius: 6px;
+  font-size: 14px;
+  line-height: 1.6;
+  font-family: "Haas Grot Text 55 Roman", "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+.pair-ab-chip {
+  /* line-height = height for garantert cross-browser sentrering — flex har Safari-quirk */
+  display: inline-block;
+  width: 22px;
+  height: 22px;
+  line-height: 22px;
+  text-align: center;
+  background: #212121;
+  color: #fff;
+  font-family: var(--font-bold);
+  font-weight: bold;
+  font-size: 12px;
+  border-radius: 50%;
+  margin: 0 4px;
+  vertical-align: middle;
+  position: relative;
+  top: -1px;
+}
+.pair-ab-chip:first-child { margin-left: 0; }
+
+/* Piler + dots i samme rad over bildene */
+.pair-nav-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 4px 0;
+}
+.pair-arrows, .pair-slideshow-nav { display: none; /* legacy */ }
+.pair-nav-btn {
+  background: transparent;
+  border: 0;
+  color: #4a4a4a;
+  font-size: 22px;
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: 4px;
+  line-height: 1;
+}
+.pair-nav-btn:hover:not(:disabled) { background: rgba(0,0,0,0.08); }
+.pair-nav-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.pair-dots {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  padding: 2px 0;
+}
+.pair-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #6e6e6e;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.15s;
+}
+.pair-dot:hover { background: #4a4a4a; }
+.pair-dot.is-active {
+  background: #212121;
+  transform: scale(1.3);
+}
+
+/* Single-mode (én bilde) i scene */
+.pair-titles-row--single { grid-template-columns: 1fr; }
+.pair-images--single { grid-template-columns: 1fr; max-width: 50%; margin: 0 auto; }
+
+/* ============================================
+   Resten av styling fra forrige plugin (uberørt under)
+   ============================================ */
+/* Canvas — slider preview */
+.plugin-canvas {
+  display: flex;
+  flex-direction: column;
+  /* IKKE overflow:hidden — tekstbokser skal kunne stikke ut av kart-området */
+  overflow: visible;
+  min-width: 0;
+  gap: 20px;
+  padding: 8px 0;
+}
+
+/* «Før» / «Etter»-bokser over bildet */
+.slider-labels {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  pointer-events: none;
+  flex: 0 0 auto;
+}
+.slider-label {
+  background: #0050FC;
+  color: #fff;
+  font-family: var(--font-bold);
+  font-weight: bold;
+  font-size: clamp(14px, 1.8cqw, 22px);
+  padding: 0.3em 0.65em;
+  border-radius: 5px;
+  line-height: 1.25;
+}
+
+/* Sidebar: toggle + felt for Før/Etter-tekster */
+.labels-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #fff;
+  font-family: var(--font-bold);
+  font-weight: bold;
+  cursor: pointer;
+  user-select: none;
+}
+.check-row input[type="checkbox"] {
+  accent-color: var(--faktisk-blue);
+  margin: 0;
+  cursor: pointer;
+}
+.labels-inputs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+.labels-section.is-off .labels-inputs { display: none; }
+
+/* Liten kompakt input — brukt på Før/Etter-tekst-felter (mindre enn URL-felt) */
+.input-mini {
+  background: var(--bg-input);
+  border: 0;
+  outline: 0;
+  height: 32px;
+  padding: 0 11px;
+  border-radius: 6px;
+  font-family: var(--font-bold);
+  font-size: 12px;
+  color: var(--text-input);
+  font-weight: bold;
+  width: 100%;
+  box-sizing: border-box;
+}
+.input-mini::placeholder { color: #888; font-weight: normal; }
+
+.slider-stage {
+  position: relative;
+  flex: 1;
+  background: transparent;
+  /* INGEN overflow:hidden her — slipper tekstbokser stikker ut.
+     Klippingen skjer på .slider-clipper innenfor. */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+}
+
+.slider-empty {
+  padding: 40px;
+  text-align: center;
+}
+.slider-empty p {
+  max-width: 420px;
+  font-size: 16px;
+  color: #fff;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.slider-preview {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  user-select: none;
+  container-type: inline-size;
+}
+/* Klipper for bildene + slider-handle + arrows/dots — tekstbokser ligger UTENFOR */
+.slider-clipper {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--bg-letterbox);
+}
+
+.slider-img {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  pointer-events: none;
+}
+
+.slider-clip {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  clip-path: inset(0 50% 0 0);
+  transition: clip-path 0.05s linear;
+  pointer-events: none;
+}
+
+.slider-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: clamp(5px, 0.9cqw, 9px);
+  background: #fff;
+  transform: translateX(-50%);
+  cursor: ew-resize;
+  z-index: 3;
+}
+
+.slider-handle__line {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+}
+
+.slider-handle__knob {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: clamp(28px, 4.2cqw, 38px);
+  height: clamp(20px, 3cqw, 28px);
+  background: #fff;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}
+.slider-handle__knob svg {
+  width: 78%;
+  height: 78%;
+}
+
+/* Tekstboks-seksjon i sidebar — Figma-stil med scroll-container */
+.tb-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.tb-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+/* Grå scroll-container som inneholder tekstboks-radene */
+.tb-list {
+  background: #929292;
+  border-radius: 6px;
+  padding: 10px 8px;
+  max-height: 180px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: #6e6e6e #888;
+}
+.tb-list::-webkit-scrollbar { width: 8px; }
+.tb-list::-webkit-scrollbar-track { background: #888; border-radius: 4px; }
+.tb-list::-webkit-scrollbar-thumb { background: #6e6e6e; border-radius: 4px; }
+.tb-list:empty::before {
+  content: "Ingen tekstbokser ennå. Trykk «+ Legg til»";
+  color: rgba(255,255,255,0.85);
+  font-size: 12px;
+  font-style: italic;
+  padding: 4px 2px;
+}
+
+.tb-row {
+  display: grid;
+  grid-template-columns: 24px 1fr 24px 24px;
+  gap: 4px;
+  align-items: flex-start;
+}
+.tb-row__chip {
+  height: 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: bold;
+  font-family: var(--font-bold);
+  color: #fff;
+}
+.tb-row__chip--light { background: #a2a2a2; }
+.tb-row__chip--dark { background: var(--faktisk-blue); }
+
+.tb-row__input {
+  background: #D4D4D4;
+  border: 0;
+  outline: 0;
+  border-radius: 6px;
+  padding: 4px 9px;
+  min-height: 24px;
+  font-family: var(--font-bold);
+  font-size: 12px;
+  color: #212121;
+  font-weight: bold;
+  resize: vertical;
+  line-height: 1.3;
+  font-family: inherit;
+}
+.tb-row__input::placeholder { color: #666; font-weight: normal; }
+input.tb-row__input { height: 24px; padding: 0 9px; }
+textarea.tb-row__input { min-height: 36px; }
+
+/* Peker-toggle (↗) og slett (×) — like små grå knapper */
+.tb-row__btn {
+  background: #a2a2a2;
+  color: #fff;
+  border: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: bold;
+  font-family: var(--font-bold);
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.tb-row__btn:hover { background: #888; }
+.tb-row__btn--active { background: #f18181; }   /* peker aktiv */
+.tb-row__btn--del:hover { background: #c95c5c; }
+
+/* Kompakt Figma-knapp — brukes overalt i sidebar */
+.btn-mini {
+  background: var(--faktisk-blue);
+  color: #fff;
+  font-family: var(--font-bold);
+  font-weight: bold;
+  font-size: 12px;
+  padding: 5px 9px;
+  border-radius: 6px;
+  border: 0;
+  cursor: pointer;
+  white-space: nowrap;
+  line-height: 1.3;
+}
+.btn-mini:hover:not(:disabled) { background: var(--faktisk-blue-hover); }
+.btn-mini:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-mini--block { width: 100%; text-align: center; }
+.btn-mini--light { background: #a2a2a2; }
+.btn-mini--light:hover:not(:disabled) { background: #888; }
+
+.tb-add-buttons {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* Tekstbokser PÅ preview (drag-bare) — matcher embed-størrelser */
+.tb-overlay {
+  position: absolute;
+  padding: 0.45em 0.95em;
+  border-radius: 5px;
+  font-family: var(--font-bold);
+  font-weight: bold;
+  font-size: clamp(14px, 1.8cqw, 26px);
+  line-height: 1.25;
+  cursor: move;
+  user-select: none;
+  pointer-events: auto;
+  white-space: nowrap;
+  transform: translate(-50%, -50%);
+  z-index: 4;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}
+.tb-overlay--light {
+  background: #D9D9D9;
+  color: #212121;
+  font-weight: normal;
+  font-size: clamp(14px, 1.6cqw, 22px);
+  white-space: normal;
+  word-break: break-word;
+  /* Bredden hentes fra --tb-w (settes inline per boks).
+     Preview-vinduet er typisk bredt, så ingen mobile-overstyring er nødvendig her. */
+  width: var(--tb-w, 28%);
+}
+.tb-overlay--dark { background: #0050fc; color: #fff; }
+/* Resize-håndtak (lite blått punkt nedre-høyre) for light-bokser */
+.tb-overlay__resize {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  width: 12px;
+  height: 12px;
+  background: #fff;
+  border: 2px solid #0050fc;
+  border-radius: 50%;
+  cursor: ew-resize;
+  z-index: 5;
+}
+.tb-overlay.is-selected { outline: 2px dashed #fff; outline-offset: 2px; }
+
+/* Markeringer (frittstående sirkler) i preview */
+.bm-marker {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  aspect-ratio: 1;
+  cursor: move;
+  z-index: 4;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+}
+.bm-marker--filled {
+  background: var(--mark-color, #0050fc);
+  border-radius: 50%;
+}
+.bm-marker--open {
+  border: 4px solid var(--mark-color, #0050fc);
+  border-radius: 50%;
+  background: transparent;
+}
+.bm-marker__scale {
+  position: absolute;
+  right: -8px;
+  bottom: -8px;
+  width: 16px;
+  height: 16px;
+  background: #fff;
+  border: 2px solid #0050fc;
+  border-radius: 50%;
+  cursor: nwse-resize;
+  z-index: 5;
+}
+
+/* Marker-seksjon i sidebar — samme stil som tb-section */
+.marker-section { display: flex; flex-direction: column; gap: 8px; flex: 0 0 auto; }
+
+/* Peker-sirkel — bevarer proporsjon (HTML-div, ikke SVG) + puls-ring.
+   Farge styres via variant-modifier (--dot-color custom prop). */
+.tb-pointer-circle {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  transform: translate(-50%, -50%);
+  cursor: move;
+  z-index: 5;
+  pointer-events: auto;
+  --dot-color: #fff;
+}
+.tb-pointer-circle--dark { --dot-color: #0050fc; }
+.tb-pointer-circle--light { --dot-color: #fff; }
+/* Åpen ring: erstatt fyll med border + transparent inside */
+.tb-pointer-circle--open .tb-pointer-dot-inner {
+  background: transparent;
+  border: 4px solid var(--dot-color);
+  box-sizing: border-box;
+}
+.tb-pointer-circle--open .tb-pointer-pulse {
+  background: transparent;
+  border: 3px solid var(--dot-color);
+  box-sizing: border-box;
+}
+/* Skalerings-håndtak på peker-sirkel (lite hvitt punkt nedre-høyre) */
+.tb-pointer-scale {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  width: 12px;
+  height: 12px;
+  background: #fff;
+  border: 2px solid #0050fc;
+  border-radius: 50%;
+  cursor: nwse-resize;
+  z-index: 6;
+}
+.tb-pointer-dot-inner {
+  position: absolute;
+  inset: 0;
+  background: var(--dot-color);
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+  z-index: 2;
+}
+.tb-pointer-pulse {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--dot-color);
+  opacity: 0.55;
+  animation: tb-pulse 1.8s ease-out infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+@keyframes tb-pulse {
+  0%   { transform: scale(1);   opacity: 0.55; }
+  80%  { transform: scale(2.6); opacity: 0;    }
+  100% { transform: scale(2.6); opacity: 0;    }
+}

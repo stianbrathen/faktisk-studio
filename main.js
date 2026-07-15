@@ -6,8 +6,17 @@ const { app, BrowserWindow, ipcMain, clipboard, dialog, shell, net } = require('
 const path = require('path');
 const fs = require('fs');
 const https = require('https');
+const crypto = require('crypto');
 const { spawn } = require('child_process');
 const { version: APP_VERSION, registryUrl: REGISTRY_URL } = require('./package.json');
+
+// electron-updater lastes trygt (kraster ikke dev-mode hvis pakken mangler)
+let autoUpdater = null;
+try {
+  autoUpdater = require('electron-updater').autoUpdater;
+} catch (e) {
+  console.warn('electron-updater ikke tilgjengelig:', e.message);
+}
 
 let mainWindow = null;
 
@@ -29,7 +38,11 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      // F4 sikkerhet: sandbox = true. Renderer + preload kan bare bruke Web APIs
+      // og de eksplisitt eksponerte IPC-kanalene via contextBridge. Ingen direkte
+      // Node-tilgang selv om plugin-kode skulle prøve. Preload-en vår er allerede
+      // sandbox-kompatibel (bruker kun 'electron'-modulen som er tillatt).
+      sandbox: true,
     },
   });
 
@@ -39,9 +52,67 @@ function createWindow() {
 
 app.whenReady().then(() => {
   createWindow();
+  setupAutoUpdater();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+});
+
+// ============================================================
+//  Auto-updater (electron-updater med GitHub Releases som feed)
+// ============================================================
+
+// Siste kjente updater-status. Renderer kan hente den når som helst.
+let updaterState = { status: 'idle' };
+
+function pushUpdaterState(patch) {
+  updaterState = { ...updaterState, ...patch };
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('updater-state', updaterState);
+  }
+}
+
+function setupAutoUpdater() {
+  // Kjør kun i pakket app — dev-mode har ikke oppdaterings-metadata og ville feilet.
+  if (!autoUpdater || !app.isPackaged) {
+    updaterState = { status: 'dev-mode' };
+    return;
+  }
+
+  autoUpdater.autoDownload = true;          // last ned automatisk når vi finner ny versjon
+  autoUpdater.autoInstallOnAppQuit = true;  // installer ved neste avslutning hvis brukeren ikke restarter
+
+  autoUpdater.on('checking-for-update', () => pushUpdaterState({ status: 'checking' }));
+  autoUpdater.on('update-available', info => pushUpdaterState({ status: 'available', version: info.version }));
+  autoUpdater.on('update-not-available', () => pushUpdaterState({ status: 'idle' }));
+  autoUpdater.on('download-progress', p => pushUpdaterState({ status: 'downloading', percent: Math.round(p.percent) }));
+  autoUpdater.on('update-downloaded', info => pushUpdaterState({ status: 'ready', version: info.version }));
+  autoUpdater.on('error', err => {
+    console.error('Auto-updater error:', err);
+    pushUpdaterState({ status: 'error', message: err && err.message ? err.message : String(err) });
+  });
+
+  // Første sjekk 5 sek etter oppstart så vindu er klart til å motta events.
+  setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 5000);
+  // Periodisk sjekk hver 4. time.
+  setInterval(() => autoUpdater.checkForUpdates().catch(() => {}), 4 * 60 * 60 * 1000);
+}
+
+ipcMain.handle('updater-get-state', () => updaterState);
+
+ipcMain.handle('updater-check', async () => {
+  if (!autoUpdater || !app.isPackaged) return { ok: false, error: 'Auto-updater ikke tilgjengelig i dev-mode' };
+  try {
+    await autoUpdater.checkForUpdates();
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('updater-quit-and-install', () => {
+  if (autoUpdater && app.isPackaged) autoUpdater.quitAndInstall();
+  return { ok: true };
 });
 
 app.on('window-all-closed', () => {
@@ -156,6 +227,94 @@ ipcMain.handle('state-load', async (e, pluginId) => {
     if (!fs.existsSync(file)) return { ok: true, state: null };
     const payload = JSON.parse(fs.readFileSync(file, 'utf-8'));
     return { ok: true, state: payload.state || null, savedAt: payload.savedAt };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+// ============================================================
+//  Labrador-integrasjon: eget vindu med persistent session, delt fil-historikk
+// ============================================================
+const recentFilesPath = path.join(app.getPath('userData'), 'recent-files.json');
+const MAX_RECENT_FILES = 60;
+
+function loadRecentFiles() {
+  try {
+    if (!fs.existsSync(recentFilesPath)) return [];
+    return JSON.parse(fs.readFileSync(recentFilesPath, 'utf-8'));
+  } catch (e) { return []; }
+}
+function saveRecentFiles(list) {
+  try {
+    fs.writeFileSync(recentFilesPath, JSON.stringify(list, null, 2), 'utf-8');
+  } catch (e) {}
+}
+
+// Åpne Labrador i brukerens default nettleser — der brukeren allerede har
+// aktiv Labrador-session. Innebygd Electron-vindu gir "Application error"
+// uansett hvordan vi konfigurerer UA, session-partisjon og popup-håndtering
+// (sannsynligvis pga Firebase-auth-begrensninger i Chromium fra Electron).
+// Default URL: /settings/upload-file — Labrador redirect-er til login hvis
+// ingen session, ellers direkte til upload-siden.
+ipcMain.handle('open-labrador', async (e, urlIn) => {
+  const target = urlIn || 'https://labrador.faktisk.no/settings/upload-file';
+  if (typeof target !== 'string' || !/^https?:\/\/labrador\.faktisk\.no/i.test(target)) {
+    return { ok: false, error: 'Bare labrador.faktisk.no-URL-er tillatt' };
+  }
+  await shell.openExternal(target);
+  return { ok: true };
+});
+
+ipcMain.handle('recent-file-add', async (e, entry) => {
+  try {
+    if (!entry || !entry.url) return { ok: false, error: 'Mangler url' };
+    let list = loadRecentFiles();
+    // Fjern eksisterende oppføring med samme URL
+    list = list.filter(x => x.url !== entry.url);
+    list.unshift({
+      url: entry.url,
+      type: entry.type || guessType(entry.url),
+      alt: entry.alt || '',
+      addedAt: new Date().toISOString(),
+      pluginId: entry.pluginId || null,
+    });
+    if (list.length > MAX_RECENT_FILES) list = list.slice(0, MAX_RECENT_FILES);
+    saveRecentFiles(list);
+    return { ok: true };
+  } catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('recent-file-list', async (e, opts) => {
+  const list = loadRecentFiles();
+  const type = opts && opts.type;
+  const limit = (opts && opts.limit) || 24;
+  const filtered = type ? list.filter(x => x.type === type) : list;
+  return { ok: true, files: filtered.slice(0, limit) };
+});
+ipcMain.handle('recent-file-remove', async (e, url) => {
+  const list = loadRecentFiles().filter(x => x.url !== url);
+  saveRecentFiles(list);
+  return { ok: true };
+});
+ipcMain.handle('recent-file-clear', async () => {
+  saveRecentFiles([]);
+  return { ok: true };
+});
+
+function guessType(url) {
+  const u = String(url).toLowerCase().split('?')[0];
+  if (/\.(jpg|jpeg|png|gif|webp|avif|svg|bmp)$/i.test(u)) return 'image';
+  if (/\.(mp4|mov|webm|m4v|avi)$/i.test(u)) return 'video';
+  if (u.includes('player.mux.com')) return 'video';
+  if (/\.(mp3|wav|m4a|ogg)$/i.test(u)) return 'audio';
+  return 'other';
+}
+
+// Sletter auto-save-state for én plugin. Etterlater LAGREDE prosjekter (project-list) urørt.
+ipcMain.handle('state-clear', async (e, pluginId) => {
+  try {
+    const file = path.join(dataDir, safeId(pluginId) + '.json');
+    if (fs.existsSync(file)) fs.rmSync(file);
+    return { ok: true };
   } catch (err) {
     return { ok: false, error: err.message };
   }
@@ -380,6 +539,208 @@ ipcMain.handle('video-export', async (e, opts) => {
   return { ok: true, savePath };
 });
 
+// Videosensur: blur-masker med keyframe-spor rendres inn i videoen.
+// Filtergrafen bygges i src/censor-filter.js (ren modul, enhetstestbar).
+// Kvalitet: CRF 17 + samme oppløsning/fps som kilden, lyd kopieres bit-for-bit.
+ipcMain.handle('censor-export', async (e, opts) => {
+  const { url, inputPath, savePath, duration, masks, trimStart, trimEnd } = opts || {};
+  // Utsnitt: -ss før -i (rask, nøyaktig seek ved re-encoding) nullstiller
+  // tidsstemplene, så maskenes keyframe-tider forskyves tilsvarende.
+  const ts = (typeof trimStart === 'number' && trimStart > 0.01) ? trimStart : 0;
+  const te = (typeof trimEnd === 'number' && trimEnd > ts + 0.1) ? trimEnd : null;
+  const hasTrim = ts > 0 || te !== null;
+  const maskList = Array.isArray(masks) ? masks : [];
+  if ((!url && !inputPath) || !savePath || (!maskList.length && !hasTrim)) {
+    return { ok: false, error: 'Mangler kilde (url/inputPath), savePath eller masker/utsnitt' };
+  }
+  const shiftedMasks = maskList.map(m => Object.assign({}, m, {
+    keyframes: (m.keyframes || []).map(k => Object.assign({}, k, { t: k.t - ts })),
+  }));
+
+  const hasFfmpeg = await checkFfmpeg();
+  if (!hasFfmpeg) {
+    return { ok: false, error: 'Klarte ikke finne ffmpeg. Prøv å starte appen på nytt.' };
+  }
+
+  let graph = null, outLabel = null;
+  if (shiftedMasks.length) {
+    try {
+      const cfPath = require.resolve('./src/censor-filter.js');
+      // I dev-modus: tøm require-cachen så endringer i filtergraf-modulen
+      // plukkes opp uten app-restart (cachen bet oss under utviklingen).
+      if (!app.isPackaged) delete require.cache[cfPath];
+      ({ graph, outLabel } = require(cfPath).buildCensorFilter(shiftedMasks));
+      if (!app.isPackaged) {
+        console.log('[censor-export] former:', shiftedMasks.map(m => m.shape || 'rect').join(', '),
+          hasTrim ? `· utsnitt ${ts}s–${te || 'slutt'}` : '');
+        console.log('[censor-export] graf (første 300 tegn):', graph.slice(0, 300));
+      }
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  }
+
+  const send = msg => {
+    try { mainWindow && mainWindow.webContents.send('censor-export-progress', msg); } catch (e) {}
+  };
+
+  let input = inputPath;
+  if (!input || !fs.existsSync(input)) {
+    try {
+      send({ phase: 'downloading', percent: 0 });
+      input = await ensureDownloaded(url);
+      send({ phase: 'downloading', percent: 100 });
+    } catch (err) {
+      return { ok: false, error: 'Kunne ikke laste ned video: ' + err.message };
+    }
+  }
+
+  const args = [
+    ...(ts > 0 ? ['-ss', String(ts)] : []),
+    '-i', input,
+    ...(te !== null ? ['-t', String(te - ts)] : []),
+    ...(graph
+      ? ['-filter_complex', graph, '-map', outLabel]
+      : ['-map', '0:v']),
+    '-map', '0:a?',
+    '-c:v', 'libx264',
+    '-preset', 'medium',
+    '-crf', '17',
+    '-pix_fmt', 'yuv420p',
+    '-c:a', 'copy',
+    '-movflags', '+faststart',
+    '-y',
+    savePath,
+  ];
+
+  const totalDur = (typeof duration === 'number' && duration > 0) ? duration : 0;
+
+  try {
+    await new Promise((resolve, reject) => {
+      send({ phase: 'encoding', percent: 0 });
+      const ff = spawn(findFfmpeg(), args);
+      let stderr = '';
+      ff.stderr.on('data', chunk => {
+        const text = chunk.toString();
+        stderr += text;
+        if (totalDur) {
+          const m = text.match(/time=(\d+):(\d+):(\d+(?:\.\d+)?)/);
+          if (m) {
+            const t = parseInt(m[1]) * 3600 + parseInt(m[2]) * 60 + parseFloat(m[3]);
+            send({ phase: 'encoding', percent: Math.min(100, Math.round((t / totalDur) * 100)) });
+          }
+        }
+      });
+      ff.on('error', err => reject(new Error('ffmpeg-prosessfeil: ' + err.message)));
+      ff.on('close', code => {
+        if (code === 0) resolve();
+        else reject(new Error('ffmpeg feilet (kode ' + code + '). Siste output: ' + stderr.split('\n').slice(-3).join(' | ')));
+      });
+    });
+    send({ phase: 'done', percent: 100 });
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+
+  return { ok: true, savePath };
+});
+
+// Motiv-tracking: følger et markert område gjennom klippet via
+// template-matching på nedskalerte gråtonebilder (src/censor-track.js).
+// Alt kjører lokalt — ingen ML-modeller, ingen nettverkskall.
+ipcMain.handle('censor-track', async (e, opts) => {
+  const { url, inputPath, from, to, x, y, w, h, videoW, videoH } = opts || {};
+  if ((!url && !inputPath) || typeof from !== 'number' || typeof to !== 'number'
+      || to - from < 0.3 || !videoW || !videoH) {
+    return { ok: false, error: 'Ugyldige tracking-parametre' };
+  }
+
+  const hasFfmpeg = await checkFfmpeg();
+  if (!hasFfmpeg) return { ok: false, error: 'ffmpeg ikke tilgjengelig' };
+
+  const send = msg => {
+    try { mainWindow && mainWindow.webContents.send('censor-track-progress', msg); } catch (e) {}
+  };
+
+  let input = inputPath;
+  if (!input || !fs.existsSync(input)) {
+    try {
+      send({ phase: 'downloading', percent: 0 });
+      input = await ensureDownloaded(url);
+    } catch (err) {
+      return { ok: false, error: 'Kunne ikke laste ned video: ' + err.message };
+    }
+  }
+
+  // Nedskalert analyse: ~480px bredde og 5 fps holder for maskebaner,
+  // og gjør både ffmpeg-dekoding og matching rask.
+  const FPS = 5;
+  const sw = Math.min(480, videoW);
+  const scale = sw / videoW;
+  const sh = Math.max(2, 2 * Math.round((videoH * scale) / 2));
+  const span = to - from;
+
+  const args = [
+    '-ss', String(Math.max(0, from)),
+    '-i', input,
+    '-t', String(span + 0.3),
+    '-vf', `fps=${FPS},scale=${sw}:${sh}`,
+    '-f', 'rawvideo',
+    '-pix_fmt', 'gray',
+    'pipe:1',
+  ];
+
+  let raw;
+  try {
+    raw = await new Promise((resolve, reject) => {
+      send({ phase: 'decoding', percent: 0 });
+      const ff = spawn(findFfmpeg(), args);
+      const chunks = [];
+      let bytes = 0;
+      const expected = Math.max(1, Math.ceil(span * FPS)) * sw * sh;
+      ff.stdout.on('data', c => {
+        chunks.push(c);
+        bytes += c.length;
+        send({ phase: 'decoding', percent: Math.min(99, Math.round((bytes / expected) * 100)) });
+      });
+      ff.on('error', err => reject(new Error('ffmpeg-prosessfeil: ' + err.message)));
+      ff.on('close', code => {
+        if (code === 0) resolve(Buffer.concat(chunks));
+        else reject(new Error('ffmpeg feilet (kode ' + code + ')'));
+      });
+    });
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+
+  const nFrames = Math.floor(raw.length / (sw * sh));
+  if (nFrames < 2) return { ok: false, error: 'For få bilder å spore over' };
+
+  try {
+    const { trackRegion, simplifyPath } = require('./src/censor-track.js');
+    send({ phase: 'tracking', percent: 0 });
+    const res = trackRegion(raw, sw, sh, nFrames, {
+      x: x * scale, y: y * scale, w: w * scale, h: h * scale,
+    });
+    // Forenkle banen (2px toleranse i analyseoppløsning) og skaler tilbake
+    const simplified = simplifyPath(res.path, 2);
+    const keyframes = simplified.map(p => ({
+      t: Math.round((from + p.i / FPS) * 10) / 10,
+      x: Math.round(p.x / scale),
+      y: Math.round(p.y / scale),
+    }));
+    send({ phase: 'done', percent: 100 });
+    return {
+      ok: true,
+      keyframes,
+      stoppedEarly: res.stoppedEarly,
+      trackedTo: from + (res.path[res.path.length - 1].i / FPS),
+    };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
 ipcMain.handle('generate-thumbnail', async (e, opts) => {
   const { url, atTime } = opts || {};
   if (!url || typeof atTime !== 'number') {
@@ -473,6 +834,24 @@ function httpGetJson(url) {
   });
 }
 
+// Henter bytes (Buffer) — brukes for sha256-verifisering av plugin-bundles
+// før innhold parses og installeres. F4 fra kodegjennomgangen.
+function httpGetBuffer(url) {
+  return new Promise((resolve, reject) => {
+    https.get(url, { headers: { 'User-Agent': 'FaktiskStudio/' + APP_VERSION } }, res => {
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        return resolve(httpGetBuffer(res.headers.location));
+      }
+      if (res.statusCode !== 200) {
+        return reject(new Error('HTTP ' + res.statusCode + ' fra ' + url));
+      }
+      const chunks = [];
+      res.on('data', chunk => chunks.push(chunk));
+      res.on('end', () => resolve(Buffer.concat(chunks)));
+    }).on('error', reject);
+  });
+}
+
 function compareVersions(a, b) {
   const pa = String(a || '0').split('.').map(n => parseInt(n, 10) || 0);
   const pb = String(b || '0').split('.').map(n => parseInt(n, 10) || 0);
@@ -521,7 +900,27 @@ ipcMain.handle('plugin-install', async (e, pluginEntry) => {
     if (pluginEntry.minStudioVersion && compareVersions(APP_VERSION, pluginEntry.minStudioVersion) < 0) {
       return { ok: false, error: 'Pluginen krever Faktisk Studio ' + pluginEntry.minStudioVersion + ' eller nyere — du har ' + APP_VERSION };
     }
-    const bundle = await httpGetJson(pluginEntry.bundleUrl);
+    // Hent bundle som Buffer så vi kan sha256-verifisere før parsing.
+    // F4 — tamper-detektering: hvis registry har sha256, må den matche eksakt.
+    const bundleBuf = await httpGetBuffer(pluginEntry.bundleUrl);
+    if (pluginEntry.sha256) {
+      const actualHash = crypto.createHash('sha256').update(bundleBuf).digest('hex');
+      if (actualHash !== pluginEntry.sha256) {
+        return {
+          ok: false,
+          error: 'Sikkerhetsfeil: bundle-hash matcher ikke registry.\n' +
+                 'Forventet: ' + pluginEntry.sha256.slice(0, 16) + '...\n' +
+                 'Faktisk:   ' + actualHash.slice(0, 16) + '...\n' +
+                 'Bundle kan være tuklet med — installasjon avvist.'
+        };
+      }
+    }
+    let bundle;
+    try {
+      bundle = JSON.parse(bundleBuf.toString('utf-8'));
+    } catch (e) {
+      return { ok: false, error: 'Bundle er ugyldig JSON: ' + e.message };
+    }
     if (!bundle || typeof bundle !== 'object') {
       return { ok: false, error: 'Bundle har ugyldig format' };
     }

@@ -14,9 +14,22 @@
   flex-direction: column;
   gap: 12px;
   padding: 0 4px 4px;
-  /* Sidebar skal IKKE scrolle selv — alt holder seg på siden,
-     og tekstboks-listen scroller internt. */
   min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.3) transparent;
+}
+.plugin-sidebar::-webkit-scrollbar { width: 8px; }
+.plugin-sidebar::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.3);
+  border-radius: 4px;
+}
+/* Kopier embed-knappen pinnes nede så den alltid er synlig */
+#copyEmbedBtn {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  box-shadow: 0 -10px 14px -4px rgba(157,157,157,0.7);
 }
 
 .plugin-sidebar__head {
@@ -331,8 +344,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  flex: 1;          /* fyller all ledig plass i sidebar */
-  min-height: 120px;
+  flex: 0 0 auto;
 }
 .tb-section__header {
   display: flex;
@@ -345,8 +357,7 @@
   background: #929292;
   border-radius: 6px;
   padding: 10px 8px;
-  flex: 1;
-  min-height: 0;
+  max-height: 180px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -457,7 +468,7 @@ textarea.tb-row__input { min-height: 36px; }
 /* Tekstbokser PÅ preview (drag-bare) — matcher embed-størrelser */
 .tb-overlay {
   position: absolute;
-  padding: 0.3em 0.65em;
+  padding: 0.45em 0.95em;
   border-radius: 5px;
   font-family: var(--font-bold);
   font-weight: bold;
@@ -476,10 +487,26 @@ textarea.tb-row__input { min-height: 36px; }
   color: #212121;
   font-weight: normal;
   font-size: clamp(14px, 1.6cqw, 22px);
-  white-space: pre-wrap;
-  max-width: 38%;
+  white-space: normal;
+  word-break: break-word;
+  /* Bredden hentes fra --tb-w (settes inline per boks).
+     Preview-vinduet er typisk bredt, så ingen mobile-overstyring er nødvendig her. */
+  width: var(--tb-w, 28%);
 }
 .tb-overlay--dark { background: #0050fc; color: #fff; }
+/* Resize-håndtak (lite blått punkt nedre-høyre) for light-bokser */
+.tb-overlay__resize {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  width: 12px;
+  height: 12px;
+  background: #fff;
+  border: 2px solid #0050fc;
+  border-radius: 50%;
+  cursor: ew-resize;
+  z-index: 5;
+}
 .tb-overlay.is-selected { outline: 2px dashed #fff; outline-offset: 2px; }
 
 /* Markeringer (frittstående sirkler) i preview */
@@ -492,11 +519,11 @@ textarea.tb-row__input { min-height: 36px; }
   box-shadow: 0 2px 6px rgba(0,0,0,0.4);
 }
 .bm-marker--filled {
-  background: #0050fc;
+  background: var(--mark-color, #0050fc);
   border-radius: 50%;
 }
 .bm-marker--open {
-  border: 4px solid #0050fc;
+  border: 4px solid var(--mark-color, #0050fc);
   border-radius: 50%;
   background: transparent;
 }
@@ -530,6 +557,30 @@ textarea.tb-row__input { min-height: 36px; }
 }
 .tb-pointer-circle--dark { --dot-color: #0050fc; }
 .tb-pointer-circle--light { --dot-color: #fff; }
+/* Åpen ring: erstatt fyll med border + transparent inside */
+.tb-pointer-circle--open .tb-pointer-dot-inner {
+  background: transparent;
+  border: 4px solid var(--dot-color);
+  box-sizing: border-box;
+}
+.tb-pointer-circle--open .tb-pointer-pulse {
+  background: transparent;
+  border: 3px solid var(--dot-color);
+  box-sizing: border-box;
+}
+/* Skalerings-håndtak på peker-sirkel (lite hvitt punkt nedre-høyre) */
+.tb-pointer-scale {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  width: 12px;
+  height: 12px;
+  background: #fff;
+  border: 2px solid #0050fc;
+  border-radius: 50%;
+  cursor: nwse-resize;
+  z-index: 6;
+}
 .tb-pointer-dot-inner {
   position: absolute;
   inset: 0;

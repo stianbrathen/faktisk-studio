@@ -1,0 +1,9 @@
+{
+  "id": "pop-up",
+  "name": "Pop up",
+  "version": "0.3.5",
+  "entry": "index.html",
+  "description": "Bilde med lys grå ramme og avrundede hjørner. Klikk åpner bildet stort i en lightbox med bildetekst og fotograf-kreditt. Støtter enkelt bilde eller galleri.",
+  "category": "image",
+  "minStudioVersion": "0.2.0"
+}

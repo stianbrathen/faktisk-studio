@@ -1,7 +1,7 @@
 {
   "name": "faktisk-studio",
   "productName": "Faktisk Studio",
-  "version": "0.4.0",
+  "version": "0.5.9",
   "registryUrl": "https://raw.githubusercontent.com/stianbrathen/faktiskorg-studio-plugins/main/registry.json",
   "description": "Verktøy for å lage interaktive embeds og video-elementer for Labrador-artikler på faktisk.no",
   "main": "main.js",
@@ -16,7 +16,8 @@
     "pack": "npm run clean && electron-builder --dir"
   },
   "dependencies": {
-    "ffmpeg-static": "^5.3.0"
+    "ffmpeg-static": "^5.3.0",
+    "electron-updater": "^6.3.9"
   },
   "devDependencies": {
     "electron": "^33.4.11",
@@ -25,6 +26,14 @@
   "build": {
     "appId": "no.faktisk.studio",
     "productName": "Faktisk Studio",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "stianbrathen",
+        "repo": "faktiskorg-studio-plugins",
+        "releaseType": "release"
+      }
+    ],
     "directories": {
       "output": "dist"
     },

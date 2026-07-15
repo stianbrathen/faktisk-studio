@@ -4,6 +4,7 @@ const ELEMENT_TYPES = [
   { id: 'looping-video',   label: 'Looping videoklipp' },
   { id: 'video-player',    label: 'Videoavspiller' },
   { id: 'bilde-markering', label: 'Bilde med markering' },
+  { id: 'bildeanalyse',    label: 'Bildeanalyse' },
   { id: 'for-og-etter',    label: 'Før og etter slider' },
   { id: 'interaktiv-video',label: 'Interaktiv video' },
   { id: 'parallax-collage',label: 'Parallax bildecollage' },
@@ -354,4 +355,68 @@ renderHub();
     const el = document.getElementById('appVersion');
     if (el && v) el.textContent = 'v' + v;
   } catch (e) {}
+})();
+
+// ============================================================
+//  Auto-update-banner
+//  Vises øverst i vinduet når electron-updater melder om ny versjon.
+// ============================================================
+(function setupUpdaterBanner() {
+  if (!window.faktisk || !window.faktisk.updaterGetState) return;
+
+  // Lag banner-elementet
+  const banner = document.createElement('div');
+  banner.id = 'updateBanner';
+  banner.style.cssText = [
+    'position:fixed', 'top:0', 'left:0', 'right:0',
+    'z-index:9999',
+    'background:#0050FC', 'color:#fff',
+    'padding:10px 18px',
+    'display:none',
+    'align-items:center', 'justify-content:center',
+    'gap:16px',
+    'font-family:"Haas Grot Text 75 Bold", "Helvetica Neue", Helvetica, Arial, sans-serif',
+    'font-weight:bold', 'font-size:13px',
+    'box-shadow:0 2px 12px rgba(0,0,0,0.25)',
+  ].join(';');
+  document.body.appendChild(banner);
+
+  function esc(s){ return String(s == null ? '' : s).replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])); }
+
+  function render(state) {
+    if (!state || !state.status) return;
+    // Kun disse status'ene skal vises som banner
+    if (state.status === 'available') {
+      banner.innerHTML = `<span>Ny versjon <strong>v${esc(state.version)}</strong> tilgjengelig — laster ned i bakgrunnen…</span>`;
+      banner.style.display = 'flex';
+      banner.style.background = '#0050FC';
+    } else if (state.status === 'downloading') {
+      banner.innerHTML = `<span>Laster ned oppdatering… <strong>${esc(state.percent || 0)}%</strong></span>`;
+      banner.style.display = 'flex';
+      banner.style.background = '#0050FC';
+    } else if (state.status === 'ready') {
+      banner.innerHTML = `
+        <span>Ny versjon <strong>v${esc(state.version)}</strong> er klar til å installeres.</span>
+        <button id="updateRestartBtn" style="background:#fff;color:#0050FC;border:0;border-radius:6px;padding:6px 14px;cursor:pointer;font-family:inherit;font-weight:bold;font-size:12px;">Restart og installer</button>
+        <button id="updateDismissBtn" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:6px;padding:6px 12px;cursor:pointer;font-family:inherit;font-weight:bold;font-size:12px;">Senere</button>
+      `;
+      banner.style.display = 'flex';
+      banner.style.background = '#0050FC';
+      const restartBtn = document.getElementById('updateRestartBtn');
+      const dismissBtn = document.getElementById('updateDismissBtn');
+      if (restartBtn) restartBtn.onclick = () => window.faktisk.updaterQuitAndInstall();
+      if (dismissBtn) dismissBtn.onclick = () => { banner.style.display = 'none'; };
+    } else if (state.status === 'error') {
+      // Feil skjules stille — logger til konsoll i stedet for å plage bruker
+      console.warn('Auto-updater error:', state.message);
+      banner.style.display = 'none';
+    } else {
+      banner.style.display = 'none';
+    }
+  }
+
+  // Hent siste kjente state ved oppstart
+  window.faktisk.updaterGetState().then(render).catch(() => {});
+  // Lytt på fremtidige oppdateringer
+  window.faktisk.onUpdaterState(render);
 })();

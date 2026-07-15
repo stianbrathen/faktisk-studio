@@ -12,9 +12,12 @@
 set -e
 
 APP_NAME="Faktisk Studio"
+# Fil-safe navn (uten space) for alle distribusjons-artefakter — unngår URL-encoding-
+# mismatch mellom lokal fil, GitHub-asset og electron-updater's yml-referanse.
+APP_NAME_SAFE="Faktisk-Studio"
 APP_VERSION=$(node -p "require('./package.json').version")
 APP_PATH="dist/mac-arm64/${APP_NAME}.app"
-DMG_PATH="dist/${APP_NAME}-${APP_VERSION}-arm64.dmg"
+DMG_PATH="dist/${APP_NAME_SAFE}-${APP_VERSION}-arm64.dmg"
 IDENTITY="Developer ID Application: Stian Brathen (${APPLE_TEAM_ID})"
 ENTITLEMENTS="build/entitlements.mac.plist"
 
@@ -29,6 +32,20 @@ for v in APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
     exit 1
   fi
 done
+
+echo "==> Step 0/6: Generer app-update.yml (electron-updater feed-config)"
+# Nuclear ditto-rebuild kan strippe filer som electron-builder normalt legger inn.
+# app-update.yml MÅ ligge i Contents/Resources/ ellers får electron-updater ENOENT.
+# Filen forteller autoUpdater hvor den skal lete etter oppdateringer.
+UPDATE_YML="$APP_PATH/Contents/Resources/app-update.yml"
+mkdir -p "$(dirname "$UPDATE_YML")"
+cat > "$UPDATE_YML" <<EOF
+provider: github
+owner: stianbrathen
+repo: faktiskorg-studio-plugins
+updaterCacheDirName: faktisk-studio-updater
+EOF
+echo "    Skrev $UPDATE_YML"
 
 echo "==> Step 1/6: Nuclear clean — ditto-rebuild the whole .app without xattrs"
 # The single most reliable way to ensure no extended attributes anywhere
@@ -163,9 +180,61 @@ DMG_TMP="dist/${APP_NAME}-temp.dmg"
 rm -f "$DMG_TMP" "$DMG_PATH"
 hdiutil create -volname "$APP_NAME" -srcfolder "$APP_PATH" -ov -format UDZO "$DMG_PATH"
 
+# ============================================================
+#  Auto-update-artefakter: signert ZIP + latest-mac.yml
+#  electron-updater bruker ZIP-filen til nedlasting og latest-mac.yml
+#  som feed-fil (fetches fra GitHub Release-assets).
+# ============================================================
+echo "==> Bygger ZIP for auto-updater"
+ZIP_NAME="${APP_NAME_SAFE}-${APP_VERSION}-arm64-mac.zip"
+ZIP_PATH_OUT="dist/${ZIP_NAME}"
+rm -f "$ZIP_PATH_OUT"
+# --sequesterRsrc: bevarer resource forks korrekt så ZIP-en kan pakkes ut igjen som gyldig .app
+ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$ZIP_PATH_OUT"
+
+echo "==> Genererer latest-mac.yml"
+YML_PATH="dist/latest-mac.yml"
+
+# Base64-kodet SHA-512 (formatet electron-updater forventer)
+b64sha512() {
+  shasum -a 512 "$1" | awk '{print $1}' | xxd -r -p | base64
+}
+
+ZIP_SIZE=$(stat -f%z "$ZIP_PATH_OUT")
+ZIP_SHA=$(b64sha512 "$ZIP_PATH_OUT")
+DMG_NAME="${APP_NAME_SAFE}-${APP_VERSION}-arm64.dmg"
+DMG_SIZE=$(stat -f%z "$DMG_PATH")
+DMG_SHA=$(b64sha512 "$DMG_PATH")
+
+# ISO 8601-tidspunkt (UTC)
+RELEASE_DATE=$(date -u +%Y-%m-%dT%H:%M:%S.000Z)
+
+cat > "$YML_PATH" <<EOF
+version: ${APP_VERSION}
+files:
+  - url: ${ZIP_NAME}
+    sha512: ${ZIP_SHA}
+    size: ${ZIP_SIZE}
+  - url: ${DMG_NAME}
+    sha512: ${DMG_SHA}
+    size: ${DMG_SIZE}
+path: ${ZIP_NAME}
+sha512: ${ZIP_SHA}
+releaseDate: '${RELEASE_DATE}'
+EOF
+
 echo ""
 echo "✅ Done!"
 echo "   App:  $APP_PATH"
-echo "   DMG:  $DMG_PATH"
+echo "   DMG:  $DMG_PATH  (menneske-download)"
+echo "   ZIP:  $ZIP_PATH_OUT  (auto-updater)"
+echo "   YML:  $YML_PATH  (feed for electron-updater)"
 echo ""
-echo "Open the DMG and drag to Applications. No Gatekeeper warning."
+echo "For å publisere en ny versjon:"
+echo "  1) Opprett en GitHub Release med tag v${APP_VERSION} på stianbrathen/faktiskorg-studio-plugins"
+echo "  2) Last opp DISSE tre filene som release-assets:"
+echo "       - ${DMG_NAME}"
+echo "       - ${ZIP_NAME}"
+echo "       - latest-mac.yml"
+echo "  3) Klikk 'Publish release' (må være 'release', ikke 'draft' eller 'prerelease')"
+echo "  4) Installerte klienter oppdager oppdateringen ved neste oppstart (eller innen 4 t)"

@@ -1,0 +1,9 @@
+{
+  "id": "parallax-collage",
+  "name": "Parallax bildecollage",
+  "version": "0.3.3",
+  "entry": "index.html",
+  "description": "Scroll-drevet parallax-collage der bildene beveger seg med ulik hastighet basert på dybde. Selvstendig iframe-embed for Labrador.",
+  "category": "image",
+  "minStudioVersion": "0.2.0"
+}

@@ -1,0 +1,1837 @@
+// Faktisk Studio · Bildeanalyse-plugin (MVP)
+// Grid av 2-16 bilder (1-8 par) med rektangulære fargede rammer.
+// Samme fargegruppe = samme entitet på tvers av bilder.
+// Embed har klikkbar fargenøkkel som åpner lightbox filtrert per gruppe.
+
+const PLUGIN_ID = 'bildeanalyse';
+
+(async () => {
+  try {
+    const [appV, plugins] = await Promise.all([
+      window.faktisk.appVersion(),
+      window.faktisk.pluginStatus(),
+    ]);
+    const me = (plugins || []).find(p => p.id === PLUGIN_ID);
+    const el = document.getElementById('appVersion');
+    if (el && appV) {
+      el.textContent = me ? 'v' + appV + ' · plugin v' + me.version : 'v' + appV;
+    }
+  } catch (e) {}
+})();
+
+const els = {
+  imageList:     document.getElementById('imageList'),
+  addImageBtn:   document.getElementById('addImageBtn'),
+  loadBtn:       document.getElementById('loadBtn'),
+  copyEmbed:     document.getElementById('copyEmbedBtn'),
+  status:        document.getElementById('status'),
+  back:          document.getElementById('backBtn'),
+  full:          document.getElementById('fullscreenBtn'),
+  captionText:   document.getElementById('captionText'),
+  photographer:  document.getElementById('photographerText'),
+  openLabrador:  document.getElementById('openLabradorBtn'),
+  projectSelect: document.getElementById('projectSelect'),
+  saveProject:   document.getElementById('saveProjectBtn'),
+  stage:         document.getElementById('stage'),
+  empty:         document.getElementById('emptyState'),
+  grid:          document.getElementById('grid'),
+  groupsSection: document.getElementById('groupsSection'),
+  groupList:     document.getElementById('groupList'),
+  videoSection:  document.getElementById('videoSection'),
+  videoList:     document.getElementById('videoList'),
+  addVideoBtn:   document.getElementById('addVideoBtn'),
+  pairSection:   document.getElementById('pairSection'),
+  pairTitle1:    document.getElementById('pairTitle1'),
+  pairTitle2:    document.getElementById('pairTitle2'),
+  pairFormatSelect: document.getElementById('pairFormatSelect'),
+  captionLabel:  document.getElementById('captionLabel'),
+  topHeading:    document.getElementById('topHeading'),
+  headingStyle:  document.getElementById('headingStyle'),
+  dimOutside:    document.getElementById('dimOutside'),
+  abInCaption:   document.getElementById('abInCaption'),
+};
+
+const DEFAULT_GROUPS = [
+  { id: 'g1', color: '#FFD500', label: 'Storskjerm' },
+  { id: 'g2', color: '#00C853', label: 'Person 1' },
+  { id: 'g3', color: '#0050FC', label: 'Person 2' },
+  { id: 'g4', color: '#E91E63', label: 'Person 3' },
+];
+
+const state = {
+  imageUrls: [''],
+  imageLabels: [''],   // egen label per bilde (A, B, 1, 2 osv.)
+  images: [],          // { url, aspectRatio, label }
+  groups: DEFAULT_GROUPS.slice(),
+  marks: [],
+  selectedGroupId: 'g1',
+  loaded: false,
+  sourceVideos: [],
+  showLabels: true,
+  pairMode: 'auto',           // 'auto' = par-modus aktiv for ≥2 bilder
+  pairFormat: '9:16',
+  pairTitles: ['Bilde 1', 'Bilde 2'],
+  activeSceneIdx: 0,
+  sceneCaptions: [],
+  topHeading: '',
+  headingStyle: 'h2',   // 'h2' | 'small' | 'none'
+  dimOutside: false,
+  abInCaption: false,
+};
+
+function getSceneCaption(idx) {
+  // Fallback til captionText hvis ingen scene-spesifikk caption finnes
+  return (state.sceneCaptions && state.sceneCaptions[idx] !== undefined)
+    ? state.sceneCaptions[idx]
+    : (idx === 0 ? els.captionText.value : '');
+}
+function setSceneCaption(idx, txt) {
+  if (!Array.isArray(state.sceneCaptions)) state.sceneCaptions = [];
+  state.sceneCaptions[idx] = txt;
+}
+
+function isPair() {
+  return state.pairMode === 'auto' && state.images.length >= 2;
+}
+function sceneCount() {
+  // Hvert par av to bilder = én scene. Hvis odd antall, siste bilde danner egen "halv scene"
+  return Math.ceil(state.images.length / 2);
+}
+function imagesForScene(idx) {
+  const a = idx * 2;
+  const b = a + 1;
+  return {
+    leftIdx: a,
+    rightIdx: b < state.images.length ? b : null,
+    left: state.images[a] || null,
+    right: state.images[b] || null,
+  };
+}
+function pairAspectRatio() {
+  if (state.pairFormat === '9:16') return 9/16;
+  if (state.pairFormat === '16:9') return 16/9;
+  if (state.pairFormat === '1:1') return 1;
+  return state.images[0] ? state.images[0].aspectRatio : 1;
+}
+
+function defaultLabel(idx) {
+  // A, B, C ... Z
+  return String.fromCharCode(65 + (idx % 26));
+}
+
+// Mux-URL: https://player.mux.com/ID...  ELLER  https://stream.mux.com/...
+function isMuxUrl(url) {
+  return /player\.mux\.com|stream\.mux\.com/i.test(url);
+}
+function muxIdFromUrl(url) {
+  const m = url.match(/player\.mux\.com\/([^?\/#]+)/i) || url.match(/stream\.mux\.com\/([^.\/#]+)/i);
+  return m ? m[1] : null;
+}
+
+function setStatus(msg, isError) {
+  els.status.textContent = msg || '';
+  els.status.style.color = isError ? '#FFB4B4' : '#fff';
+}
+
+function isValidUrl(s) {
+  try {
+    const u = new URL(s);
+    return u.protocol === 'http:' || u.protocol === 'https:';
+  } catch (e) { return false; }
+}
+
+function loadImageDim(url) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve({ url, aspectRatio: img.naturalWidth / img.naturalHeight });
+    img.onerror = () => reject(new Error('Kunne ikke laste: ' + url));
+    img.crossOrigin = 'anonymous';
+    img.src = url;
+  });
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[<>&"]/g, c => ({
+    '<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'
+  }[c]));
+}
+
+// ============================================================
+//  Sidebar — URL-felt per bilde
+// ============================================================
+function renderImageInputs() {
+  els.imageList.innerHTML = '';
+  // Bygg DOM par-for-par. Hver par-container omslutter to rader og får en label
+  // ("Par 1", "Par 2", …) så det visuelt er tydelig hva som hører sammen.
+  // Hvis siste bilde er ufullstendig (odde antall) får det sin egen container
+  // med dempet label "Ufullstendig par".
+  const total = state.imageUrls.length;
+  for (let p = 0; p < Math.ceil(total / 2); p++) {
+    const a = p * 2;
+    const b = a + 1;
+    const isOddLast = (b >= total); // ingen partner — siste bilde er alene
+    const pair = document.createElement('div');
+    pair.className = 'image-pair' + (isOddLast ? ' image-pair--incomplete' : '');
+
+    const header = document.createElement('div');
+    header.className = 'image-pair__header';
+    header.innerHTML = `<span class="image-pair__label">Par ${p + 1}${isOddLast ? ' (mangler ett bilde)' : ''}</span>`;
+    pair.appendChild(header);
+
+    for (let k = a; k <= b && k < total; k++) {
+      const idx = k;
+      const url = state.imageUrls[idx];
+      const label = state.imageLabels[idx] !== undefined ? state.imageLabels[idx] : defaultLabel(idx);
+      const row = document.createElement('div');
+      row.className = 'image-list__row';
+      row.innerHTML = `
+        <input type="text" class="image-label-input" data-idx="${idx}" data-field="label" value="${escapeHtml(label)}" maxlength="3" title="Merkelapp (A, B, 1 …)" spellcheck="false">
+        <input type="text" class="url-row__input" data-idx="${idx}" data-field="url" placeholder="https://faktisk.no/uploads/…" value="${escapeHtml(url)}" spellcheck="false" autocomplete="off">
+        <button class="tb-row__btn tb-row__btn--del" data-act="removeImg" data-idx="${idx}" title="Fjern">×</button>
+      `;
+      pair.appendChild(row);
+    }
+    els.imageList.appendChild(pair);
+  }
+  els.imageList.oninput = e => {
+    const idx = +e.target.dataset.idx;
+    const field = e.target.dataset.field;
+    if (field === 'url') {
+      state.imageUrls[idx] = e.target.value;
+      scheduleSaveState();
+    } else if (field === 'label') {
+      state.imageLabels[idx] = e.target.value;
+      if (state.images[idx]) state.images[idx].label = e.target.value;
+      renderGrid();
+      scheduleSaveState();
+    }
+  };
+  els.imageList.onclick = e => {
+    if (e.target.dataset.act === 'removeImg') {
+      const idx = +e.target.dataset.idx;
+      state.imageUrls.splice(idx, 1);
+      state.imageLabels.splice(idx, 1);
+      if (state.imageUrls.length === 0) {
+        state.imageUrls.push('');
+        state.imageLabels.push(defaultLabel(0));
+      }
+      renderImageInputs();
+      scheduleSaveState();
+    }
+  };
+}
+
+// Maks 16 bilder = 8 par. Vi bruker normalt 2-4 par per analyse, men en lang
+// historie (f.eks. dokumentasjon av en hendelse over tid) kan trenge flere.
+const MAX_IMAGES = 16;
+
+function addImageInput() {
+  if (state.imageUrls.length >= MAX_IMAGES) {
+    setStatus('Maks ' + MAX_IMAGES + ' bilder (' + (MAX_IMAGES/2) + ' par).', true);
+    return;
+  }
+  state.imageUrls.push('');
+  state.imageLabels.push(defaultLabel(state.imageUrls.length - 1));
+  renderImageInputs();
+}
+
+// ============================================================
+//  Laste bildene
+// ============================================================
+async function loadAllImages() {
+  const urls = state.imageUrls.map(u => u.trim()).filter(u => u);
+  if (urls.length < 2) {
+    setStatus('Legg til minst 2 bilder.', true);
+    return;
+  }
+  const invalid = urls.find(u => !isValidUrl(u));
+  if (invalid) {
+    setStatus('Ugyldig URL: ' + invalid, true);
+    return;
+  }
+  setStatus('Laster bilder…');
+  try {
+    const imgs = await Promise.all(urls.map(loadImageDim));
+    // Sett label fra state.imageLabels (eller default A/B/C..)
+    state.images = imgs.map((img, idx) => ({
+      ...img,
+      label: state.imageLabels[idx] || defaultLabel(idx),
+    }));
+    state.loaded = true;
+    state.marks = state.marks.filter(m => m.imgIndex < imgs.length);
+    els.empty.style.display = 'none';
+    els.grid.style.display = 'block';
+    els.groupsSection.style.display = 'flex';
+    els.videoSection.style.display = 'flex';
+    els.pairSection.style.display = isPair() ? 'flex' : 'none';
+    syncCaptionFieldToScene();
+    renderGrid();
+    renderGroups();
+    updateExportButtons();
+    setStatus(`Lastet ${imgs.length} bilder`);
+    scheduleSaveState();
+  } catch (e) {
+    setStatus(e.message, true);
+    state.loaded = false;
+    updateExportButtons();
+  }
+}
+
+// ============================================================
+//  Fargegrupper — sidebar-liste
+// ============================================================
+function renderGroups() {
+  els.groupList.innerHTML = '';
+  state.groups.forEach(g => {
+    const row = document.createElement('div');
+    row.className = 'tb-row';
+    const isSelected = g.id === state.selectedGroupId;
+    const count = new Set(state.marks.filter(m => m.groupId === g.id).map(m => m.imgIndex)).size;
+    row.innerHTML = `
+      <button class="group-chip ${isSelected ? 'group-chip--selected' : ''}" data-act="selectGroup" data-id="${g.id}" style="background:${g.color}" title="Klikk for å velge"></button>
+      <input class="tb-row__input" value="${escapeHtml(g.label)}" data-id="${g.id}" data-act="editGroup" placeholder="Label">
+      <input type="color" class="group-color-picker" value="${g.color}" data-id="${g.id}" data-act="editColor" title="Velg farge">
+      <span class="group-count" title="Antall bilder med denne fargen">${count}</span>
+    `;
+    els.groupList.appendChild(row);
+  });
+  els.groupList.onclick = e => {
+    const act = e.target.dataset.act;
+    const id = e.target.dataset.id;
+    if (act === 'selectGroup') {
+      state.selectedGroupId = id;
+      renderGroups();
+    }
+  };
+  els.groupList.oninput = e => {
+    const act = e.target.dataset.act;
+    const id = e.target.dataset.id;
+    const g = state.groups.find(gg => gg.id === id);
+    if (!g) return;
+    if (act === 'editGroup') {
+      g.label = e.target.value;
+      scheduleSaveState();
+    } else if (act === 'editColor') {
+      g.color = e.target.value;
+      renderMarks();
+      scheduleSaveState();
+    }
+  };
+}
+
+// ============================================================
+//  Canvas — grid av bilder
+// ============================================================
+function renderGrid() {
+  els.grid.innerHTML = '';
+  if (isPair()) {
+    renderPairLayout();
+  } else {
+    renderGridLayout();
+  }
+  renderMarks();
+}
+
+function renderGridLayout() {
+  const n = state.images.length;
+  const cols = n <= 1 ? 1 : (n <= 4 ? 2 : 3);
+  els.grid.classList.remove('analysis-grid--pair');
+  els.grid.classList.add('analysis-grid--cells');
+  els.grid.style.display = 'grid';
+  els.grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+
+  state.images.forEach((img, idx) => {
+    const cell = document.createElement('div');
+    cell.className = 'analysis-cell';
+    cell.dataset.idx = idx;
+    cell.style.aspectRatio = img.aspectRatio.toFixed(4);
+    const labelChip = img.label ? `<span class="analysis-cell__label">${escapeHtml(img.label)}</span>` : '';
+    cell.innerHTML = `<img src="${escapeHtml(img.url)}" alt="" draggable="false">${labelChip}`;
+    cell.addEventListener('click', e => {
+      if (e.target === cell || e.target.tagName === 'IMG' || e.target.classList.contains('analysis-cell__label')) {
+        addMarkAtClick(idx, e, cell);
+      }
+    });
+    els.grid.appendChild(cell);
+  });
+}
+
+function renderPairLayout() {
+  els.grid.classList.remove('analysis-grid--cells');
+  els.grid.classList.add('analysis-grid--pair');
+  els.grid.style.display = 'block';
+  els.grid.style.gridTemplateColumns = '';
+
+  // Pass på at aktiv scene er innenfor
+  const total = sceneCount();
+  if (state.activeSceneIdx >= total) state.activeSceneIdx = total - 1;
+  if (state.activeSceneIdx < 0) state.activeSceneIdx = 0;
+
+  const scene = imagesForScene(state.activeSceneIdx);
+  const aspect = pairAspectRatio();
+
+  // SVG chevroner (konsistent på iOS Safari — ikke emoji)
+  const chevLeft = `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>`;
+  const chevRight = `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>`;
+  // Piler + dots i samme rad OVER bildene
+  const navHtml = total > 1 ? `
+    <div class="pair-nav-row">
+      <button class="pair-nav-btn" data-act="prevScene" aria-label="Forrige" ${state.activeSceneIdx === 0 ? 'disabled' : ''}>${chevLeft}</button>
+      <div class="pair-dots">
+        ${Array.from({length: total}, (_, i) => `<span class="pair-dot ${i === state.activeSceneIdx ? 'is-active' : ''}" data-act="goScene" data-idx="${i}"></span>`).join('')}
+      </div>
+      <button class="pair-nav-btn" data-act="nextScene" aria-label="Neste" ${state.activeSceneIdx === total - 1 ? 'disabled' : ''}>${chevRight}</button>
+    </div>` : '';
+  const dotsHtml = '';
+  const arrowsHtml = '';
+  const headingHtml = (() => {
+    if (!state.topHeading || !state.topHeading.trim() || state.headingStyle === 'none') return '';
+    const text = escapeHtml(state.topHeading);
+    if (state.headingStyle === 'small') {
+      return `<div class="pair-heading pair-heading--small">${text}</div>`;
+    }
+    return `<h2 class="pair-heading">${text}</h2>`;
+  })();
+
+  // Hvis bare ett bilde i scenen (odd antall totalt): vis bare ett
+  const titleForSide = side => side === 'left'
+    ? `<div class="pair-cell-title pair-cell-title--left">${escapeHtml(state.pairTitles[0] || 'Bilde 1')}</div>`
+    : `<div class="pair-cell-title pair-cell-title--right">${escapeHtml(state.pairTitles[1] || 'Bilde 2')}</div>`;
+  const cells = scene.right ? `
+      ${[
+        { idx: scene.leftIdx, img: scene.left, side: 'left' },
+        { idx: scene.rightIdx, img: scene.right, side: 'right' },
+      ].map(c => {
+        return `
+        <div class="pair-cell analysis-cell" data-idx="${c.idx}" data-side="${c.side}" style="aspect-ratio:${aspect.toFixed(4)};">
+          <img src="${escapeHtml(c.img.url)}" alt="" draggable="false">
+          ${titleForSide(c.side)}
+        </div>`;
+      }).join('')}
+      <svg class="pair-connector" preserveAspectRatio="none"></svg>` : `
+        <div class="pair-cell analysis-cell" data-idx="${scene.leftIdx}" data-side="left" style="aspect-ratio:${aspect.toFixed(4)};">
+          <img src="${escapeHtml(scene.left.url)}" alt="" draggable="false">
+          ${titleForSide('left')}
+        </div>`;
+
+  // Top-tekster legges INNE i hvert bilde (sort overlay) — venstre/høyre-justert
+  const titleHtmlLeft = `<div class="pair-cell-title pair-cell-title--left">${escapeHtml(state.pairTitles[0] || 'Bilde 1')}</div>`;
+  const titleHtmlRight = scene.right ? `<div class="pair-cell-title pair-cell-title--right">${escapeHtml(state.pairTitles[1] || 'Bilde 2')}</div>` : '';
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'pair-wrapper' + (state.dimOutside ? ' pair-wrapper--dimmed' : '');
+  const cap = getSceneCaption(state.activeSceneIdx);
+  let captionInner = '';
+  if (cap && cap.trim()) {
+    captionInner = escapeHtml(cap);
+    if (state.abInCaption) {
+      // Bytt [A] og [B] markører i teksten med faktiske chips
+      captionInner = captionInner
+        .replace(/\[A\]/g, '<span class="pair-ab-chip">A</span>')
+        .replace(/\[B\]/g, '<span class="pair-ab-chip">B</span>');
+    }
+  }
+  wrapper.innerHTML = `
+    ${headingHtml}
+    ${navHtml}
+    <div class="pair-images${scene.right ? '' : ' pair-images--single'}">${cells}</div>
+    ${captionInner ? `<div class="pair-caption">${captionInner}</div>` : ''}
+  `;
+  els.grid.appendChild(wrapper);
+
+  wrapper.querySelectorAll('.pair-cell').forEach(cell => {
+    const idx = +cell.dataset.idx;
+    cell.addEventListener('click', e => {
+      if (e.target === cell || e.target.tagName === 'IMG') {
+        addMarkAtClick(idx, e, cell);
+      }
+    });
+  });
+  // Slideshow-navigasjon
+  const goTo = (idx) => {
+    state.activeSceneIdx = idx;
+    syncCaptionFieldToScene();
+    renderGrid();
+  };
+  wrapper.querySelectorAll('[data-act="prevScene"]').forEach(btn => btn.addEventListener('click', () => {
+    if (state.activeSceneIdx > 0) goTo(state.activeSceneIdx - 1);
+  }));
+  wrapper.querySelectorAll('[data-act="nextScene"]').forEach(btn => btn.addEventListener('click', () => {
+    if (state.activeSceneIdx < total - 1) goTo(state.activeSceneIdx + 1);
+  }));
+  wrapper.querySelectorAll('[data-act="goScene"]').forEach(dot => dot.addEventListener('click', () => {
+    goTo(+dot.dataset.idx);
+  }));
+}
+
+function addMarkAtClick(imgIndex, e, cell) {
+  const rect = cell.getBoundingClientRect();
+  const cx = (e.clientX - rect.left) / rect.width * 100;
+  const cy = (e.clientY - rect.top) / rect.height * 100;
+  const w = 25, h = 30;
+  state.marks.push({
+    id: 'm_' + Math.random().toString(36).slice(2, 7),
+    imgIndex,
+    x: Math.max(0, Math.min(100 - w, cx - w/2)),
+    y: Math.max(0, Math.min(100 - h, cy - h/2)),
+    w, h,
+    groupId: state.selectedGroupId,
+  });
+  renderMarks();
+  renderGroups();
+  scheduleSaveState();
+}
+
+function renderMarks() {
+  els.grid.querySelectorAll('.analysis-mark').forEach(n => n.remove());
+  if (isPair()) drawPairConnectors();
+  // I par-modus: vis kun markeringer for bilder som er i aktiv scene
+  const visibleMarks = isPair()
+    ? state.marks.filter(m => {
+        const scene = imagesForScene(state.activeSceneIdx);
+        return m.imgIndex === scene.leftIdx || (scene.rightIdx !== null && m.imgIndex === scene.rightIdx);
+      })
+    : state.marks;
+  visibleMarks.forEach(m => {
+    const cell = els.grid.querySelector(`.analysis-cell[data-idx="${m.imgIndex}"]`);
+    if (!cell) return;
+    const g = state.groups.find(g => g.id === m.groupId);
+    const color = g ? g.color : '#fff';
+    const mark = document.createElement('div');
+    mark.className = 'analysis-mark';
+    mark.style.left = m.x + '%';
+    mark.style.top = m.y + '%';
+    mark.style.width = m.w + '%';
+    mark.style.height = m.h + '%';
+    mark.style.setProperty('--mark-color', color);
+    mark.dataset.id = m.id;
+    // Label på markeringen — A for venstre, B for høyre (par-modus).
+    // A plasseres til høyre av rektangelet (peker innover mot streken), B til venstre.
+    // Symmetrisk inn-peking: A → strek → B.
+    let markLabel = '';
+    let labelSideClass = '';
+    if (isPair()) {
+      const cellSide = cell.dataset.side;
+      markLabel = cellSide === 'left' ? 'A' : 'B';
+      labelSideClass = cellSide === 'left' ? ' analysis-mark__label--right' : '';
+    }
+    const labelHtml = markLabel ? `<div class="analysis-mark__label${labelSideClass}">${escapeHtml(markLabel)}</div>` : '';
+    mark.innerHTML = `
+      ${labelHtml}
+      <div class="analysis-mark__scale"></div>
+      <button class="analysis-mark__del" title="Slett">×</button>
+    `;
+    cell.appendChild(mark);
+    attachMarkDrag(mark, m, 'move', cell);
+    const handle = mark.querySelector('.analysis-mark__scale');
+    if (handle) attachMarkDrag(handle, m, 'scale', cell);
+    const del = mark.querySelector('.analysis-mark__del');
+    if (del) del.addEventListener('click', ev => {
+      ev.stopPropagation();
+      state.marks = state.marks.filter(x => x.id !== m.id);
+      renderMarks();
+      renderGroups();
+      scheduleSaveState();
+    });
+  });
+}
+
+function drawPairConnectors() {
+  const svg = els.grid.querySelector('.pair-connector');
+  if (!svg) return;
+  const pairImages = els.grid.querySelector('.pair-images');
+  if (!pairImages) return;
+  const containerRect = pairImages.getBoundingClientRect();
+  if (containerRect.width === 0) return;
+  svg.setAttribute('viewBox', `0 0 ${containerRect.width} ${containerRect.height}`);
+  svg.setAttribute('width', containerRect.width);
+  svg.setAttribute('height', containerRect.height);
+  svg.innerHTML = '';
+
+  const scene = imagesForScene(state.activeSceneIdx);
+  if (scene.rightIdx === null) return;  // bare ett bilde i denne scenen
+
+  // Match markeringer per gruppe: én i venstre, én i høyre
+  const groupMap = new Map();
+  state.marks.forEach(m => {
+    if (m.imgIndex !== scene.leftIdx && m.imgIndex !== scene.rightIdx) return;
+    if (!groupMap.has(m.groupId)) groupMap.set(m.groupId, { left: null, right: null });
+    if (m.imgIndex === scene.leftIdx) groupMap.get(m.groupId).left = m;
+    else groupMap.get(m.groupId).right = m;
+  });
+
+  const cells = els.grid.querySelectorAll('.pair-cell');
+  if (cells.length < 2) return;
+  const c1 = cells[0].getBoundingClientRect();
+  const c2 = cells[1].getBoundingClientRect();
+
+  // Strek slutter på rammens kant + forlenges litt LANGS VEKTOREN så bratte
+  // vinkler også treffer presist (uten dette ville en nesten-vertikal strek
+  // ha en visuell glipe pga at stroke-tykkelsen står normalt på linjeretningen).
+  const EXTEND = 3;
+  groupMap.forEach((pair, gid) => {
+    if (!pair.left || !pair.right) return;
+    const g = state.groups.find(g => g.id === gid);
+    const color = g ? g.color : '#fff';
+    const a = pair.left, b = pair.right;
+    let x1 = (c1.left + (a.x + a.w) * c1.width / 100) - containerRect.left;
+    let y1 = (c1.top + (a.y + a.h/2) * c1.height / 100) - containerRect.top;
+    let x2 = (c2.left + b.x * c2.width / 100) - containerRect.left;
+    let y2 = (c2.top + (b.y + b.h/2) * c2.height / 100) - containerRect.top;
+    // Forleng langs vektoren
+    const dx = x2 - x1, dy = y2 - y1;
+    const len = Math.sqrt(dx*dx + dy*dy);
+    if (len > 0) {
+      const ux = dx / len, uy = dy / len;
+      x1 -= ux * EXTEND;
+      y1 -= uy * EXTEND;
+      x2 += ux * EXTEND;
+      y2 += uy * EXTEND;
+    }
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', x1);
+    line.setAttribute('y1', y1);
+    line.setAttribute('x2', x2);
+    line.setAttribute('y2', y2);
+    line.setAttribute('stroke', color);
+    line.setAttribute('stroke-width', '4');
+    line.setAttribute('stroke-linecap', 'butt');
+    line.setAttribute('opacity', '1');
+    svg.appendChild(line);
+  });
+}
+
+function attachMarkDrag(el, m, kind, cell) {
+  el.addEventListener('mousedown', e => {
+    if (e.target.classList.contains('analysis-mark__del')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = cell.getBoundingClientRect();
+    const startX = e.clientX, startY = e.clientY;
+    const x0 = m.x, y0 = m.y, w0 = m.w, h0 = m.h;
+    const move = ev => {
+      const dxPct = (ev.clientX - startX) / rect.width * 100;
+      const dyPct = (ev.clientY - startY) / rect.height * 100;
+      if (kind === 'scale') {
+        m.w = Math.max(5, Math.min(100 - m.x, w0 + dxPct));
+        m.h = Math.max(5, Math.min(100 - m.y, h0 + dyPct));
+      } else {
+        m.x = Math.max(0, Math.min(100 - m.w, x0 + dxPct));
+        m.y = Math.max(0, Math.min(100 - m.h, y0 + dyPct));
+      }
+      renderMarks();
+    };
+    const up = () => {
+      document.removeEventListener('mousemove', move);
+      document.removeEventListener('mouseup', up);
+      scheduleSaveState();
+    };
+    document.addEventListener('mousemove', move);
+    document.addEventListener('mouseup', up);
+  });
+}
+
+els.addImageBtn.addEventListener('click', addImageInput);
+els.loadBtn.addEventListener('click', loadAllImages);
+if (els.pairTitle1) els.pairTitle1.addEventListener('input', () => {
+  state.pairTitles[0] = els.pairTitle1.value;
+  if (isPair()) renderGrid();
+  scheduleSaveState();
+});
+if (els.pairTitle2) els.pairTitle2.addEventListener('input', () => {
+  state.pairTitles[1] = els.pairTitle2.value;
+  if (isPair()) renderGrid();
+  scheduleSaveState();
+});
+if (els.pairFormatSelect) els.pairFormatSelect.addEventListener('change', () => {
+  state.pairFormat = els.pairFormatSelect.value;
+  if (isPair()) renderGrid();
+  scheduleSaveState();
+});
+if (els.topHeading) els.topHeading.addEventListener('input', () => {
+  state.topHeading = els.topHeading.value;
+  if (isPair()) renderGrid();
+  scheduleSaveState();
+});
+if (els.headingStyle) els.headingStyle.addEventListener('change', () => {
+  state.headingStyle = els.headingStyle.value;
+  if (isPair()) renderGrid();
+  scheduleSaveState();
+});
+if (els.dimOutside) els.dimOutside.addEventListener('change', () => {
+  state.dimOutside = els.dimOutside.checked;
+  if (isPair()) renderGrid();
+  scheduleSaveState();
+});
+if (els.abInCaption) els.abInCaption.addEventListener('change', () => {
+  state.abInCaption = els.abInCaption.checked;
+  const hint = document.getElementById('abHint');
+  if (hint) hint.style.display = state.abInCaption ? 'block' : 'none';
+  if (isPair()) renderGrid();
+  scheduleSaveState();
+});
+
+// ============================================================
+//  Kilde-videoer (Labrador eller Mux)
+// ============================================================
+function renderVideoInputs() {
+  els.videoList.innerHTML = '';
+  state.sourceVideos.forEach((v, idx) => {
+    const row = document.createElement('div');
+    row.className = 'image-list__row';
+    const kindHint = v.url ? (isMuxUrl(v.url) ? ' Mux' : ' Fil') : '';
+    row.innerHTML = `
+      <input type="text" class="url-row__input" data-idx="${idx}" data-field="url" placeholder="URL fra Labrador eller Mux…" value="${escapeHtml(v.url || '')}" spellcheck="false" autocomplete="off">
+      <button class="tb-row__btn tb-row__btn--del" data-act="removeVideo" data-idx="${idx}" title="Fjern">×</button>
+    `;
+    els.videoList.appendChild(row);
+  });
+  els.videoList.oninput = e => {
+    if (e.target.classList.contains('url-row__input')) {
+      const idx = +e.target.dataset.idx;
+      state.sourceVideos[idx].url = e.target.value;
+      scheduleSaveState();
+    }
+  };
+  els.videoList.onclick = e => {
+    if (e.target.dataset.act === 'removeVideo') {
+      const idx = +e.target.dataset.idx;
+      state.sourceVideos.splice(idx, 1);
+      renderVideoInputs();
+      scheduleSaveState();
+    }
+  };
+}
+
+function addVideoInput() {
+  if (state.sourceVideos.length >= 4) {
+    setStatus('Maks 4 kilde-videoer', true);
+    return;
+  }
+  state.sourceVideos.push({ url: '', label: '' });
+  renderVideoInputs();
+}
+
+els.addVideoBtn.addEventListener('click', addVideoInput);
+
+// ============================================================
+//  Embed-output
+// ============================================================
+function buildEmbedSnippet() {
+  if (isPair()) return buildPairEmbed();
+  return buildGridEmbed();
+}
+
+function buildPairEmbed() {
+  const id = 'banl-' + Math.random().toString(36).slice(2, 8);
+  const aspect = pairAspectRatio();
+  const captionText = (els.captionText.value || '').trim();
+  const photographer = (els.photographer.value || '').trim();
+  const title1 = state.pairTitles[0] || 'Bilde 1';
+  const title2 = state.pairTitles[1] || 'Bilde 2';
+
+  // Bygg scener: hver scene har left + right (eller bare left)
+  const total = sceneCount();
+  const scenes = [];
+  for (let i = 0; i < total; i++) {
+    const s = imagesForScene(i);
+    scenes.push(s);
+  }
+
+  // For hver scene: beregn marks per bilde + connectors mellom dem
+  const sceneData = scenes.map((s, sIdx) => {
+    const leftMarks = state.marks.filter(m => m.imgIndex === s.leftIdx);
+    const rightMarks = s.rightIdx !== null ? state.marks.filter(m => m.imgIndex === s.rightIdx) : [];
+    // Connectors: match per groupId
+    const groupMap = new Map();
+    leftMarks.forEach(m => {
+      if (!groupMap.has(m.groupId)) groupMap.set(m.groupId, { left: null, right: null });
+      groupMap.get(m.groupId).left = m;
+    });
+    rightMarks.forEach(m => {
+      if (!groupMap.has(m.groupId)) groupMap.set(m.groupId, { left: null, right: null });
+      groupMap.get(m.groupId).right = m;
+    });
+    const connectors = [];
+    groupMap.forEach((pair, gid) => {
+      if (pair.left && pair.right) {
+        const g = state.groups.find(g => g.id === gid);
+        connectors.push({ a: pair.left, b: pair.right, color: g ? g.color : '#fff' });
+      }
+    });
+    return { s, leftMarks, rightMarks, connectors };
+  });
+
+  // Marks-HTML helper — returnerer rektangelet UTEN label-sirkelen inni.
+  // Rektanglene ligger inne i cell-clip og klippes mot bildemasken (riktig for spotlight-skygge).
+  const marksHtml = (marks) => marks.map(m => {
+    const g = state.groups.find(g => g.id === m.groupId);
+    const c = g ? g.color : '#fff';
+    return `
+        <div class="banl-mark-${id}" style="left:${m.x.toFixed(2)}%;top:${m.y.toFixed(2)}%;width:${m.w.toFixed(2)}%;height:${m.h.toFixed(2)}%;--c:${c};"></div>`;
+  }).join('');
+
+  // Labels — ligger UTENFOR cell-clip, på cellen direkte, så de aldri klippes.
+  // Asymmetrisk plassering: A på TOP-HØYRE av rektangelet (venstre bilde), B på
+  // TOP-VENSTRE (høyre bilde). Begge peker INNOVER mot connector-streken og
+  // når aldri slidens ytterkanter — løser horisontal klipping uten padding-inline.
+  // Visuelt leser det også naturlig: A → strek → B fra venstre til høyre.
+  const labelsHtml = (marks, isLeft) => marks.map(m => {
+    const lbl = isLeft ? 'A' : 'B';
+    const labelX = isLeft ? (m.x + m.w) : m.x;
+    const labelY = m.y;
+    return `
+        <span class="banl-mark-label-${id}" style="left:${labelX.toFixed(2)}%;top:${labelY.toFixed(2)}%;">${escapeHtml(lbl)}</span>`;
+  }).join('');
+
+  // Per scene: bygg connector-SVG med data-attr som JS bruker for pixel-beregning
+  const buildConnectorSvg = (connectors) => connectors.length ? `
+      <svg class="banl-conn-${id}" xmlns="http://www.w3.org/2000/svg">${connectors.map(c => {
+        // Vi lagrer rå koordinater (i prosent av hver celle) som data-attr.
+        // JS beregner pixel-koordinater på runtime (tar høyde for gap mellom bildene).
+        return `
+        <line data-ax="${(c.a.x + c.a.w).toFixed(2)}" data-ay="${(c.a.y + c.a.h/2).toFixed(2)}" data-bx="${c.b.x.toFixed(2)}" data-by="${(c.b.y + c.b.h/2).toFixed(2)}" stroke="${c.color}" stroke-linecap="butt"/>`;
+      }).join('')}
+      </svg>` : '';
+
+  // captionText er fallback til scene 0 hvis ingen scene-spesifikk er satt
+
+  // Wrappe i <figure> hvis vi har caption (Labrador-konvensjon)
+  const hasFigureWrap = !!captionText;
+  const figOpen = hasFigureWrap ? `<figure style="margin:0;">` : '';
+  const figClose = hasFigureWrap ? `</figure>` : '';
+  // Photographer-creditten håndteres nå i topp-tekstene på hvert bilde
+  // (sorte overlays oppe i bildet) — ingen separat credit-boks under.
+  const photoCreditHtml = '';
+
+  return `<!-- ============================================
+     FAKTISK · BILDEANALYSE (par-modus)
+     ============================================ -->
+${figOpen}
+  <style>
+    .banl-pair-${id} {
+      container-type: inline-size;
+      padding: 0.7rem 0;
+      max-width: 1058px;
+      margin: 0 auto;
+    }
+    .banl-pair-${id}__wrap {
+      background: #C3C3C3;
+      border-radius: 4px;
+      padding: clamp(12px, 1.6cqw, 20px) clamp(14px, 2.4cqw, 28px);
+      display: flex;
+      flex-direction: column;
+      /* Knappe vertikale gaps mellom wrap-elementene (overskrift, nav-rad, bilder). */
+      gap: clamp(4px, 0.6cqw, 6px);
+    }
+    .banl-pair-${id}__wrap.is-dimmed .banl-mark-${id} {
+      box-shadow: 0 0 0 9999px rgba(0,0,0,0.25);
+    }
+    .banl-pair-${id}__heading {
+      font-family: "Tiempos Fine", "Tiempos", Georgia, "Times New Roman", serif;
+      font-weight: 500;
+      font-size: 1.75rem;
+      line-height: 1.25;
+      margin: 0;
+      color: #212121;
+    }
+    @media (max-width: 600px) {
+      .banl-pair-${id}__heading {
+        font-size: 1.2rem;
+      }
+    }
+    .banl-pair-${id}__heading--small {
+      font-family: "Unica77", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      font-weight: bold;
+      font-size: 0.85rem;
+      line-height: 1.2;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #4a4a4a;
+      margin: 0;
+    }
+    /* Top-tekster legges INNE i hvert bilde — sort overlay med hvit tekst */
+    .banl-pair-${id}__cell-title {
+      position: absolute;
+      top: clamp(8px, 1.2cqw, 14px);
+      background: rgba(0,0,0,0.75);
+      color: #fff;
+      font-family: "Unica77", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      font-weight: bold;
+      font-size: clamp(12px, 1.4cqw, 16px);
+      padding: clamp(5px, 0.7cqw, 8px) clamp(10px, 1.4cqw, 16px);
+      border-radius: 6px;
+      z-index: 5;
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      letter-spacing: 0.02em;
+    }
+    .banl-pair-${id}__cell-title--left { left: clamp(8px, 1.2cqw, 14px); }
+    .banl-pair-${id}__cell-title--right { right: clamp(8px, 1.2cqw, 14px); }
+    /* På mobil blir det trangt med tittel inne i bildet — flytt opp OVER bildet i stedet.
+       Cellen har overflow:visible (siden A/B-merket må kunne stikke ut), så tittelen kan
+       sitte rett over kanten uten klipping. */
+    @media (max-width: 600px) {
+      .banl-pair-${id}__cell-title {
+        top: auto;
+        bottom: 100%;
+        margin-bottom: 4px;
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+        background: #212121;
+        padding: 4px 9px;
+        font-size: 11px;
+      }
+      .banl-pair-${id}__cell-title--left { left: 0; }
+      .banl-pair-${id}__cell-title--right { right: 0; }
+    }
+    .banl-pair-${id}__images {
+      position: relative;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: clamp(16px, 2.8cqw, 30px);
+      /* Asymmetrisk padding-block:
+         - padding-top: må romme A/B-label som stikker UP fra cellen (radius ~14-20px),
+           pluss tittel-pillen som ligger over på mobil
+         - padding-bottom: knappet ned — markeringer helt nederst på bildet er sjeldne.
+           Labels der kan bli minimalt klippet, men gevinsten er mye mindre luft mellom
+           bildet og caption-boksen. */
+      padding-top: clamp(16px, 1.8cqw, 20px);
+      padding-bottom: clamp(2px, 0.4cqw, 6px);
+    }
+    /* På mobil må padding-top dekke tittel-pillen som flyttes opp (~24px). */
+    @media (max-width: 600px) {
+      .banl-pair-${id}__images { padding-top: 26px; }
+    }
+    .banl-pair-${id}__cell {
+      position: relative;
+      /* Cellen klipper IKKE lenger — bare clip-laget under gjør det.
+         Det lar A/B-merket stikke ut over kanten uten å bli kuttet av bildemasken. */
+      overflow: visible;
+      aspect-ratio: ${aspect.toFixed(4)};
+    }
+    /* Klipplaget: bilde + markerings-rektangler ligger her og klippes til boksen. */
+    .banl-pair-${id}__cell-clip {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      border-radius: 4px;
+      background: #1a1a1a;
+    }
+    .banl-pair-${id}__cell-clip img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .banl-mark-${id} {
+      position: absolute;
+      border: clamp(3px, 0.5cqw, 5px) solid var(--c);
+      box-sizing: border-box;
+      pointer-events: none;
+      border-radius: 4px;
+    }
+    /* A/B-merket flyttet UT av .banl-mark-... så det aldri klippes av cell-clip.
+       Posisjoneres direkte på cellen med samme prosent-koordinater som markeringens
+       top-left-hjørne, og sentreres på det punktet med translate(-50%, -50%). */
+    .banl-mark-label-${id} {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      background: #fff;
+      color: #212121;
+      font-family: "Unica77", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      font-weight: bold;
+      font-size: clamp(14px, 1.7cqw, 20px);
+      width: clamp(28px, 3.4cqw, 40px);
+      height: clamp(28px, 3.4cqw, 40px);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.35);
+      z-index: 6; /* over cell-title (z:5) så den aldri blir gjemt */
+      pointer-events: none;
+    }
+    .banl-conn-${id} {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 3;
+      overflow: visible;
+    }
+    /* Strek-tykkelse matcher rammen */
+    .banl-conn-${id} line {
+      stroke-width: 4px;
+    }
+    /* Per-slide caption — hvit boks (kontrast mot grå outer) */
+    .banl-slide-cap-${id} {
+      background: #fff;
+      color: #212121;
+      padding: clamp(12px, 1.5cqw, 18px) clamp(14px, 2cqw, 22px);
+      border-radius: 6px;
+      font-family: "Unica77", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      font-size: clamp(14px, 1.5cqw, 17px);
+      line-height: 1.6;
+    }
+    /* A/B-chip foran tekst i caption — sort med hvit tekst, baseline-justert.
+       Safari sentrerer ikke bokstaven helt i flex-containere pga. font-metrikk.
+       Bruker line-height = chip-høyde + text-align:center i stedet — det er den
+       eldgamle 'tekst sentrert i sirkel'-teknikken som funker likt i alle nettlesere
+       så lenge bokstavene er uten descender (A og B passer perfekt). */
+    .banl-ab-chip-${id} {
+      --banl-chip-size: clamp(20px, 2cqw, 24px);
+      display: inline-block;
+      width: var(--banl-chip-size);
+      height: var(--banl-chip-size);
+      line-height: var(--banl-chip-size);
+      text-align: center;
+      background: #212121;
+      color: #fff;
+      font-family: "Unica77", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      font-weight: bold;
+      font-size: clamp(11px, 1.2cqw, 13px);
+      border-radius: 50%;
+      margin: 0 4px;
+      vertical-align: middle;
+      position: relative;
+      top: -1px;
+    }
+    .banl-ab-chip-${id}:first-child { margin-left: 0; }
+    /* Piler + dots i samme rad over bildene */
+    .banl-pair-${id}__nav {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 18px;
+      padding: 4px 0;
+    }
+    .banl-pair-${id}__nav button {
+      background: transparent;
+      border: 0;
+      color: #4a4a4a;
+      font-size: 22px;
+      cursor: pointer;
+      padding: 4px 12px;
+      border-radius: 4px;
+      line-height: 1;
+    }
+    .banl-pair-${id}__nav button:hover:not(:disabled) { background: rgba(0,0,0,0.06); }
+    .banl-pair-${id}__nav button:disabled { opacity: 0.3; cursor: not-allowed; }
+    .banl-pair-${id}__dots {
+      display: flex;
+      gap: 8px;
+    }
+    .banl-pair-${id}__dots span {
+      width: 9px; height: 9px;
+      border-radius: 50%;
+      background: #B7B7B7;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.15s;
+    }
+    .banl-pair-${id}__dots span.is-active {
+      background: #212121;
+      transform: scale(1.25);
+    }
+    /* Slideshow — track-basert slide-animasjon.
+       Plain overflow:hidden: track-en (som inneholder alle slides side-om-side) MÅ
+       klippes både horisontalt og vertikalt — ellers utvider hele siden seg horisontalt
+       på iOS Safari. Plass til A/B-labels lages i stedet med padding-block på
+       images-griden lenger inne — labelene stikker INN i paddingen, fortsatt innenfor
+       slides-bounds, så de vises hele uten å påvirke layouten. */
+    .banl-slides-${id} {
+      position: relative;
+      overflow: hidden;
+    }
+    .banl-slides-${id}__track {
+      display: flex;
+      transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+      will-change: transform;
+    }
+    .banl-slide-${id} {
+      flex: 0 0 100%;
+      display: flex;
+      flex-direction: column;
+      /* Knapt gap mellom bildene og bildeteksten under. */
+      gap: clamp(4px, 0.7cqw, 8px);
+      min-width: 0;
+    }
+    /* Initial hint: subtil peek på neste slide ved load (kun hvis >1 slides) */
+    .banl-pair-${id}__wrap.is-hinting .banl-slides-${id}__track {
+    @media (prefers-reduced-motion: reduce) {
+      .banl-pair-${id}__wrap.is-hinting .banl-slides-${id}__track { animation: none !important; }
+    }
+      animation: banl-peek-${id} 1.6s ease-out 0.5s 1;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .banl-pair-${id}__wrap.is-hinting .banl-slides-${id}__track { animation: none !important; }
+    }
+    @keyframes banl-peek-${id} {
+      0%   { transform: translateX(0); }
+      35%  { transform: translateX(-6%); }
+      70%  { transform: translateX(-2%); }
+      100% { transform: translateX(0); }
+    }
+    .banl-nav-${id} {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      /* Padding-top fjernet — wrap-gap håndterer avstand til elementet over. */
+    }
+    .banl-nav-${id} button {
+      background: transparent;
+      border: 0;
+      color: #4a4a4a;
+      font-size: 22px;
+      cursor: pointer;
+      padding: 4px 10px;
+      border-radius: 4px;
+      line-height: 1;
+    }
+    .banl-nav-${id} button:hover:not(:disabled) { background: rgba(0,0,0,0.08); }
+    .banl-nav-${id} button:disabled { opacity: 0.3; cursor: not-allowed; }
+    .banl-dots-${id} { display: flex; gap: 8px; }
+    .banl-dots-${id} span {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #6e6e6e; cursor: pointer;
+      transition: background 0.15s, transform 0.15s;
+    }
+    .banl-dots-${id} span:hover { background: #4a4a4a; }
+    .banl-dots-${id} span.is-active { background: #212121; transform: scale(1.3); }
+    .banl-caption-${id} {
+      background: #C3C3C3;
+      color: #212121;
+      padding: clamp(12px, 1.5cqw, 18px) clamp(18px, 2.5cqw, 28px);
+      border-radius: 10px;
+      font-family: "Unica77", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      font-size: clamp(13px, 1.4cqw, 17px);
+      line-height: 1.45;
+    }
+    @media (max-width: 600px) {
+      .banl-pair-${id}__wrap { padding: 16px 14px; }
+      .banl-pair-${id}__images, .banl-pair-${id}__titles { gap: 14px; }
+    }
+  </style>
+  <div class="banl-pair-${id}">
+    <div class="banl-pair-${id}__wrap${state.dimOutside ? ' is-dimmed' : ''}">${(state.topHeading && state.topHeading.trim() && state.headingStyle !== 'none') ? `
+      <!-- ▶ OVERSKRIFT -->
+      ${state.headingStyle === 'small'
+        ? `<div class="banl-pair-${id}__heading banl-pair-${id}__heading--small">${escapeHtml(state.topHeading)}</div>`
+        : `<h2 class="banl-pair-${id}__heading">${escapeHtml(state.topHeading)}</h2>`}` : ''}${total > 1 ? `
+      <!-- ▶ NAVIGASJON OVER BILDENE — piler + dots i samme rad -->
+      <div class="banl-pair-${id}__nav">
+        <button data-act="prev" aria-label="Forrige par"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg></button>
+        <div class="banl-pair-${id}__dots">
+          ${Array.from({length: total}, (_, i) => `<span class="${i === 0 ? 'is-active' : ''}" data-idx="${i}"></span>`).join('')}
+        </div>
+        <button data-act="next" aria-label="Neste par"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg></button>
+      </div>` : ''}
+      <div class="banl-slides-${id}"><div class="banl-slides-${id}__track">${sceneData.map((sd, sIdx) => {
+        const hasRight = sd.s.right !== null;
+        const sceneCap = (state.sceneCaptions && state.sceneCaptions[sIdx] !== undefined && state.sceneCaptions[sIdx] !== '')
+          ? state.sceneCaptions[sIdx]
+          : (sIdx === 0 ? captionText : '');
+        // Hvis abInCaption er på, erstatt [A] og [B] med faktiske chips.
+        // Brukeren skriver "[A] Mann med flagg. [B] Her er han senere."
+        const captionHtml = (() => {
+          if (!sceneCap || !sceneCap.trim()) return '';
+          let txt = escapeHtml(sceneCap);
+          if (state.abInCaption) {
+            txt = txt.replace(/\[A\]/g, `<span class="banl-ab-chip-${id}">A</span>`)
+                     .replace(/\[B\]/g, `<span class="banl-ab-chip-${id}">B</span>`);
+          }
+          return txt;
+        })();
+        return `
+        <div class="banl-slide-${id}" data-slide="${sIdx}">
+          <div class="banl-pair-${id}__images">
+            <div class="banl-pair-${id}__cell">
+              <!-- ▶ TITTEL VENSTRE — overlay på desktop, over bildet på mobil -->
+              <div class="banl-pair-${id}__cell-title banl-pair-${id}__cell-title--left">${escapeHtml(title1)}</div>
+              <div class="banl-pair-${id}__cell-clip">
+                <img src="${escapeHtml(sd.s.left.url)}" alt="" loading="lazy">
+                ${marksHtml(sd.leftMarks)}
+              </div>${labelsHtml(sd.leftMarks, true)}
+            </div>${hasRight ? `
+            <div class="banl-pair-${id}__cell">
+              <!-- ▶ TITTEL HØYRE — overlay på desktop, over bildet på mobil -->
+              <div class="banl-pair-${id}__cell-title banl-pair-${id}__cell-title--right">${escapeHtml(title2)}</div>
+              <div class="banl-pair-${id}__cell-clip">
+                <img src="${escapeHtml(sd.s.right.url)}" alt="" loading="lazy">
+                ${marksHtml(sd.rightMarks)}
+              </div>${labelsHtml(sd.rightMarks, false)}
+            </div>${buildConnectorSvg(sd.connectors)}` : ''}
+          </div>${captionHtml ? `
+          <!-- ▶ BILDETEKST FOR DETTE BILDEPARET — bruk [A] eller [B] foran tekst for sirkel-merkelapp -->
+          <div class="banl-slide-cap-${id}">${captionHtml}</div>` : ''}
+        </div>`;
+      }).join('')}</div>
+      </div>
+    </div>${photoCreditHtml}
+  </div>
+${figClose}
+<script>
+(function(){
+  var root = document.querySelector('.banl-pair-${id}');
+  if(!root) return;
+
+  // Beregn pixel-koordinater for hver konnektor-strek basert på faktisk cell-størrelse.
+  // Strek slutter presist på rammens kant (ingen overlap).
+  function updateConnectors(){
+    var slides = root.querySelectorAll('.banl-slide-${id}');
+    slides.forEach(function(slide){
+      var imgsContainer = slide.querySelector('.banl-pair-${id}__images');
+      if (!imgsContainer) return;
+      var cells = slide.querySelectorAll('.banl-pair-${id}__cell');
+      var svg = slide.querySelector('.banl-conn-${id}');
+      if (!svg || cells.length < 2) return;
+      var containerRect = imgsContainer.getBoundingClientRect();
+      if (containerRect.width === 0) return;
+      var c1 = cells[0].getBoundingClientRect();
+      var c2 = cells[1].getBoundingClientRect();
+      svg.setAttribute('viewBox', '0 0 ' + containerRect.width + ' ' + containerRect.height);
+      svg.setAttribute('preserveAspectRatio', 'none');
+      var EXTEND = 3;
+      svg.querySelectorAll('line').forEach(function(line){
+        var ax = parseFloat(line.getAttribute('data-ax')) || 0;
+        var ay = parseFloat(line.getAttribute('data-ay')) || 0;
+        var bx = parseFloat(line.getAttribute('data-bx')) || 0;
+        var by = parseFloat(line.getAttribute('data-by')) || 0;
+        var x1 = (c1.left + ax * c1.width / 100) - containerRect.left;
+        var y1 = (c1.top + ay * c1.height / 100) - containerRect.top;
+        var x2 = (c2.left + bx * c2.width / 100) - containerRect.left;
+        var y2 = (c2.top + by * c2.height / 100) - containerRect.top;
+        // Forleng langs vektoren så streken treffer rammen presist uansett vinkel
+        var dx = x2 - x1, dy = y2 - y1;
+        var len = Math.sqrt(dx*dx + dy*dy);
+        if (len > 0) {
+          var ux = dx / len, uy = dy / len;
+          x1 -= ux * EXTEND;
+          y1 -= uy * EXTEND;
+          x2 += ux * EXTEND;
+          y2 += uy * EXTEND;
+        }
+        line.setAttribute('x1', x1);
+        line.setAttribute('y1', y1);
+        line.setAttribute('x2', x2);
+        line.setAttribute('y2', y2);
+        line.setAttribute('stroke-linecap', 'butt');
+      });
+    });
+  }
+
+  ${total > 1 ? `
+  // Slideshow med transform-based animasjon
+  var track = root.querySelector('.banl-slides-${id}__track');
+  var slides = root.querySelectorAll('.banl-slide-${id}');
+  var dots = root.querySelectorAll('.banl-pair-${id}__dots span');
+  var prev = root.querySelector('[data-act="prev"]');
+  var next = root.querySelector('[data-act="next"]');
+  var idx = 0;
+  function show(i){
+    idx = (i + slides.length) % slides.length;
+    if (track) track.style.transform = 'translateX(-' + (idx * 100) + '%)';
+    dots.forEach(function(d, n){ d.classList.toggle('is-active', n === idx); });
+    if(prev) prev.disabled = idx === 0;
+    if(next) next.disabled = idx === slides.length - 1;
+    requestAnimationFrame(updateConnectors);
+  }
+  if(prev) prev.addEventListener('click', function(){ show(idx - 1); });
+  if(next) next.addEventListener('click', function(){ show(idx + 1); });
+  dots.forEach(function(d, n){ d.addEventListener('click', function(){ show(n); }); });
+  show(0);
+  // Initial hint: vis at det er mer ved å peek på neste slide kort.
+  // Trigges når embeden scrolles inn i viewport (ikke ved page load).
+  // Kjøres bare én gang per sidevisning.
+  if (slides.length > 1) {
+    var wrap = root.querySelector('.banl-pair-${id}__wrap');
+    if (wrap) {
+      var hintShown = false;
+      var triggerHint = function(){
+        if (hintShown) return;
+        hintShown = true;
+        wrap.classList.add('is-hinting');
+        setTimeout(function(){ wrap.classList.remove('is-hinting'); }, 2200);
+      };
+      if ('IntersectionObserver' in window) {
+        var io = new IntersectionObserver(function(entries){
+          entries.forEach(function(en){
+            // Vent til minst 35% av boksen er synlig — da er det tydelig at leseren har scrollet til den
+            if (en.isIntersecting && en.intersectionRatio >= 0.35) {
+              triggerHint();
+              io.disconnect();
+            }
+          });
+        }, { threshold: [0.35, 0.6] });
+        io.observe(wrap);
+        // Fallback: hvis embeden allerede er i viewport ved load, trigger kort etter
+        var rect = wrap.getBoundingClientRect();
+        var vh = window.innerHeight || document.documentElement.clientHeight;
+        if (rect.top < vh * 0.65 && rect.bottom > vh * 0.2) {
+          setTimeout(triggerHint, 600);
+        }
+      } else {
+        // Eldre nettlesere: kjør hint kort etter load
+        setTimeout(triggerHint, 800);
+      }
+    }
+  }
+  // Touch swipe
+  var startX = 0;
+  root.addEventListener('touchstart', function(e){ startX = e.touches[0].clientX; }, {passive: true});
+  root.addEventListener('touchend', function(e){
+    var dx = e.changedTouches[0].clientX - startX;
+    if(Math.abs(dx) > 50) show(idx + (dx < 0 ? 1 : -1));
+  });
+  ` : ''}
+
+  // Tegn konnektorer ved load + resize
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', updateConnectors);
+  }
+  // Vent på at bilder lastes så aspect-ratio er ferdig beregnet
+  var imgs = root.querySelectorAll('img');
+  imgs.forEach(function(img){
+    if (img.complete) updateConnectors();
+    else img.addEventListener('load', updateConnectors);
+  });
+  requestAnimationFrame(updateConnectors);
+  window.addEventListener('resize', updateConnectors);
+})();
+</script>
+`;
+}
+
+function buildGridEmbed() {
+  const id = 'banl-' + Math.random().toString(36).slice(2, 8);
+  const n = state.images.length;
+  const cols = n <= 1 ? 1 : (n <= 4 ? 2 : 3);
+  const caption = (els.captionText.value || '').trim();
+  const photographer = (els.photographer.value || '').trim();
+  const hasCaption = caption || photographer;
+  const captionParts = [];
+  if (caption) captionParts.push(`
+    <!-- ▶ BILDETEKST -->
+    <figcaption itemprop="caption">${escapeHtml(caption)}</figcaption>`);
+  if (photographer) captionParts.push(`
+    <!-- ▶ FOTOGRAF -->
+    <figcaption itemprop="author" data-byline-prefix="Foto:">${escapeHtml(photographer)}</figcaption>`);
+  const innerCaption = hasCaption ? `
+  <div class="caption banl-caption" style="margin-top:1.2rem;box-sizing:border-box;">${captionParts.join('')}
+  </div>` : '';
+  const open = hasCaption ? `<figure style="margin:0;">` : '';
+  const close = hasCaption ? `</figure>` : '';
+
+  const activeGroups = state.groups.filter(g => state.marks.some(m => m.groupId === g.id));
+  const imageDataJson = JSON.stringify(state.images.map((img, idx) => ({
+    url: img.url,
+    ar: +img.aspectRatio.toFixed(4),
+    label: img.label || '',
+    marks: state.marks.filter(m => m.imgIndex === idx).map(m => ({
+      x: +m.x.toFixed(2), y: +m.y.toFixed(2), w: +m.w.toFixed(2), h: +m.h.toFixed(2),
+      g: m.groupId,
+    })),
+  })));
+  const groupsJson = JSON.stringify(activeGroups.map(g => ({ id: g.id, color: g.color, label: g.label })));
+
+  return `<!-- ============================================
+     FAKTISK · BILDEANALYSE
+     Endre teksten i feltene merket med ▶
+     ============================================ -->
+${open}
+  <style>
+    .banl-container { container-type: inline-size; padding: 0.7rem 0; }
+    @container (min-width: 1080px) {
+      .banl-container > .caption.banl-caption,
+      .banl-container > .banl-legend {
+        padding-left: calc(50cqw - var(--lab_page_width, 68rem) / 2 + 0.7rem) !important;
+        padding-right: calc(50cqw - var(--lab_page_width, 68rem) / 2 + 0.7rem) !important;
+      }
+    }
+    @media (max-width: 768px) {
+      .banl-container > .caption.banl-caption,
+      .banl-container > .banl-legend {
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+      }
+    }
+    .banl-grid-${id} {
+      display: grid;
+      grid-template-columns: repeat(${cols}, 1fr);
+      gap: 10px;
+    }
+    @media (max-width: 600px) {
+      .banl-grid-${id} { grid-template-columns: repeat(${Math.min(cols, 2)}, 1fr); gap: 6px; }
+    }
+    .banl-cell-${id} {
+      position: relative;
+      overflow: hidden;
+      border-radius: 10px;
+      background: #1a1a1a;
+      cursor: zoom-in;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+      transition: transform 0.18s ease, box-shadow 0.18s ease;
+    }
+    .banl-cell-${id}:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 18px rgba(0,0,0,0.22);
+    }
+    .banl-cell-${id} img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .banl-cell-${id} .banl-label {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      background: rgba(0,0,0,0.7);
+      color: #fff;
+      font-family: "Unica77", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      font-weight: bold;
+      font-size: clamp(11px, 1.3cqw, 14px);
+      padding: 4px 9px;
+      border-radius: 6px;
+      letter-spacing: 0.04em;
+      z-index: 2;
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+    }
+    .banl-mark-${id} {
+      position: absolute;
+      border: clamp(3px, 0.5cqw, 5px) solid var(--c);
+      box-sizing: border-box;
+      pointer-events: none;
+      border-radius: 4px;
+    }
+    .banl-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 14px;
+      margin-top: 12px;
+      font-family: "Unica77", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      font-size: clamp(13px, 1.4cqw, 16px);
+    }
+    .banl-legend__item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      border: 0;
+      background: transparent;
+      padding: 4px 8px;
+      border-radius: 5px;
+      color: inherit;
+      font: inherit;
+      transition: background 0.15s;
+    }
+    .banl-legend__item:hover { background: rgba(0,0,0,0.06); }
+    .banl-legend__swatch {
+      width: 16px; height: 16px;
+      border: 3px solid var(--c);
+      box-sizing: border-box;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+    .banl-legend__count { opacity: 0.65; font-size: 0.85em; }
+    /* Lightbox */
+    .banl-lb-${id} {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.92);
+      z-index: 9999;
+      align-items: center; justify-content: center;
+      flex-direction: column;
+      padding: 20px;
+    }
+    .banl-lb-${id}.is-open { display: flex; }
+    .banl-lb-${id}__header {
+      color: #fff;
+      font-family: "Unica77", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      font-size: 16px;
+      margin-bottom: 14px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .banl-lb-${id}__close {
+      position: absolute; top: 14px; right: 14px;
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.15);
+      border: 0; color: #fff;
+      font-size: 24px; cursor: pointer;
+      line-height: 1;
+    }
+    .banl-lb-${id}__close:hover { background: rgba(255,255,255,0.25); }
+    .banl-lb-${id}__stage {
+      position: relative;
+      max-width: 90vw;
+      max-height: 70vh;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .banl-lb-${id}__wrap {
+      position: relative;
+      display: inline-block;
+      max-width: 100%;
+      max-height: 100%;
+    }
+    .banl-lb-${id}__wrap img {
+      max-width: min(900px, 90vw);
+      max-height: 70vh;
+      display: block;
+    }
+    .banl-lb-${id}__nav {
+      position: absolute; top: 50%; transform: translateY(-50%);
+      width: 48px; height: 48px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.2);
+      border: 0; color: #fff;
+      font-size: 28px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      line-height: 1;
+    }
+    .banl-lb-${id}__nav:hover { background: rgba(255,255,255,0.35); }
+    .banl-lb-${id}__nav--prev { left: -60px; }
+    .banl-lb-${id}__nav--next { right: -60px; }
+    @media (max-width: 800px) {
+      .banl-lb-${id}__nav--prev { left: 4px; }
+      .banl-lb-${id}__nav--next { right: 4px; }
+    }
+    .banl-lb-${id}__footer {
+      color: #aaa;
+      font-family: "Unica77", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      margin-top: 14px;
+      font-size: 13px;
+    }
+  </style>
+  <div class="banl-container">
+    <!-- ▶ BILDEGRID -->
+    <div class="banl-grid-${id}">${state.images.map((img, idx) => {
+      const m = state.marks.filter(mk => mk.imgIndex === idx);
+      const labelChip = img.label ? `<span class="banl-label">${escapeHtml(img.label)}</span>` : '';
+      return `
+      <div class="banl-cell-${id}" data-idx="${idx}" style="aspect-ratio:${img.aspectRatio.toFixed(4)};">
+        <img src="${escapeHtml(img.url)}" alt="" loading="lazy">${labelChip}${m.map(mk => {
+          const g = state.groups.find(gg => gg.id === mk.groupId);
+          const c = g ? g.color : '#fff';
+          return `
+        <div class="banl-mark-${id}" style="left:${mk.x.toFixed(2)}%;top:${mk.y.toFixed(2)}%;width:${mk.w.toFixed(2)}%;height:${mk.h.toFixed(2)}%;--c:${c};"></div>`;
+        }).join('')}
+      </div>`;
+    }).join('')}
+    </div>
+    ${state.sourceVideos.filter(v => v.url && v.url.trim()).length ? `
+    <!-- ▶ KILDE-VIDEOER — auto-detekterer Mux (iframe) eller Labrador-fil (video-tag) -->
+    <div class="banl-videos-${id}">${state.sourceVideos.filter(v => v.url && v.url.trim()).map(v => {
+      const url = v.url.trim();
+      if (isMuxUrl(url)) {
+        const muxId = muxIdFromUrl(url);
+        const src = url.includes('?') ? url : url + (muxId ? '?poster=https://image.mux.com/' + muxId + '/thumbnail.png?time=1' : '');
+        return `
+      <iframe src="${escapeHtml(src)}" loading="lazy"
+              style="width: 100%; max-width: 60%; border: none; aspect-ratio: 9/16; display: block; margin: 0 auto; border-radius: 4px;"
+              allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+              allowfullscreen></iframe>`;
+      } else {
+        return `
+      <video controls preload="metadata"
+             style="width: 100%; max-width: 60%; display: block; margin: 0 auto; border-radius: 4px; background: #1a1a1a;"
+             src="${escapeHtml(url)}"></video>`;
+      }
+    }).join('')}
+    </div>` : ''}
+    <!-- ▶ FARGENØKKEL — klikk for lightbox -->
+    <div class="banl-legend">${activeGroups.map(g => {
+      const imgsInGroup = new Set(state.marks.filter(m => m.groupId === g.id).map(m => m.imgIndex)).size;
+      return `
+      <button class="banl-legend__item" data-grp="${g.id}" type="button">
+        <span class="banl-legend__swatch" style="--c:${escapeHtml(g.color)};"></span>
+        <span>${escapeHtml(g.label)}</span>
+        <span class="banl-legend__count">${imgsInGroup} ${imgsInGroup === 1 ? 'bilde' : 'bilder'}</span>
+      </button>`;
+    }).join('')}
+    </div>
+    <!-- Lightbox -->
+    <div class="banl-lb-${id}" id="lb-${id}" role="dialog" aria-modal="true">
+      <button class="banl-lb-${id}__close" aria-label="Lukk">×</button>
+      <div class="banl-lb-${id}__header" id="lb-${id}-header"></div>
+      <div class="banl-lb-${id}__stage">
+        <div class="banl-lb-${id}__wrap" id="lb-${id}-wrap"></div>
+        <button class="banl-lb-${id}__nav banl-lb-${id}__nav--prev" aria-label="Forrige">‹</button>
+        <button class="banl-lb-${id}__nav banl-lb-${id}__nav--next" aria-label="Neste">›</button>
+      </div>
+      <div class="banl-lb-${id}__footer">Trykk Esc for å lukke · ← → for å bla</div>
+    </div>${innerCaption}
+  </div>
+${close}
+<script>
+(function(){
+  var IMAGES = ${imageDataJson};
+  var GROUPS = ${groupsJson};
+  var lb = document.getElementById('lb-${id}');
+  if(!lb) return;
+  var wrap = document.getElementById('lb-${id}-wrap');
+  var header = document.getElementById('lb-${id}-header');
+  var current = { groupId: null, indices: [], pos: 0 };
+  function findGroup(gid){ for(var i=0;i<GROUPS.length;i++) if(GROUPS[i].id===gid) return GROUPS[i]; return null; }
+  function render() {
+    var g = findGroup(current.groupId);
+    if(!g || !current.indices.length) return;
+    var idx = current.indices[current.pos];
+    var img = IMAGES[idx];
+    var marksHtml = '';
+    var filteredMarks = img.marks.filter(function(m){return m.g === current.groupId;});
+    for (var i=0;i<filteredMarks.length;i++){
+      var m = filteredMarks[i];
+      marksHtml += '<div style="position:absolute;border:5px solid '+g.color+';box-sizing:border-box;border-radius:2px;left:'+m.x+'%;top:'+m.y+'%;width:'+m.w+'%;height:'+m.h+'%;"></div>';
+    }
+    wrap.innerHTML = '<img src="'+img.url+'" alt="">'+marksHtml;
+    var labelPart = img.label ? ' · Bilde '+img.label : '';
+    header.innerHTML = '<span style="display:inline-block;width:14px;height:14px;background:'+g.color+';border-radius:3px;"></span> '+g.label+' — '+(current.pos+1)+' av '+current.indices.length+labelPart;
+  }
+  function openGroup(gid){
+    var g = findGroup(gid);
+    if(!g) return;
+    var indices = [];
+    for(var i=0;i<IMAGES.length;i++){
+      if(IMAGES[i].marks.some(function(m){return m.g===gid;})) indices.push(i);
+    }
+    if(!indices.length) return;
+    current.groupId = gid;
+    current.indices = indices;
+    current.pos = 0;
+    render();
+    lb.classList.add('is-open');
+    document.body.style.overflow = 'hidden';
+  }
+  function close(){
+    lb.classList.remove('is-open');
+    document.body.style.overflow = '';
+  }
+  function nav(dir){
+    if(!current.indices.length) return;
+    current.pos = (current.pos + dir + current.indices.length) % current.indices.length;
+    render();
+  }
+  document.querySelectorAll('.banl-legend__item').forEach(function(btn){
+    btn.addEventListener('click', function(){ openGroup(btn.dataset.grp); });
+  });
+  lb.querySelector('.banl-lb-${id}__close').addEventListener('click', close);
+  lb.querySelector('.banl-lb-${id}__nav--prev').addEventListener('click', function(e){ e.stopPropagation(); nav(-1); });
+  lb.querySelector('.banl-lb-${id}__nav--next').addEventListener('click', function(e){ e.stopPropagation(); nav(1); });
+  lb.addEventListener('click', function(e){ if(e.target === lb) close(); });
+  document.addEventListener('keydown', function(e){
+    if(!lb.classList.contains('is-open')) return;
+    if(e.key === 'Escape') close();
+    else if(e.key === 'ArrowLeft') nav(-1);
+    else if(e.key === 'ArrowRight') nav(1);
+  });
+  var touchStartX = 0;
+  lb.addEventListener('touchstart', function(e){ touchStartX = e.touches[0].clientX; }, {passive:true});
+  lb.addEventListener('touchend', function(e){
+    var dx = e.changedTouches[0].clientX - touchStartX;
+    if(Math.abs(dx) > 50) nav(dx < 0 ? 1 : -1);
+  });
+})();
+</script>
+`;
+}
+
+function updateExportButtons() {
+  els.copyEmbed.disabled = !state.loaded || state.images.length < 2;
+}
+
+els.copyEmbed.addEventListener('click', async () => {
+  if (!state.loaded) return;
+  const snippet = buildEmbedSnippet();
+  try {
+    await window.faktisk.copyToClipboard(snippet);
+    const orig = els.copyEmbed.textContent;
+    els.copyEmbed.textContent = '✅ Kopiert! Slå av «Validate input» i Labrador';
+    setStatus('Embed-koden er kopiert.');
+    setTimeout(() => { els.copyEmbed.textContent = orig; }, 4500);
+  } catch (e) {
+    setStatus('Kunne ikke kopiere: ' + e.message, true);
+  }
+});
+
+els.back.addEventListener('click', async () => { await window.faktisk.goHome(); });
+els.full.addEventListener('click', async () => { await window.faktisk.toggleFullscreen(); });
+els.openLabrador.addEventListener('click', async () => {
+  await window.faktisk.openExternal('https://labrador.faktisk.no/settings/upload-file');
+});
+
+// ============================================================
+//  Arkivering
+// ============================================================
+let isRestoring = false;
+function serializeState() {
+  return {
+    imageUrls: state.imageUrls,
+    imageLabels: state.imageLabels,
+    images: state.images,
+    groups: state.groups,
+    marks: state.marks,
+    selectedGroupId: state.selectedGroupId,
+    sourceVideos: state.sourceVideos,
+    pairMode: state.pairMode,
+    pairFormat: state.pairFormat,
+    pairTitles: state.pairTitles,
+    sceneCaptions: state.sceneCaptions,
+    topHeading: state.topHeading,
+    headingStyle: state.headingStyle,
+    dimOutside: state.dimOutside,
+    abInCaption: state.abInCaption,
+    captionText: els.captionText.value,
+    photographer: els.photographer.value,
+  };
+}
+async function applyState(saved) {
+  if (!saved) return;
+  isRestoring = true;
+  try {
+    els.captionText.value = saved.captionText || '';
+    els.photographer.value = saved.photographer || '';
+    if (Array.isArray(saved.imageUrls)) {
+      state.imageUrls = saved.imageUrls.length ? saved.imageUrls : [''];
+      // Sett labels: bruk lagrede, eller fyll med default A/B/C..
+      state.imageLabels = (Array.isArray(saved.imageLabels) ? saved.imageLabels : [])
+        .concat(state.imageUrls.slice((saved.imageLabels || []).length).map((_, i) =>
+          defaultLabel((saved.imageLabels || []).length + i)));
+      // Trim hvis for langt
+      state.imageLabels.length = state.imageUrls.length;
+      renderImageInputs();
+    }
+    if (Array.isArray(saved.groups) && saved.groups.length) state.groups = saved.groups;
+    if (Array.isArray(saved.marks)) state.marks = saved.marks;
+    if (saved.selectedGroupId) state.selectedGroupId = saved.selectedGroupId;
+    if (Array.isArray(saved.sourceVideos)) state.sourceVideos = saved.sourceVideos;
+    if (saved.pairMode) state.pairMode = saved.pairMode;
+    if (saved.pairFormat) {
+      state.pairFormat = saved.pairFormat;
+      if (els.pairFormatSelect) els.pairFormatSelect.value = saved.pairFormat;
+    }
+    if (Array.isArray(saved.pairTitles)) {
+      state.pairTitles = saved.pairTitles;
+      if (els.pairTitle1) els.pairTitle1.value = saved.pairTitles[0] || 'Bilde 1';
+      if (els.pairTitle2) els.pairTitle2.value = saved.pairTitles[1] || 'Bilde 2';
+    }
+    if (Array.isArray(saved.sceneCaptions)) state.sceneCaptions = saved.sceneCaptions;
+    if (typeof saved.topHeading === 'string') {
+      state.topHeading = saved.topHeading;
+      if (els.topHeading) els.topHeading.value = saved.topHeading;
+    }
+    if (typeof saved.headingStyle === 'string') {
+      state.headingStyle = saved.headingStyle;
+      if (els.headingStyle) els.headingStyle.value = saved.headingStyle;
+    }
+    if (typeof saved.dimOutside === 'boolean') {
+      state.dimOutside = saved.dimOutside;
+      if (els.dimOutside) els.dimOutside.checked = saved.dimOutside;
+    }
+    if (typeof saved.abInCaption === 'boolean') {
+      state.abInCaption = saved.abInCaption;
+      if (els.abInCaption) els.abInCaption.checked = saved.abInCaption;
+    }
+    renderVideoInputs();
+    if (saved.imageUrls && saved.imageUrls.filter(u => u && u.trim()).length >= 2) {
+      await loadAllImages();
+    }
+  } finally {
+    isRestoring = false;
+  }
+}
+
+let saveTimer = null;
+function scheduleSaveState() {
+  if (isRestoring) return;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    window.faktisk.stateSave(PLUGIN_ID, serializeState()).catch(console.error);
+  }, 400);
+}
+['input', 'change'].forEach(ev => {
+  els.captionText.addEventListener(ev, () => {
+    if (isPair()) {
+      // Lagre teksten på aktiv scene i slideshow
+      setSceneCaption(state.activeSceneIdx, els.captionText.value);
+      renderGrid();
+    }
+    scheduleSaveState();
+  });
+  els.photographer.addEventListener(ev, scheduleSaveState);
+});
+
+function syncCaptionFieldToScene() {
+  if (!isPair()) {
+    if (els.captionLabel) els.captionLabel.textContent = 'Bildetekst (valgfri)';
+    els.captionText.placeholder = 'Forklar sammenhengen kort…';
+    return;
+  }
+  const total = sceneCount();
+  const cap = getSceneCaption(state.activeSceneIdx) || '';
+  if (els.captionText.value !== cap) {
+    isRestoring = true;
+    els.captionText.value = cap;
+    isRestoring = false;
+  }
+  // Vis hvilken scene captionet gjelder for
+  if (els.captionLabel) {
+    els.captionLabel.textContent = total > 1
+      ? `Bildetekst for scene ${state.activeSceneIdx + 1} av ${total}`
+      : 'Bildetekst (valgfri)';
+  }
+  els.captionText.placeholder = total > 1
+    ? `Tekst for dette bildeparet (bytter når du blar til neste)…`
+    : 'Forklar sammenhengen kort…';
+}
+
+async function refreshProjectList() {
+  try {
+    const res = await window.faktisk.projectList(PLUGIN_ID);
+    if (!res.ok) return;
+    const sel = els.projectSelect;
+    while (sel.options.length > 1) sel.remove(1);
+    res.projects.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.fileId;
+      opt.textContent = p.name;
+      sel.appendChild(opt);
+    });
+  } catch (e) { console.error(e); }
+}
+els.saveProject.addEventListener('click', async () => {
+  const defaultName = (els.captionText.value || '').slice(0, 40).trim()
+    || `Analyse ${new Date().toLocaleDateString('no')}`;
+  const name = await window.faktiskDialog.prompt('Lagre prosjekt som:', defaultName);
+  if (!name || !name.trim()) return;
+  const res = await window.faktisk.projectSave(PLUGIN_ID, name.trim(), serializeState());
+  if (res.ok) {
+    setStatus('Lagret: «' + res.name + '».');
+    await refreshProjectList();
+  }
+});
+els.projectSelect.addEventListener('change', async () => {
+  const fileId = els.projectSelect.value;
+  if (!fileId) return;
+  const res = await window.faktisk.projectLoad(PLUGIN_ID, fileId);
+  if (res.ok && res.state) {
+    setStatus('Åpner «' + res.name + '»…');
+    await applyState(res.state);
+  }
+});
+
+(async function init() {
+  // Sett default-label for første rad om den mangler
+  if (!state.imageLabels[0]) state.imageLabels[0] = defaultLabel(0);
+  renderImageInputs();
+  renderVideoInputs();
+  updateExportButtons();
+  await refreshProjectList();
+  try {
+    const res = await window.faktisk.stateLoad(PLUGIN_ID);
+    if (res.ok && res.state) await applyState(res.state);
+  } catch (e) {}
+})();

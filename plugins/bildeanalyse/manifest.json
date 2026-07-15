@@ -1,0 +1,9 @@
+{
+  "id": "bildeanalyse",
+  "name": "Bildeanalyse",
+  "version": "0.1.30",
+  "entry": "index.html",
+  "description": "Vis sammenheng mellom flere bilder med fargede rammer. Klikk en farge for å bla gjennom bildene som hører sammen i en lightbox.",
+  "category": "image",
+  "minStudioVersion": "0.2.0"
+}
