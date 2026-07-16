@@ -265,6 +265,159 @@ ipcMain.handle('open-labrador', async (e, urlIn) => {
   return { ok: true };
 });
 
+// ============================================================
+//  Labrador filopplasting-API (gren: labrador-filer)
+//
+//  Endepunktene er de klassiske jQuery-sidene under /settings/ —
+//  IKKE SPA-en (som krasjer i Electron). Verifisert 2026-07-16:
+//    GET  /ajax/file-upload/list-files            → JSON {id:{name,url}}
+//    POST /ajax/file-upload/upload-files          → multipart, felt "file"
+//    GET  /ajax/file-upload/delete-file?id=<id>
+//  Auth: sesjonskake. Brukeren logger inn i et eget Electron-vindu med
+//  persistent partition, og main-prosessen sender kakene manuelt.
+// ============================================================
+
+const LABRADOR_ORIGIN = 'https://labrador.faktisk.no';
+const LABRADOR_PARTITION = 'persist:labrador';
+
+async function labradorCookieHeader() {
+  const { session } = require('electron');
+  const ses = session.fromPartition(LABRADOR_PARTITION);
+  const cookies = await ses.cookies.get({ url: LABRADOR_ORIGIN });
+  return cookies.map(c => c.name + '=' + c.value).join('; ');
+}
+
+function labradorRequest(path, { method = 'GET', headers = {}, body = null } = {}) {
+  return new Promise(async (resolve, reject) => {
+    const cookie = await labradorCookieHeader();
+    const req = https.request(LABRADOR_ORIGIN + path, {
+      method,
+      headers: Object.assign({ Cookie: cookie, 'X-Requested-With': 'XMLHttpRequest' }, headers),
+    }, res => {
+      let data = '';
+      res.on('data', c => { data += c; });
+      res.on('end', () => resolve({ status: res.statusCode, body: data, headers: res.headers }));
+    });
+    req.on('error', reject);
+    if (body) req.write(body);
+    req.end();
+  });
+}
+
+async function labradorListFiles() {
+  const res = await labradorRequest('/ajax/file-upload/list-files');
+  if (res.status !== 200) return { ok: false, loggedIn: false, error: 'HTTP ' + res.status };
+  try {
+    const parsed = JSON.parse(res.body);
+    const files = Object.entries(parsed)
+      .map(([id, f]) => ({ id, name: f.name, url: f.url }))
+      .sort((a, b) => Number(b.id) - Number(a.id)); // nyeste først
+    return { ok: true, loggedIn: true, files };
+  } catch (e) {
+    // HTML i stedet for JSON = redirect til login = ikke innlogget
+    return { ok: true, loggedIn: false, files: [] };
+  }
+}
+
+let labradorLoginWin = null;
+
+ipcMain.handle('labrador-status', async () => {
+  try { return await labradorListFiles(); }
+  catch (err) { return { ok: false, loggedIn: false, error: err.message }; }
+});
+
+ipcMain.handle('labrador-connect', async () => {
+  if (labradorLoginWin && !labradorLoginWin.isDestroyed()) {
+    labradorLoginWin.focus();
+    return { ok: true, already: true };
+  }
+  return new Promise(resolve => {
+    labradorLoginWin = new BrowserWindow({
+      width: 1100, height: 800,
+      parent: mainWindow || undefined,
+      title: 'Logg inn på Labrador',
+      webPreferences: { partition: LABRADOR_PARTITION, nodeIntegration: false, contextIsolation: true },
+    });
+    // Upload-siden er en klassisk server-rendret side og fungerer i Electron;
+    // er brukeren ikke innlogget redirect-er Labrador til login først.
+    labradorLoginWin.loadURL(LABRADOR_ORIGIN + '/settings/upload-file');
+    // Når vinduet lukkes: sjekk om vi fikk gyldig session
+    labradorLoginWin.on('closed', async () => {
+      labradorLoginWin = null;
+      try { resolve(await labradorListFiles()); }
+      catch (err) { resolve({ ok: false, loggedIn: false, error: err.message }); }
+    });
+    // Auto-lukk når innlogging lykkes: sjekk session ved hver navigasjon
+    labradorLoginWin.webContents.on('did-navigate', async () => {
+      try {
+        const st = await labradorListFiles();
+        if (st.loggedIn && labradorLoginWin && !labradorLoginWin.isDestroyed()) {
+          labradorLoginWin.close(); // trigger 'closed' → resolve
+        }
+      } catch (e) {}
+    });
+  });
+});
+
+ipcMain.handle('labrador-list-files', async () => {
+  try { return await labradorListFiles(); }
+  catch (err) { return { ok: false, loggedIn: false, error: err.message }; }
+});
+
+// Filvelger + opplasting i én operasjon. Returnerer URL-en til den nye fila
+// ved å slå opp i list-files etterpå (upload-responsen er ikke dokumentert).
+ipcMain.handle('labrador-upload', async (e, opts) => {
+  const filters = (opts && opts.filters) || [
+    { name: 'Medier', extensions: ['png', 'gif', 'jpg', 'jpeg', 'avif', 'heic', 'mp4', 'mpg', 'pdf'] },
+  ];
+  const pick = await dialog.showOpenDialog(mainWindow, {
+    title: 'Velg fil som skal lastes opp til Labrador',
+    properties: ['openFile'],
+    filters,
+  });
+  if (pick.canceled || !pick.filePaths.length) return { ok: false, canceled: true };
+  const filePath = pick.filePaths[0];
+  const fileName = path.basename(filePath);
+  const stat = fs.statSync(filePath);
+  if (stat.size > 100 * 1024 * 1024) {
+    return { ok: false, error: 'Fila er over 100 MB (Labradors grense).' };
+  }
+
+  const boundary = '----FaktiskStudio' + Math.random().toString(36).slice(2);
+  const head = Buffer.from(
+    '--' + boundary + '\r\n'
+    + 'Content-Disposition: form-data; name="file"; filename="' + fileName.replace(/"/g, '') + '"\r\n'
+    + 'Content-Type: application/octet-stream\r\n\r\n'
+  );
+  const tail = Buffer.from('\r\n--' + boundary + '--\r\n');
+  const body = Buffer.concat([head, fs.readFileSync(filePath), tail]);
+
+  try {
+    const res = await labradorRequest('/ajax/file-upload/upload-files', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'multipart/form-data; boundary=' + boundary,
+        'Content-Length': body.length,
+      },
+      body,
+    });
+    if (res.status < 200 || res.status >= 300) {
+      return { ok: false, error: 'Opplasting feilet (HTTP ' + res.status + ')' };
+    }
+    // Finn den nye fila i lista (matcher på navn, nyeste først)
+    const list = await labradorListFiles();
+    if (list.loggedIn) {
+      const hit = list.files.find(f => f.name === fileName)
+        || list.files.find(f => f.name.includes(fileName.replace(/\.[^.]+$/, '')));
+      if (hit) return { ok: true, name: hit.name, url: hit.url, id: hit.id };
+    }
+    return { ok: true, name: fileName, url: null,
+      note: 'Lastet opp, men fant ikke URL automatisk — sjekk «Mine filer».' };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
 ipcMain.handle('recent-file-add', async (e, entry) => {
   try {
     if (!entry || !entry.url) return { ok: false, error: 'Mangler url' };

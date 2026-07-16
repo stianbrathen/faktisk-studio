@@ -50,6 +50,10 @@ contextBridge.exposeInMainWorld('faktisk', {
 
   // Labrador-integrasjon
   openLabrador: (url) => ipcRenderer.invoke('open-labrador', url),
+  labradorStatus: () => ipcRenderer.invoke('labrador-status'),
+  labradorConnect: () => ipcRenderer.invoke('labrador-connect'),
+  labradorListFiles: () => ipcRenderer.invoke('labrador-list-files'),
+  labradorUpload: (opts) => ipcRenderer.invoke('labrador-upload', opts),
   recentFileAdd: (entry) => ipcRenderer.invoke('recent-file-add', entry),
   recentFileList: (opts) => ipcRenderer.invoke('recent-file-list', opts),
   recentFileRemove: (url) => ipcRenderer.invoke('recent-file-remove', url),

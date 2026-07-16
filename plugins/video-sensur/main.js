@@ -873,6 +873,97 @@ els.exportBtn.addEventListener('click', async () => {
   }
 });
 
+// ── Labrador-filer: «Mine filer»-panel + direkteopplasting ───────────────
+
+const labEls = {
+  filesBtn:  document.getElementById('labFilesBtn'),
+  uploadBtn: document.getElementById('labUploadBtn'),
+  panel:     document.getElementById('labPanel'),
+  status:    document.getElementById('labPanelStatus'),
+  list:      document.getElementById('labPanelList'),
+};
+
+const VIDEO_EXT = /\.(mp4|mov|mpg|mpeg|m4v|webm)(\?|$)/i;
+
+function useLabradorUrl(url) {
+  els.url.value = url;
+  labEls.panel.style.display = 'none';
+  loadVideo();
+}
+
+async function refreshLabPanel() {
+  labEls.status.textContent = 'Henter filer…';
+  labEls.list.innerHTML = '';
+  let res;
+  try { res = await window.faktisk.labradorListFiles(); }
+  catch (err) { labEls.status.textContent = 'Feil: ' + err.message; return; }
+
+  if (!res.loggedIn) {
+    labEls.status.innerHTML = 'Ikke innlogget. '
+      + '<button class="link-btn" id="labConnectBtn" type="button">Koble til Labrador…</button>';
+    document.getElementById('labConnectBtn').addEventListener('click', async () => {
+      labEls.status.textContent = 'Logg inn i vinduet som åpnes…';
+      const st = await window.faktisk.labradorConnect();
+      if (st.loggedIn) refreshLabPanel();
+      else labEls.status.textContent = 'Fikk ikke gyldig innlogging. Prøv igjen.';
+    });
+    return;
+  }
+
+  const videos = res.files.filter(f => VIDEO_EXT.test(f.url));
+  const others = res.files.filter(f => !VIDEO_EXT.test(f.url));
+  labEls.status.textContent = res.files.length
+    ? videos.length + ' videoer · ' + others.length + ' andre filer (nyeste først)'
+    : 'Ingen filer lastet opp ennå.';
+
+  // Videoer først — det er dem denne pluginen bruker
+  videos.concat(others).slice(0, 60).forEach(f => {
+    const row = document.createElement('div');
+    row.className = 'lab-file';
+    const isVideo = VIDEO_EXT.test(f.url);
+    row.innerHTML = '<span class="lab-file__type' + (isVideo ? ' video' : '') + '">'
+      + (isVideo ? 'VIDEO' : (f.name.split('.').pop() || 'FIL').toUpperCase().slice(0, 5)) + '</span>'
+      + '<span class="lab-file__name"></span>';
+    row.querySelector('.lab-file__name').textContent = f.name;
+    row.title = f.url + (isVideo ? '' : ' (ikke video — kan ikke brukes her)');
+    if (isVideo) row.addEventListener('click', () => useLabradorUrl(f.url));
+    else row.style.opacity = '0.45';
+    labEls.list.appendChild(row);
+  });
+}
+
+labEls.filesBtn.addEventListener('click', () => {
+  const open = labEls.panel.style.display !== 'none';
+  labEls.panel.style.display = open ? 'none' : 'flex';
+  if (!open) refreshLabPanel();
+});
+
+labEls.uploadBtn.addEventListener('click', async () => {
+  labEls.uploadBtn.disabled = true;
+  setStatus('Velg fil — lastes opp til Labrador…');
+  try {
+    const res = await window.faktisk.labradorUpload({
+      filters: [{ name: 'Video', extensions: ['mp4', 'mov', 'mpg', 'mpeg', 'm4v'] }],
+    });
+    if (res.canceled) { setStatus(''); return; }
+    if (!res.ok) {
+      // Ikke innlogget gir HTTP-feil — tilby tilkobling
+      setStatus('Opplasting feilet: ' + res.error + ' — er du koblet til Labrador?', true);
+      return;
+    }
+    if (res.url) {
+      setStatus('Lastet opp «' + res.name + '» ✓');
+      useLabradorUrl(res.url);
+    } else {
+      setStatus(res.note || 'Lastet opp, men fant ikke URL — sjekk «Mine filer».', true);
+    }
+  } catch (err) {
+    setStatus('Opplasting feilet: ' + err.message, true);
+  } finally {
+    labEls.uploadBtn.disabled = false;
+  }
+});
+
 // ── Navigasjon ───────────────────────────────────────────────────────────
 
 els.loadBtn.addEventListener('click', loadVideo);
