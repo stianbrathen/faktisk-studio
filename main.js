@@ -384,6 +384,16 @@ ipcMain.handle('labrador-connect', async () => {
       try { resolve(await labradorListFiles()); }
       catch (err) { resolve({ ok: false, loggedIn: false, error: err.message }); }
     });
+    // Skjul vinduet straks navigasjonen forlater login-flyten — ellers
+    // blinker Labradors landingsside (fillista) et øyeblikk før lukking,
+    // og det ser ut som noe er galt.
+    labradorLoginWin.webContents.on('did-start-navigation', (ev2, navUrl, isInPlace, isMainFrame) => {
+      if (!isMainFrame || !navUrl) return;
+      const inLoginFlow = /\/login/i.test(navUrl) || /accounts\.google|gstatic|googleapis/i.test(navUrl);
+      if (!inLoginFlow && labradorLoginWin && !labradorLoginWin.isDestroyed()) {
+        try { labradorLoginWin.hide(); } catch (e) {}
+      }
+    });
     // Auto-lukk når innlogging lykkes: sjekk session ved hver navigasjon
     labradorLoginWin.webContents.on('did-navigate', async () => {
       try {
@@ -393,6 +403,10 @@ ipcMain.handle('labrador-connect', async () => {
           if (labradorLoginWin && !labradorLoginWin.isDestroyed()) {
             labradorLoginWin.close(); // trigger 'closed' → resolve
           }
+        } else if (labradorLoginWin && !labradorLoginWin.isDestroyed()
+            && !labradorLoginWin.isVisible()) {
+          // Skjult, men fortsatt ikke innlogget (uventet redirect) — vis igjen
+          labradorLoginWin.show();
         }
       } catch (e) {}
     });
