@@ -409,15 +409,49 @@ ipcMain.handle('labrador-upload', async (e, opts) => {
   const tail = Buffer.from('\r\n--' + boundary + '--\r\n');
   const body = Buffer.concat([head, fs.readFileSync(filePath), tail]);
 
-  try {
-    const res = await labradorRequest('/ajax/file-upload/upload-files', {
+  // Strøm kroppen i biter og meld fremdrift — store videoer tar tid,
+  // og uten indikator tror redaktøren at ingenting skjer.
+  const sendProgress = msg => {
+    try { mainWindow && mainWindow.webContents.send('labrador-upload-progress', msg); } catch (e) {}
+  };
+  const streamUpload = () => new Promise(async (resolve, reject) => {
+    const cookie = await labradorCookieHeader();
+    const req = https.request(LABRADOR_ORIGIN + '/ajax/file-upload/upload-files', {
       method: 'POST',
       headers: {
+        Cookie: cookie,
+        'X-Requested-With': 'XMLHttpRequest',
         'Content-Type': 'multipart/form-data; boundary=' + boundary,
         'Content-Length': body.length,
       },
-      body,
+    }, res => {
+      let data = '';
+      res.on('data', c => { data += c; });
+      res.on('end', () => resolve({ status: res.statusCode, body: data }));
     });
+    req.on('error', reject);
+    const CHUNK = 256 * 1024;
+    let offset = 0;
+    const writeNext = () => {
+      while (offset < body.length) {
+        const end = Math.min(offset + CHUNK, body.length);
+        const ok = req.write(body.slice(offset, end));
+        offset = end;
+        sendProgress({
+          percent: Math.round((offset / body.length) * 100),
+          sentMB: (offset / 1048576).toFixed(1),
+          totalMB: (body.length / 1048576).toFixed(1),
+        });
+        if (!ok) { req.once('drain', writeNext); return; }
+      }
+      req.end();
+    };
+    writeNext();
+  });
+
+  try {
+    sendProgress({ percent: 0, sentMB: '0.0', totalMB: (body.length / 1048576).toFixed(1) });
+    const res = await streamUpload();
     if (res.status < 200 || res.status >= 300) {
       return { ok: false, error: 'Opplasting feilet (HTTP ' + res.status + ')' };
     }

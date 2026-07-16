@@ -54,6 +54,11 @@ contextBridge.exposeInMainWorld('faktisk', {
   labradorConnect: () => ipcRenderer.invoke('labrador-connect'),
   labradorListFiles: () => ipcRenderer.invoke('labrador-list-files'),
   labradorUpload: (opts) => ipcRenderer.invoke('labrador-upload', opts),
+  onLabradorUploadProgress: (cb) => {
+    const listener = (_e, msg) => cb(msg);
+    ipcRenderer.on('labrador-upload-progress', listener);
+    return () => ipcRenderer.removeListener('labrador-upload-progress', listener);
+  },
   recentFileAdd: (entry) => ipcRenderer.invoke('recent-file-add', entry),
   recentFileList: (opts) => ipcRenderer.invoke('recent-file-list', opts),
   recentFileRemove: (url) => ipcRenderer.invoke('recent-file-remove', url),

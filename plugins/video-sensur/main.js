@@ -945,6 +945,12 @@ labEls.filesBtn.addEventListener('click', () => {
 labEls.uploadBtn.addEventListener('click', async () => {
   labEls.uploadBtn.disabled = true;
   setStatus('Velg fil — lastes opp til Labrador…');
+  // Fremdriftsbar (gjenbruker eksport-baren) så det er tydelig at noe skjer
+  const unsubProgress = window.faktisk.onLabradorUploadProgress(msg => {
+    els.exportProgress.style.display = 'block';
+    els.exportBar.style.width = msg.percent + '%';
+    setStatus('Laster opp… ' + msg.percent + '% (' + msg.sentMB + ' av ' + msg.totalMB + ' MB)');
+  });
   try {
     const res = await window.faktisk.labradorUpload({
       filters: [{ name: 'Video', extensions: ['mp4', 'mov', 'mpg', 'mpeg', 'm4v'] }],
@@ -964,7 +970,9 @@ labEls.uploadBtn.addEventListener('click', async () => {
   } catch (err) {
     setStatus('Opplasting feilet: ' + err.message, true);
   } finally {
+    unsubProgress();
     labEls.uploadBtn.disabled = false;
+    setTimeout(() => { els.exportProgress.style.display = 'none'; els.exportBar.style.width = '0%'; }, 2000);
   }
 });
 
