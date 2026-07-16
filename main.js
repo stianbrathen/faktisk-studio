@@ -386,7 +386,15 @@ ipcMain.handle('labrador-upload', async (e, opts) => {
   });
   if (pick.canceled || !pick.filePaths.length) return { ok: false, canceled: true };
   const filePath = pick.filePaths[0];
-  const fileName = path.basename(filePath);
+  // Vask filnavnet: «%» gir URL-dekodings-404 hos Labrador (filnavn med
+  // bokstavelig %20 tolkes som mellomrom når URL-en hentes). Behold
+  // norske tegn, bytt ut resten av det eksotiske med bindestrek.
+  const fileName = path.basename(filePath)
+    .replace(/%[0-9a-fA-F]{2}/g, ' ')
+    .replace(/%/g, '')
+    .replace(/[^\w.æøåÆØÅéÉèÈüÜöÖäÄ ()-]/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim();
   const stat = fs.statSync(filePath);
   if (stat.size > 100 * 1024 * 1024) {
     return { ok: false, error: 'Fila er over 100 MB (Labradors grense).' };

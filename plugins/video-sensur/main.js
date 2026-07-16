@@ -817,7 +817,11 @@ function updateButtons() {
 
 els.exportBtn.addEventListener('click', async () => {
   if (els.exportBtn.disabled) return;
-  const base = (state.url.split('/').pop() || 'video.mp4').replace(/\.mp4.*$/i, '');
+  // Dekod URL-segmentet — ellers får fila bokstavelig «%20» i navnet,
+  // som gir 404 når den lastes opp igjen og URL-en re-enkodes.
+  let base = state.url.split('/').pop() || 'video.mp4';
+  try { base = decodeURIComponent(base); } catch (e) {}
+  base = base.replace(/\.(mp4|mov|mpg|mpeg|m4v).*$/i, '').replace(/%/g, '');
   const savePath = await window.faktisk.saveDialog({
     title: 'Eksporter sensurert video',
     defaultPath: base + '-sensurert.mp4',
