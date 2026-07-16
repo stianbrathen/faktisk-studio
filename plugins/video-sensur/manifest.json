@@ -5,5 +5,5 @@
   "entry": "index.html",
   "description": "Sensurer ansikter eller deler av bildet med blur som følger motivet via keyframes, med myk fade inn/ut. Eksporterer i tilnærmet original kvalitet med lyden urørt.",
   "category": "video",
-  "minStudioVersion": "0.5.9"
+  "minStudioVersion": "0.6.0"
 }

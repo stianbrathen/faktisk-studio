@@ -1,7 +1,7 @@
 {
   "id": "video-player",
   "name": "Videoavspiller",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "entry": "index.html",
   "description": "Generell video-avspiller for Labrador-opplastede klipp. Custom Faktisk-stil play-knapp, native controls, valgfri trim. Container-boks med høyde-presets for vertikalvideo.",
   "category": "video",

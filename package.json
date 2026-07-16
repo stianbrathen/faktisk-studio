@@ -1,7 +1,7 @@
 {
   "name": "faktisk-studio",
   "productName": "Faktisk Studio",
-  "version": "0.5.9",
+  "version": "0.6.0",
   "registryUrl": "https://raw.githubusercontent.com/stianbrathen/faktiskorg-studio-plugins/main/registry.json",
   "description": "Verktøy for å lage interaktive embeds og video-elementer for Labrador-artikler på faktisk.no",
   "main": "main.js",
