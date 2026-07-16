@@ -156,10 +156,18 @@ ipcMain.handle('list-plugins', async () => {
 });
 
 ipcMain.handle('open-plugin', async (e, pluginId) => {
-  const candidates = [
-    path.join(userPluginsDir, pluginId, 'index.html'),
-    path.join(builtinPluginsDir, pluginId, 'index.html'),
-  ];
+  // I dev (npm start) skal repo-versjonen alltid vinne over installerte
+  // kopier i userData — ellers tester man gamle filer uten å vite det.
+  // Dev-appen deler userData med den pakkede appen, så fellen er reell.
+  const candidates = app.isPackaged
+    ? [
+        path.join(userPluginsDir, pluginId, 'index.html'),
+        path.join(builtinPluginsDir, pluginId, 'index.html'),
+      ]
+    : [
+        path.join(builtinPluginsDir, pluginId, 'index.html'),
+        path.join(userPluginsDir, pluginId, 'index.html'),
+      ];
   const found = candidates.find(p => fs.existsSync(p));
   if (!found) return { ok: false, error: 'Plugin finnes ikke: ' + pluginId };
   mainWindow.loadFile(found);
