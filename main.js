@@ -346,9 +346,10 @@ ipcMain.handle('labrador-connect', async () => {
       title: 'Logg inn på Labrador',
       webPreferences: { partition: LABRADOR_PARTITION, nodeIntegration: false, contextIsolation: true },
     });
-    // Upload-siden er en klassisk server-rendret side og fungerer i Electron;
-    // er brukeren ikke innlogget redirect-er Labrador til login først.
-    labradorLoginWin.loadURL(LABRADOR_ORIGIN + '/settings/upload-file');
+    // NB: /settings/upload-file svarer HTTP 500 («Application error») uten
+    // gyldig session — den redirecter IKKE til login. Gå via login-siden
+    // direkte; did-navigate-sjekken under lukker vinduet når sesjonen er inne.
+    labradorLoginWin.loadURL(LABRADOR_ORIGIN + '/login/index');
     // Når vinduet lukkes: sjekk om vi fikk gyldig session
     labradorLoginWin.on('closed', async () => {
       labradorLoginWin = null;
