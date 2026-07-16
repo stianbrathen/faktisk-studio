@@ -1,16 +1,24 @@
 // Faktisk Studio — Malside (hub)
 
 const ELEMENT_TYPES = [
-  { id: 'looping-video',   label: 'Looping videoklipp' },
-  { id: 'video-player',    label: 'Videoavspiller' },
-  { id: 'bilde-markering', label: 'Bilde med markering' },
-  { id: 'bildeanalyse',    label: 'Bildeanalyse' },
-  { id: 'for-og-etter',    label: 'Før og etter slider' },
-  { id: 'interaktiv-video',label: 'Interaktiv video' },
-  { id: 'parallax-collage',label: 'Parallax bildecollage' },
-  { id: 'kart',            label: 'Kart med markeringer' },
-  { id: 'timeline-bilder', label: 'Timeline med bilder' },
-  { id: 'timeline-horisontal', label: 'Horisontal timeline' },
+  { id: 'looping-video',   label: 'Looping videoklipp',   category: 'video' },
+  { id: 'video-player',    label: 'Videoavspiller',       category: 'video' },
+  { id: 'bilde-markering', label: 'Bilde med markering',  category: 'image' },
+  { id: 'bildeanalyse',    label: 'Bildeanalyse',         category: 'image' },
+  { id: 'for-og-etter',    label: 'Før og etter slider',  category: 'image' },
+  { id: 'interaktiv-video',label: 'Interaktiv video',     category: 'video' },
+  { id: 'parallax-collage',label: 'Parallax bildecollage',category: 'image' },
+  { id: 'kart',            label: 'Kart med markeringer', category: 'annet' },
+  { id: 'timeline-bilder', label: 'Timeline med bilder',  category: 'annet' },
+  { id: 'timeline-horisontal', label: 'Horisontal timeline', category: 'annet' },
+];
+
+// Kategorier vises i denne rekkefølgen. Plugins med ukjent/manglende
+// category havner under «Annet».
+const CATEGORIES = [
+  { key: 'video', label: 'Video' },
+  { key: 'image', label: 'Bilder' },
+  { key: 'annet', label: 'Annet' },
 ];
 
 async function renderHub() {
@@ -25,8 +33,8 @@ async function renderHub() {
   }
 
   // Bygg liste: installerte plugins først, så placeholders for ELEMENT_TYPES
-  // som ikke er installert ennå. Installerte plugins som ikke er i
-  // ELEMENT_TYPES (f.eks. nye via marketplace) får navn fra sin egen manifest.
+  // som ikke er installert ennå. Kategori hentes fra manifest (installerte)
+  // eller ELEMENT_TYPES (placeholders).
   const installedIds = new Set(installed.map(p => p.id));
   const items = [
     ...installed.map(p => {
@@ -35,28 +43,45 @@ async function renderHub() {
         kind: 'installed',
         plugin: p,
         label: known ? known.label : (p.name || p.id),
+        category: p.category || (known && known.category) || 'annet',
       };
     }),
     ...ELEMENT_TYPES.filter(t => !installedIds.has(t.id)).map(type => ({
       kind: 'placeholder',
       type,
+      category: type.category || 'annet',
     })),
   ];
 
-  const columns = [[], [], []];
-  items.forEach((item, i) => {
-    columns[i % 3].push(item);
-  });
+  CATEGORIES.forEach(cat => {
+    const catItems = items.filter(it =>
+      it.category === cat.key
+      || (cat.key === 'annet' && !CATEGORIES.some(c => c.key === it.category)));
+    if (!catItems.length) return;
 
-  columns.forEach(colItems => {
-    const col = document.createElement('div');
-    col.className = 'malside__column';
-    colItems.forEach(item => {
-      col.appendChild(item.kind === 'installed'
-        ? makeInstalledCard(item.plugin, item.label)
-        : makePlaceholderCard(item.type));
+    const group = document.createElement('section');
+    group.className = 'malside__group';
+    const title = document.createElement('h2');
+    title.className = 'malside__group-title';
+    title.textContent = cat.label;
+    group.appendChild(title);
+
+    const groupGrid = document.createElement('div');
+    groupGrid.className = 'malside__grid';
+    const columns = [[], [], []];
+    catItems.forEach((item, i) => columns[i % 3].push(item));
+    columns.forEach(colItems => {
+      const col = document.createElement('div');
+      col.className = 'malside__column';
+      colItems.forEach(item => {
+        col.appendChild(item.kind === 'installed'
+          ? makeInstalledCard(item.plugin, item.label)
+          : makePlaceholderCard(item.type));
+      });
+      groupGrid.appendChild(col);
     });
-    grid.appendChild(col);
+    group.appendChild(groupGrid);
+    grid.appendChild(group);
   });
 }
 
