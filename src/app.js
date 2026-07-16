@@ -8,18 +8,35 @@ const ELEMENT_TYPES = [
   { id: 'for-og-etter',    label: 'Før og etter slider',  category: 'image' },
   { id: 'interaktiv-video',label: 'Interaktiv video',     category: 'video' },
   { id: 'parallax-collage',label: 'Parallax bildecollage',category: 'image' },
-  { id: 'kart',            label: 'Kart med markeringer', category: 'annet' },
+  { id: 'kart',            label: 'Kart med markeringer', category: 'kart' },
   { id: 'timeline-bilder', label: 'Timeline med bilder',  category: 'annet' },
   { id: 'timeline-horisontal', label: 'Horisontal timeline', category: 'annet' },
 ];
 
-// Kategorier vises i denne rekkefølgen. Plugins med ukjent/manglende
-// category havner under «Annet».
-const CATEGORIES = [
-  { key: 'video', label: 'Video' },
-  { key: 'image', label: 'Bilder' },
-  { key: 'annet', label: 'Annet' },
-];
+// Kjente kategorier med visningsnavn og rekkefølge. Nye kategorier i
+// plugin-manifester lager automatisk sin egen seksjon (etter de kjente,
+// alfabetisk) — ingen Studio-endring trengs. Manglende category → «Annet».
+const CATEGORY_LABELS = {
+  video: 'Video',
+  image: 'Bilder',
+  kart:  'Kart',
+  annet: 'Annet',
+};
+const CATEGORY_ORDER = ['video', 'image', 'kart'];
+
+function buildCategories(items) {
+  const seen = new Set(items.map(it => it.category || 'annet'));
+  const known = CATEGORY_ORDER.filter(k => seen.has(k));
+  const unknown = [...seen]
+    .filter(k => !CATEGORY_ORDER.includes(k) && k !== 'annet')
+    .sort();
+  const keys = [...known, ...unknown];
+  if (seen.has('annet')) keys.push('annet');
+  return keys.map(key => ({
+    key,
+    label: CATEGORY_LABELS[key] || (key.charAt(0).toUpperCase() + key.slice(1)),
+  }));
+}
 
 async function renderHub() {
   const grid = document.getElementById('pluginGrid');
@@ -53,10 +70,8 @@ async function renderHub() {
     })),
   ];
 
-  CATEGORIES.forEach(cat => {
-    const catItems = items.filter(it =>
-      it.category === cat.key
-      || (cat.key === 'annet' && !CATEGORIES.some(c => c.key === it.category)));
+  buildCategories(items).forEach(cat => {
+    const catItems = items.filter(it => (it.category || 'annet') === cat.key);
     if (!catItems.length) return;
 
     const group = document.createElement('section');
