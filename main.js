@@ -312,8 +312,36 @@ function labradorRequest(path, { method = 'GET', headers = {}, body = null } = {
   });
 }
 
+// Labradors LABSESSID er en session-cookie (uten utløpsdato) — Electron
+// lagrer bare varige cookies på disk, så innloggingen forsvant ved hver
+// app-restart. Etter vellykket innlogging skriver vi kaken tilbake med
+// 30 dagers utløp, så sesjonen overlever restart (så lenge serveren godtar den).
+async function persistLabradorSession() {
+  const { session } = require('electron');
+  const ses = session.fromPartition(LABRADOR_PARTITION);
+  const cookies = await ses.cookies.get({ url: LABRADOR_ORIGIN });
+  for (const c of cookies) {
+    if (c.session) {
+      try {
+        await ses.cookies.set({
+          url: LABRADOR_ORIGIN,
+          name: c.name,
+          value: c.value,
+          path: c.path || '/',
+          secure: true,
+          httpOnly: c.httpOnly,
+          expirationDate: Math.floor(Date.now() / 1000) + 30 * 24 * 3600,
+        });
+      } catch (e) { console.warn('Kunne ikke persistere cookie', c.name, e.message); }
+    }
+  }
+  try { await ses.cookies.flushStore(); } catch (e) {}
+}
+
 async function labradorListFiles() {
   const res = await labradorRequest('/ajax/file-upload/list-files');
+  // 302 = redirect til login = ikke innlogget (ikke en feil)
+  if (res.status === 301 || res.status === 302) return { ok: true, loggedIn: false, files: [] };
   if (res.status !== 200) return { ok: false, loggedIn: false, error: 'HTTP ' + res.status };
   try {
     const parsed = JSON.parse(res.body);
@@ -360,8 +388,11 @@ ipcMain.handle('labrador-connect', async () => {
     labradorLoginWin.webContents.on('did-navigate', async () => {
       try {
         const st = await labradorListFiles();
-        if (st.loggedIn && labradorLoginWin && !labradorLoginWin.isDestroyed()) {
-          labradorLoginWin.close(); // trigger 'closed' → resolve
+        if (st.loggedIn) {
+          await persistLabradorSession(); // overlev app-restart
+          if (labradorLoginWin && !labradorLoginWin.isDestroyed()) {
+            labradorLoginWin.close(); // trigger 'closed' → resolve
+          }
         }
       } catch (e) {}
     });
@@ -452,6 +483,10 @@ ipcMain.handle('labrador-upload', async (e, opts) => {
   try {
     sendProgress({ percent: 0, sentMB: '0.0', totalMB: (body.length / 1048576).toFixed(1) });
     const res = await streamUpload();
+    if (res.status === 301 || res.status === 302) {
+      return { ok: false, loggedIn: false,
+        error: 'Ikke innlogget i Labrador. Åpne «Mine filer ▾» og trykk «Koble til Labrador…» først.' };
+    }
     if (res.status < 200 || res.status >= 300) {
       return { ok: false, error: 'Opplasting feilet (HTTP ' + res.status + ')' };
     }
