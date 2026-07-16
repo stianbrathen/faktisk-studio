@@ -179,6 +179,9 @@ function renderImageList() {
       <div class="image-row__thumb"><img src="${img.src}" alt=""></div>
       <span class="image-row__layer" title="Lag ${layerNum} av ${total}">${layerNum}</span>
       <span class="image-row__label">${img.alt || 'Bilde ' + layerNum}</span>
+      ${(img.src || '').startsWith('data:')
+        ? '<span class="image-row__local" title="Lokal fil — kun forhåndsvisning. Last opp i Labrador og legg inn via URL før eksport, ellers blir artikkelen svært tung.">lokal ⚠</span>'
+        : ''}
       <button class="image-row__del" title="Slett">×</button>
     `;
     row.addEventListener('click', e => {
@@ -753,6 +756,18 @@ function buildEmbed() {
 }
 
 els.copyEmbed.addEventListener('click', async () => {
+  // Lokale filer (data:-URL-er) skal ALDRI inn i embed-koden — hele bildefila
+  // havner da som base64 i artikkelen og gjør den mange MB tung i Labrador.
+  // Lokale filer er kun for forhåndsvisning; eksport krever Labrador-URL.
+  const lokale = state.images.filter(im => (im.src || '').startsWith('data:'));
+  if (lokale.length) {
+    setStatus('Kan ikke kopiere: ' + lokale.length + ' bilde'
+      + (lokale.length > 1 ? 'r er lokale filer' : ' er en lokal fil')
+      + ' (' + lokale.map((im, j) => im.name || im.alt || 'bilde').join(', ') + '). '
+      + 'Last opp i Labrador (Admin → File upload), og bytt til URL — '
+      + 'ellers blir artikkelen flere MB tung.', true);
+    return;
+  }
   try {
     const snippet = buildEmbed();
     await window.faktisk.copyToClipboard(snippet);
