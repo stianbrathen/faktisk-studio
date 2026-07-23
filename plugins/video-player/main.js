@@ -85,6 +85,8 @@ const state = {
   loaded: false,
   posterDataUrl: null,
   posterForKey: null,
+  posterUrl: null,      // Labrador-URL for poster — foretrekkes over base64
+  posterUrlKey: null,
   wrapInBox: false,
   boxHeight: 'medium',   // 'kompakt' | 'medium' | 'stor' — maks-høyde-preset for vertikal video
   logo: 'none',          // 'none' | 'x' | 'facebook' | 'instagram' | 'tiktok' | 'youtube' | 'threads'
@@ -293,8 +295,10 @@ function buildEmbedSnippet() {
   const vh = els.video.videoHeight || 9;
   const aspect = (vw / vh).toFixed(4);
 
-  const posterBg = state.posterDataUrl
-    ? `background-image:url('${state.posterDataUrl}');background-size:cover;background-position:center;`
+  // Poster: Labrador-URL når tilgjengelig (liten embed), ellers base64
+  const poster = state.posterUrl ? encodeURI(state.posterUrl) : state.posterDataUrl;
+  const posterBg = poster
+    ? `background-image:url('${poster}');background-size:cover;background-position:center;`
     : 'background:#1a1a1a;';
 
   // Vertikal video = aspect < 1. I container-modus bruker vi max-height (vh) for å begrense høyden.
@@ -524,7 +528,18 @@ els.copyEmbed.addEventListener('click', async () => {
   if (!state.loaded) return;
   // Sørg for at poster matcher current valg
   const key = state.url + '@' + state.posterTime.toFixed(2);
-  if (state.posterForKey !== key || !state.posterDataUrl) {
+  // Foretrukket: poster som Labrador-URL (liten embed, gjenbrukes ved samme tid)
+  if (window.faktisk.labradorThumbnail && state.posterUrlKey !== key) {
+    setStatus('Lager stillbilde i Labrador…');
+    try {
+      const r = await window.faktisk.labradorThumbnail({
+        url: state.url, atTime: state.posterTime,
+      });
+      if (r.ok && r.url) { state.posterUrl = r.url; state.posterUrlKey = key; }
+      else { state.posterUrl = null; state.posterUrlKey = null; }
+    } catch (e) { state.posterUrl = null; state.posterUrlKey = null; }
+  }
+  if (!state.posterUrl && (state.posterForKey !== key || !state.posterDataUrl)) {
     clearTimeout(posterTimer);
     setStatus('Genererer stillbilde før kopiering…');
     const res = await window.faktisk.generateThumbnail({

@@ -518,6 +518,102 @@ ipcMain.handle('labrador-upload', async (e, opts) => {
   }
 });
 
+// Vasket filnavn for Labrador-opplasting (bokstavelig %XX gir 404 ved henting)
+function labradorSafeName(name) {
+  return String(name)
+    .replace(/%[0-9a-fA-F]{2}/g, ' ')
+    .replace(/%/g, '')
+    .replace(/[^\w.æøåÆØÅéÉèÈüÜöÖäÄ ()-]/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Enkel buffer-opplasting (små filer, ingen fremdrift). Returnerer URL
+// ved å slå opp i list-files etterpå.
+async function labradorUploadBuffer(fileName, buffer, contentType) {
+  const boundary = '----FaktiskStudio' + Math.random().toString(36).slice(2);
+  const head = Buffer.from(
+    '--' + boundary + '\r\n'
+    + 'Content-Disposition: form-data; name="file"; filename="' + fileName.replace(/"/g, '') + '"\r\n'
+    + 'Content-Type: ' + (contentType || 'application/octet-stream') + '\r\n\r\n'
+  );
+  const tail = Buffer.from('\r\n--' + boundary + '--\r\n');
+  const body = Buffer.concat([head, buffer, tail]);
+  const res = await labradorRequest('/ajax/file-upload/upload-files', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'multipart/form-data; boundary=' + boundary,
+      'Content-Length': body.length,
+    },
+    body,
+  });
+  if (res.status === 301 || res.status === 302) return { ok: false, loggedIn: false };
+  if (res.status < 200 || res.status >= 300) {
+    return { ok: false, error: 'HTTP ' + res.status };
+  }
+  const list = await labradorListFiles();
+  const hit = list.loggedIn && list.files.find(f => f.name === fileName);
+  return hit
+    ? { ok: true, url: hit.url, id: hit.id }
+    : { ok: true, url: null };
+}
+
+// Genererer stillbilde fra video og laster det opp til Labrador, slik at
+// embeds kan LENKE posteren i stedet for å bake inn ~100 KB base64.
+// Deterministisk filnavn (video + tidspunkt) → eksisterende fil gjenbrukes,
+// så gjentatte eksporter ikke fyller opp File admin.
+ipcMain.handle('labrador-thumbnail', async (e, opts) => {
+  const { url, atTime } = opts || {};
+  if (!url || typeof atTime !== 'number') {
+    return { ok: false, error: 'Mangler url eller atTime' };
+  }
+  const base = labradorSafeName(
+    decodeURIComponent((url.split('/').pop() || 'video').split('#')[0])
+      .replace(/\.[^.]+$/, '')
+  ).slice(0, 60);
+  const name = base + '-poster-' + atTime.toFixed(1).replace('.', '_') + 's.jpg';
+
+  // Gjenbruk eksisterende poster om den finnes
+  let list;
+  try { list = await labradorListFiles(); }
+  catch (err) { return { ok: false, error: err.message }; }
+  if (!list.loggedIn) return { ok: false, loggedIn: false };
+  const eksisterende = list.files.find(f => f.name === name);
+  if (eksisterende) return { ok: true, url: eksisterende.url, reused: true };
+
+  // Generer stillbildet (samme oppskrift som generate-thumbnail)
+  const hasFfmpeg = await checkFfmpeg();
+  if (!hasFfmpeg) return { ok: false, error: 'ffmpeg ikke tilgjengelig' };
+  let tmpInput;
+  try { tmpInput = await ensureDownloaded(url.split('#')[0]); }
+  catch (err) { return { ok: false, error: 'Kunne ikke laste ned video: ' + err.message }; }
+
+  const tmpOutput = path.join(app.getPath('temp'), 'fs-lthumb-' + Date.now() + '.jpg');
+  try {
+    await new Promise((resolve, reject) => {
+      const ff = spawn(findFfmpeg(), [
+        '-i', tmpInput, '-ss', String(atTime), '-frames:v', '1',
+        '-vf', 'scale=800:-2', '-q:v', '4', '-y', tmpOutput,
+      ]);
+      let stderr = '';
+      ff.stderr.on('data', c => { stderr += c.toString(); });
+      ff.on('error', err => reject(new Error('ffmpeg-prosessfeil: ' + err.message)));
+      ff.on('close', code => code === 0 ? resolve()
+        : reject(new Error('ffmpeg feilet: ' + stderr.split('\n').slice(-2).join(' | '))));
+    });
+    const bytes = fs.readFileSync(tmpOutput);
+    const res = await labradorUploadBuffer(name, bytes, 'image/jpeg');
+    try { fs.unlinkSync(tmpOutput); } catch (err) {}
+    if (res.ok && res.url) return { ok: true, url: res.url, sizeKb: (bytes.length / 1024).toFixed(1) };
+    return res.ok
+      ? { ok: false, error: 'Lastet opp, men fant ikke poster-URL i fillista' }
+      : res;
+  } catch (err) {
+    try { fs.unlinkSync(tmpOutput); } catch (e2) {}
+    return { ok: false, error: err.message };
+  }
+});
+
 ipcMain.handle('recent-file-add', async (e, entry) => {
   try {
     if (!entry || !entry.url) return { ok: false, error: 'Mangler url' };

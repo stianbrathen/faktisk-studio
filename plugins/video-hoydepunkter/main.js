@@ -57,6 +57,8 @@ const state = {
   previewStop: null,     // stopper forhåndsvisning av et høydepunkt
   posterDataUrl: null,
   posterForKey: null,
+  posterUrl: null,      // Labrador-URL for poster — foretrekkes over base64
+  posterUrlKey: null,
 };
 
 function setStatus(msg, isError) {
@@ -347,8 +349,10 @@ function buildEmbedSnippet() {
   const vh = els.video.videoHeight || 9;
   const aspect = (vw / vh).toFixed(4);
 
-  const posterBg = state.posterDataUrl
-    ? `background-image:url('${state.posterDataUrl}');background-size:cover;background-position:center;`
+  // Poster: Labrador-URL når tilgjengelig (liten embed), ellers base64
+  const poster = state.posterUrl ? encodeURI(state.posterUrl) : state.posterDataUrl;
+  const posterBg = poster
+    ? `background-image:url('${poster}');background-size:cover;background-position:center;`
     : 'background:#1a1a1a;';
 
   // Base-CSS med design-tokens fra shared/embed-tokens.js
@@ -596,7 +600,18 @@ els.copyEmbed.addEventListener('click', async () => {
     ? state.highlights[0].s
     : Math.min(1, state.duration / 4);
   const key = state.url + '@' + posterTime.toFixed(2);
-  if (state.posterForKey !== key || !state.posterDataUrl) {
+  // Foretrukket: poster som Labrador-URL (liten embed, gjenbrukes ved samme tid)
+  if (window.faktisk.labradorThumbnail && state.posterUrlKey !== key) {
+    setStatus('Lager stillbilde i Labrador…');
+    try {
+      const r = await window.faktisk.labradorThumbnail({
+        url: state.url, atTime: posterTime,
+      });
+      if (r.ok && r.url) { state.posterUrl = r.url; state.posterUrlKey = key; }
+      else { state.posterUrl = null; state.posterUrlKey = null; }
+    } catch (e) { state.posterUrl = null; state.posterUrlKey = null; }
+  }
+  if (!state.posterUrl && (state.posterForKey !== key || !state.posterDataUrl)) {
     setStatus('Genererer stillbilde…');
     try {
       const res = await window.faktisk.generateThumbnail({

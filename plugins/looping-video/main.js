@@ -54,6 +54,8 @@ const state = {
   trimEnd: 0,
   loaded: false,
   thumbnailDataUrl: null,
+  posterUrl: null,      // Labrador-URL for poster — foretrekkes over base64
+  posterUrlKey: null,
   thumbnailForTime: null,
   thumbnailForUrl: null,    // cache-key inkluderer URL så vi ikke gjenbruker thumbnail fra annen video
 };
@@ -240,6 +242,8 @@ function buildEmbedSnippet() {
   const te = state.trimEnd.toFixed(2);
   const baseUrl = escapeHtml(state.url.split('#')[0]);
   const id = 'fvl-' + Math.random().toString(36).slice(2, 8);
+  // Poster: Labrador-URL når tilgjengelig (liten embed), ellers base64
+  const poster = state.posterUrl ? encodeURI(state.posterUrl) : state.thumbnailDataUrl;
   const caption = (els.captionText.value || '').trim();
   const photographer = (els.photographer.value || '').trim();
   const hasCaption = caption || photographer;
@@ -270,8 +274,8 @@ function buildEmbedSnippet() {
   // Cover-overlay som ALLTID viser thumbnail (eller transparent hvis ingen).
   // Fjernes ved 'playing'-event når video har en frame rendret. Garantert
   // ingen frame-0 flash, uavhengig av timing av v.src vs JS-execution.
-  const coverStyle = state.thumbnailDataUrl
-    ? `position:absolute;inset:0;background-image:url('${state.thumbnailDataUrl}');background-size:cover;background-position:center;transition:opacity 0.2s;pointer-events:none;`
+  const coverStyle = poster
+    ? `position:absolute;inset:0;background-image:url('${poster}');background-size:cover;background-position:center;transition:opacity 0.2s;pointer-events:none;`
     : `position:absolute;inset:0;pointer-events:none;`;
   const vw = els.video.videoWidth || 16;
   const vh = els.video.videoHeight || 9;
@@ -305,8 +309,8 @@ ${open}
     }
   </style>
   <div class="fvl-container">
-    <div style="position:relative;width:100%;aspect-ratio:${aspect};border-radius:8px;overflow:hidden;${state.thumbnailDataUrl ? `background-image:url('${state.thumbnailDataUrl}');background-size:cover;background-position:center;` : 'background:#1a1a1a;'}">
-      <video id="${id}" data-src="${baseUrl}#t=${ts},${te}" muted autoplay loop playsinline webkit-playsinline disablepictureinpicture preload="auto" aria-label="Looping videoklipp" style="width:100%;height:100%;display:block;object-fit:cover;${state.thumbnailDataUrl ? `background-image:url('${state.thumbnailDataUrl}');background-size:cover;background-position:center;` : ''}"></video>
+    <div style="position:relative;width:100%;aspect-ratio:${aspect};border-radius:8px;overflow:hidden;${poster ? `background-image:url('${poster}');background-size:cover;background-position:center;` : 'background:#1a1a1a;'}">
+      <video id="${id}" data-src="${baseUrl}#t=${ts},${te}" muted autoplay loop playsinline webkit-playsinline disablepictureinpicture preload="auto" aria-label="Looping videoklipp" style="width:100%;height:100%;display:block;object-fit:cover;${poster ? `background-image:url('${poster}');background-size:cover;background-position:center;` : ''}"></video>
       <div id="${id}-cover" style="${coverStyle}"></div>
     </div>${innerCaption}
   </div>
@@ -391,9 +395,28 @@ els.url.addEventListener('keydown', e => {
 
 els.copyEmbed.addEventListener('click', async () => {
   if (!state.loaded) return;
-  if (state.thumbnailForUrl !== state.url
+  // Foretrukket: poster som Labrador-URL (bittesmå embeds). Deterministisk
+  // filnavn i main-prosessen gjør at samme video+tid gjenbruker samme fil.
+  const posterKey = state.url + '@' + state.trimStart.toFixed(1);
+  if (window.faktisk.labradorThumbnail && state.posterUrlKey !== posterKey) {
+    setStatus('Lager stillbilde i Labrador…');
+    try {
+      const r = await window.faktisk.labradorThumbnail({
+        url: state.url, atTime: state.trimStart,
+      });
+      if (r.ok && r.url) {
+        state.posterUrl = r.url;
+        state.posterUrlKey = posterKey;
+      } else {
+        state.posterUrl = null;
+        state.posterUrlKey = null;
+      }
+    } catch (e) { state.posterUrl = null; state.posterUrlKey = null; }
+  }
+  // Fallback: base64 (ikke innlogget i Labrador, eller opplasting feilet)
+  if (!state.posterUrl && (state.thumbnailForUrl !== state.url
       || state.thumbnailForTime !== state.trimStart
-      || !state.thumbnailDataUrl) {
+      || !state.thumbnailDataUrl)) {
     clearTimeout(thumbTimer);
     setStatus('Genererer thumbnail før kopiering…');
     const res = await window.faktisk.generateThumbnail({
