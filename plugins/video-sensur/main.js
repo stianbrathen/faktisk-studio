@@ -496,7 +496,7 @@ function renderList() {
         </select>
         <button class="mask-row__kf" data-act="addKf" title="Legg til punkt ved spilletid (forlenger tidsrommet)"${dis}>+ punkt</button>
         <button class="mask-row__kf" data-act="delKf" title="Slett punktet nærmest spilletid"${dis}>− punkt</button>
-        <button class="mask-row__kf mask-row__track" data-act="track" title="Følg motivet automatisk fra spilletid til maskens slutt"${dis}>Spor →</button>
+        <button class="mask-row__kf mask-row__track" data-act="track" title="Spor motivet gjennom maskens spenn på tidslinjen (dra i spenn-endene for å sette start/stopp). Står spilletiden inne i spennet, spores derfra."${dis}>Spor →</button>
       </div>`;
     els.maskList.appendChild(row);
   });
@@ -827,10 +827,14 @@ document.addEventListener('keydown', e => {
 async function trackMask(i) {
   const m = state.masks[i];
   if (!m || m.locked || state.exporting) return;
-  const { to } = maskRange(m);
-  const t0 = r10(els.video.currentTime);
+  const { from, to } = maskRange(m);
+  // Maskens spenn på tidslinjen er sporingsvinduet (juster med trim-
+  // håndtakene). Står spilletiden inne i spennet, spores derfra i stedet —
+  // praktisk for å re-spore siste del etter en manuell justering.
+  let t0 = r10(els.video.currentTime);
+  if (t0 < from - 0.05 || t0 >= to - 0.3) t0 = r10(from);
   if (t0 >= to - 0.3) {
-    setStatus('Spol til der sporingen skal starte — masken må vare lenger enn spilletiden.', true);
+    setStatus('Masken er for kort til å spore — dra spennet lengre ut på tidslinjen.', true);
     return;
   }
   els.video.pause();

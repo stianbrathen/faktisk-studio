@@ -136,8 +136,10 @@ function trackRegion(buf, sw, sh, nFrames, region, opts) {
     //    kandidater langt fra prediksjonen må være TYDELIG bedre for å vinne.
     //    Det fjerner «hopp bort og tilbake»-flimmer der et annet område
     //    tilfeldigvis matcher marginalt bedre i enkeltframes.
-    const ecx = iclampX(cx + vx), ecy = iclampY(cy + vy);
-    const penW = N * 0.006;   // straff: ~0,6 grånivåer ved 10 px, ~4 ved 26 px
+    // Dempet prediksjon: håndholdt kamera snur brått, så full hastighets-
+    // fremskriving bommer — og straffen må ikke hindre reell rask bevegelse.
+    const ecx = iclampX(cx + vx * 0.5), ecy = iclampY(cy + vy * 0.5);
+    const penW = N * 0.0035;  // straff: ~0,35 grånivåer ved 10 px, ~2,4 ved 26 px
     let best = Infinity, bx = ecx, by = ecy;
     for (let dy = -R; dy <= R; dy += 2) {
       const py = iclampY(ecy + dy);
