@@ -76,11 +76,14 @@ async function trackFace(session, buf, nFrames, region, opts) {
   let stoppedEarly = false;
   const path = [{ i: startF, x: Math.round(cx), y: Math.round(cy), s: 1 }];
 
-  // Nær innholdskanten? (letterbox-bokser kan ikke inneholde ansikter, så
-  // frame-kantene fungerer som innholdskanter for formålet)
-  const nearEdge = (x0, y0) =>
-    x0 < size * 0.7 || x0 > MODEL_W - size * 0.7 ||
-    y0 < size * 0.7 || y0 > MODEL_H - size * 0.7;
+  // Nær innholdskanten? Marginen vokser med farten: et raskt motiv slutter
+  // å detekteres (halvt ute av bildet) et godt stykke før senteret når
+  // kanten. (Letterbox-bokser kan ikke inneholde ansikter, så frame-kantene
+  // fungerer som innholdskanter for formålet.)
+  const nearEdge = (x0, y0) => {
+    const m = size * 0.7 + Math.hypot(vx, vy) * 3;
+    return x0 < m || x0 > MODEL_W - m || y0 < m || y0 > MODEL_H - m;
+  };
 
   for (let f = startF + 1; f < nFrames; f++) {
     const dets = await detectFaces(session, frameAt(f), { confThresh: o.confThresh });

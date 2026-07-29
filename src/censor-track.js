@@ -183,7 +183,7 @@ function trackRegion(buf, sw, sh, nFrames, region, opts) {
       // Motivet borte. Skjedde det ved bildekanten med fart utover, har
       // motivet gått ut av bildet: følg bevegelsen et lite stykke ut og
       // avslutt der — ikke bli stående og lås på noe annet som passerer.
-      const edgeM = Math.max(tw, th) * 0.8;
+      const edgeM = Math.max(tw, th) * 0.8 + Math.hypot(vx, vy) * 3;
       const atEdge = cx < edgeM || cx > sw - edgeM || cy < edgeM || cy > sh - edgeM;
       if (atEdge && (Math.abs(vx) > 0.7 || Math.abs(vy) > 0.7)) {
         for (let g = 0; g < 3 && f + g < nFrames; g++) {

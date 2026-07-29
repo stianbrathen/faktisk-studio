@@ -888,9 +888,14 @@ async function trackMask(i) {
     if (!res.ok) { setStatus('Sporing feilet: ' + res.error, true); return; }
 
     // Erstatt keyframes i sporingsvinduet med de sporede punktene.
-    // Punkter før start og etter sporet slutt beholdes.
+    // Nådde ikke sporet helt frem til maskens slutt (motivet forsvant /
+    // gikk ut av bildet), kortes masken ned dit — gamle keyframes etter
+    // sporet ville ellers dratt masken tilbake dit den opprinnelig ble
+    // tegnet (masken «glir mot høyre» når motivet gikk ut til venstre).
     const trackedEnd = res.keyframes[res.keyframes.length - 1].t;
-    const kept = m.keyframes.filter(k => k.t < t0 - 0.05 || k.t > trackedEnd + 0.05);
+    const reachedEnd = trackedEnd >= to - 0.3;
+    const kept = m.keyframes.filter(k =>
+      k.t < t0 - 0.05 || (reachedEnd && k.t > trackedEnd + 0.05));
     const tracked = res.keyframes.map(k => ({
       t: k.t, x: k.x, y: k.y,
       // Sporingen estimerer også størrelse — masken vokser/krymper med motivet
@@ -908,9 +913,9 @@ async function trackMask(i) {
     renderAll();
     scheduleSaveState();
     const metode = res.mode === 'face' ? 'Ansiktssporet' : 'Sporet';
-    setStatus(res.stoppedEarly
-      ? `${metode} til ${formatSec(trackedEnd)} — stoppet der motivet forsvant (klipp/bortvendt?). Sjekk og juster.`
-      : `${metode} ferdig til ${formatSec(trackedEnd)} (${tracked.length} punkter). Se over og finjuster ved behov.`);
+    setStatus(reachedEnd
+      ? `${metode} ferdig til ${formatSec(trackedEnd)} (${tracked.length} punkter). Se over og finjuster ved behov.`
+      : `${metode} til ${formatSec(trackedEnd)} — motivet forsvant der, og masken er kortet ned dit. Dra spenn-enden ut hvis den skal vare lenger.`);
   } catch (err) {
     setStatus('Sporing feilet: ' + err.message, true);
   } finally {
