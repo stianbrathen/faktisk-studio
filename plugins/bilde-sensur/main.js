@@ -145,7 +145,7 @@ function applyMask(ctx, m, img, W, H) {
   const rel = Math.max(W, H) / 1600;                 // skaler effekter med oppløsningen
   const feather = m.mode === 'pixel'
     ? Math.max(2, Math.min(m.w, m.h) * 0.06)
-    : Math.max(4, Math.min(m.w, m.h) * 0.16);
+    : Math.max(4, Math.min(m.w, m.h) * 0.22);
 
   const fx = makeCanvas(W, H);
   const fctx = fx.getContext('2d');
@@ -165,19 +165,41 @@ function applyMask(ctx, m, img, W, H) {
     fctx.fillRect(0, 0, W, H);
   }
 
-  // Feather-kantet form som alfamaske. Blurring av formen alene gjør at
-  // alfaen aldri når 100 % i midten på små masker (hele sensuren blir svak) —
-  // derfor tegnes en solid kjerne, inset med feather, oppå den blurrede formen.
+  // Alfamaske med myk kant. Sirkel/oval bruker en ekte radiell gradient:
+  // full dekning i kjernen, smoothstep-fade som slutter nøyaktig på formens
+  // kant — bluren under beholder full styrke. Rektangel bruker inset + blur
+  // av formen, så faden holder seg innenfor kanten.
   const mk = makeCanvas(W, H);
   const mctx = mk.getContext('2d');
   mctx.fillStyle = '#fff';
-  mctx.filter = `blur(${feather}px)`;
-  drawShape(mctx, m);
-  mctx.fill();
-  mctx.filter = 'none';
-  const inner = { ...m, w: Math.max(6, m.w - feather * 1.2), h: Math.max(6, m.h - feather * 1.2) };
-  drawShape(mctx, inner);
-  mctx.fill();
+  if (m.type === 'rect') {
+    mctx.filter = `blur(${feather * 0.5}px)`;
+    const inner = { ...m, w: Math.max(6, m.w - feather), h: Math.max(6, m.h - feather) };
+    drawShape(mctx, inner);
+    mctx.fill();
+    mctx.filter = 'none';
+    drawShape(mctx, { ...m, w: Math.max(4, m.w - feather * 2), h: Math.max(4, m.h - feather * 2) });
+    mctx.fill();
+  } else {
+    const rx = m.w / 2, ry = m.h / 2;
+    const frac = Math.min(0.95, feather / Math.min(rx, ry));
+    const start = 1 - frac;
+    mctx.save();
+    mctx.translate(m.cx, m.cy);
+    mctx.scale(rx, ry);                     // gjør gradienten elliptisk for ovaler
+    const g = mctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+    g.addColorStop(0, 'rgba(255,255,255,1)');
+    g.addColorStop(start, 'rgba(255,255,255,1)');
+    for (let i = 1; i <= 4; i++) {
+      const t = i / 5;
+      const a = 1 - t * t * (3 - 2 * t);    // smoothstep ut mot kanten
+      g.addColorStop(start + frac * t, 'rgba(255,255,255,' + a.toFixed(3) + ')');
+    }
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    mctx.fillStyle = g;
+    mctx.fillRect(-1, -1, 2, 2);
+    mctx.restore();
+  }
 
   fctx.globalCompositeOperation = 'destination-in';
   fctx.drawImage(mk, 0, 0);
