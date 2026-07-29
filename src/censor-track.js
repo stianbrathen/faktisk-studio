@@ -126,17 +126,26 @@ function trackRegion(buf, sw, sh, nFrames, region, opts) {
   const iclampX = (x) => Math.max(hw, Math.min(sw - hw - 1, Math.round(x)));
   const iclampY = (y) => Math.max(hh, Math.min(sh - hh - 1, Math.round(y)));
 
+  let vx = 0, vy = 0;   // hastighetsmodell: hvor vi FORVENTER motivet neste frame
+
   for (let f = 1; f < nFrames; f++) {
     const fOff = frameAt(f);
     const R = lost > 0 ? Math.round(o.searchR * 1.8) : o.searchR;
 
-    // 1) Posisjonssøk: grovt (steg 2), så finsøk (steg 1)
-    let best = Infinity, bx = cx, by = cy;
+    // 1) Posisjonssøk rundt forventet posisjon, med avstandsstraff:
+    //    kandidater langt fra prediksjonen må være TYDELIG bedre for å vinne.
+    //    Det fjerner «hopp bort og tilbake»-flimmer der et annet område
+    //    tilfeldigvis matcher marginalt bedre i enkeltframes.
+    const ecx = iclampX(cx + vx), ecy = iclampY(cy + vy);
+    const penW = N * 0.006;   // straff: ~0,6 grånivåer ved 10 px, ~4 ved 26 px
+    let best = Infinity, bx = ecx, by = ecy;
     for (let dy = -R; dy <= R; dy += 2) {
-      const py = iclampY(cy + dy);
+      const py = iclampY(ecy + dy);
       for (let dx = -R; dx <= R; dx += 2) {
-        const px = iclampX(cx + dx);
-        const s = sad(fOff, px, py, best);
+        const px = iclampX(ecx + dx);
+        const pen = penW * (dx * dx + dy * dy);
+        if (pen >= best) continue;
+        const s = sad(fOff, px, py, best - pen) + pen;
         if (s < best) { best = s; bx = px; by = py; }
       }
     }
@@ -169,9 +178,13 @@ function trackRegion(buf, sw, sh, nFrames, region, opts) {
       // Motivet borte (okklusjon/klipp?) — frys posisjonen, utvid søket,
       // og gi opp først etter maxLost frames uten treff.
       lost++;
+      vx = 0; vy = 0;
       if (lost > o.maxLost) { stoppedEarly = true; break; }
       continue;
     }
+    // Oppdater hastighetsmodellen (dempet, og bare fra sammenhengende treff)
+    if (lost === 0) { vx = 0.5 * vx + 0.5 * (bx - cx); vy = 0.5 * vy + 0.5 * (by - cy); }
+    else { vx = 0; vy = 0; }
     lost = 0;
 
     // 3) Skala-test mot ORIGINAL-templatet. Det adaptive absorberer gradvis
@@ -198,6 +211,18 @@ function trackRegion(buf, sw, sh, nFrames, region, opts) {
         tAdapt[k] = (1 - o.adapt) * tAdapt[k] + o.adapt * patch[k];
       }
     }
+  }
+
+  // Medianfilter (3 punkter) på banen: dreper enkeltframe-spikes — «hopp
+  // bort og tilbake» — uten å sløve reell bevegelse nevneverdig.
+  const med3 = (a, b, c) => Math.max(Math.min(a, b), Math.min(Math.max(a, b), c));
+  for (let k = 1; k < path.length - 1; k++) {
+    path[k] = {
+      i: path[k].i,
+      x: med3(path[k - 1].x, path[k].x, path[k + 1].x),
+      y: med3(path[k - 1].y, path[k].y, path[k + 1].y),
+      s: med3(path[k - 1].s, path[k].s, path[k + 1].s),
+    };
   }
 
   return { path, stoppedEarly, frames: nFrames };
