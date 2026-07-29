@@ -788,6 +788,15 @@ let lastT = -1;
   requestAnimationFrame(raf);
 })();
 
+// Avspillingshastighet i forhåndsvisningen — sakte film for å kontrollere
+// at sensuren treffer før eksport. Overlegget følger med automatisk (rAF).
+document.querySelectorAll('.tl-speed').forEach(btn => {
+  btn.addEventListener('click', () => {
+    els.video.playbackRate = +btn.dataset.rate;
+    document.querySelectorAll('.tl-speed').forEach(b => b.classList.toggle('on', b === btn));
+  });
+});
+
 function renderAll() {
   renderList();
   renderTimeline();

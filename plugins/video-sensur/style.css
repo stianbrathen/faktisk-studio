@@ -442,6 +442,11 @@
   cursor: pointer;
 }
 .tl-btn:hover { background: rgba(255,255,255,0.3); }
+.tl-btn.on { background: var(--faktisk-blue); }
+.tl-sep {
+  width: 1px; height: 14px; background: rgba(255,255,255,0.25);
+  margin: 0 2px;
+}
 .tl-range {
   font-family: var(--font-bold);
   font-weight: bold;
