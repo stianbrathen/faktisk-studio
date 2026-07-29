@@ -96,7 +96,9 @@ function buildCensorFilter(masks) {
     const from = kfs[0].t;
     const to = kfs[kfs.length - 1].t;
     const span = Math.max(0.1, to - from);
-    const fade = Math.min(Math.max(0, m.fade != null ? m.fade : 0.3), span / 2);
+    // Standard: ingen temporal fade — i fade-tiden er motivet delvis synlig,
+    // og for sensur er «popp» å foretrekke fremfor lekkasje.
+    const fade = Math.min(Math.max(0, m.fade != null ? m.fade : 0), span / 2);
     const feather = Math.min(0.8, Math.max(0.05, m.feather != null ? m.feather : 0.35));
 
     const sizeVaries = kfs.some(k => k.w !== kfs[0].w || k.h !== kfs[0].h);

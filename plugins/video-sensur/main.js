@@ -443,7 +443,7 @@ els.addMask.addEventListener('click', () => {
     name: 'Maske ' + (state.masks.length + 1),
     shape: 'circle', feather: 0.35, locked: false,
     w: size, h: size,
-    blur: 24, fade: 0.3,
+    blur: 24, fade: 0,   // fade av som standard: i fade-tiden er motivet delvis gjenkjennbart
     keyframes: t1 - t0 >= 0.1
       ? [{ t: t0, x: cx, y: cy }, { t: t1, x: cx, y: cy }]
       : [{ t: Math.max(0, t0 - 4), x: cx, y: cy }, { t: t0, x: cx, y: cy }],
@@ -1186,7 +1186,7 @@ async function applyState(saved) {
             locked: !!m.locked,
             w: m.w, h: m.h,
             blur: [12, 24, 40].includes(m.blur) ? m.blur : 24,
-            fade: [0, 0.3, 0.6].includes(m.fade) ? m.fade : 0.3,
+            fade: [0, 0.3, 0.6].includes(m.fade) ? m.fade : 0,
             keyframes: m.keyframes
               .filter(k => typeof k.t === 'number' && typeof k.x === 'number' && typeof k.y === 'number')
               .sort((a, b) => a.t - b.t),
