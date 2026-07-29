@@ -400,6 +400,31 @@ els.overlay.addEventListener('pointerdown', e => {
     box.classList.remove('dragging');
     // Både flytting og størrelsesendring lagres som keyframe ved spilletid —
     // størrelsen animeres altså på samme måte som posisjonen.
+    //
+    // Statisk-flytt: nabo-punkter som sto på SAMME sted som masken gjorde
+    // her (i praksis: masken var i ro over det spennet) følger med flyttet.
+    // Da forblir en manuelt plassert maske bom stille mellom punktene sine,
+    // i stedet for å gli mot gamle posisjoner — mens en sporet bane fortsatt
+    // kan finjusteres punkt for punkt (nabopunktene der har ulik posisjon).
+    const dxAll = livePos.x - startPos.x;
+    const dyAll = livePos.y - startPos.y;
+    if (!resizing && (dxAll || dyAll)) {
+      m.keyframes.forEach(k => {
+        if (Math.abs(k.x - startPos.x) < 2 && Math.abs(k.y - startPos.y) < 2) {
+          k.x = Math.round(k.x + dxAll);
+          k.y = Math.round(k.y + dyAll);
+        }
+      });
+    }
+    if (resizing) {
+      const dwAll = liveSize.w - startSize.w, dhAll = liveSize.h - startSize.h;
+      m.keyframes.forEach(k => {
+        if (k.w > 1 && Math.abs(k.w - startSize.w) < 2 && Math.abs(k.h - startSize.h) < 2) {
+          k.w = Math.max(16, Math.round(k.w + dwAll));
+          k.h = Math.max(16, Math.round(k.h + dhAll));
+        }
+      });
+    }
     upsertKeyframe(m, els.video.currentTime, livePos.x, livePos.y, liveSize.w, liveSize.h);
     m.w = Math.round(liveSize.w); m.h = Math.round(liveSize.h); // ny standard
     renderTimeline();
