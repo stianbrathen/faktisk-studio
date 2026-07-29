@@ -780,7 +780,10 @@ async function trackMask(i) {
     const trackedEnd = res.keyframes[res.keyframes.length - 1].t;
     const kept = m.keyframes.filter(k => k.t < t0 - 0.05 || k.t > trackedEnd + 0.05);
     const tracked = res.keyframes.map(k => ({
-      t: k.t, x: k.x, y: k.y, w: Math.round(size.w), h: Math.round(size.h),
+      t: k.t, x: k.x, y: k.y,
+      // Sporingen estimerer også størrelse — masken vokser/krymper med motivet
+      w: Math.round(size.w * (k.s || 1)),
+      h: Math.round(size.h * (k.s || 1)),
     }));
     m.keyframes = kept.concat(tracked).sort((a, b) => a.t - b.t);
 

@@ -1092,6 +1092,7 @@ ipcMain.handle('censor-track', async (e, opts) => {
       t: Math.round((from + p.i / FPS) * 10) / 10,
       x: Math.round(p.x / scale),
       y: Math.round(p.y / scale),
+      s: p.s || 1,   // relativ størrelse — masken følger motiv som nærmer/fjerner seg
     }));
     send({ phase: 'done', percent: 100 });
     return {

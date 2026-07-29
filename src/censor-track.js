@@ -1,9 +1,18 @@
 // Faktisk Studio — motiv-tracking for videosensur
 //
-// Ren node-modul: template-matching (SAD — sum av absolutte differanser)
-// på nedskalerte gråtonebilder. Ingen ML, ingen nettverkskall — alt skjer
-// lokalt. Følger området redaktøren har markert, frame for frame, og
-// stopper når bildet endrer seg brått (klipp / motivet forsvinner).
+// Ren node-modul: template-matching på nedskalerte gråtonebilder.
+// Ingen ML, ingen nettverkskall — alt skjer lokalt.
+//
+// Strategi (v2):
+//   1. Posisjonssøk med SAD (rask, tidlig exit) mot adaptivt template.
+//   2. NCC-verifisering (normalisert kryss-korrelasjon) på beste posisjon —
+//      robust mot lysendring, og mot både original- og adaptivt template,
+//      så gradvis drift bort fra motivet oppdages og korrigeres.
+//   3. Skala-estimering per frame (bilineær resampling ±4 %) — masken vokser
+//      og krymper med motivet (ansikt som nærmer seg / fjerner seg).
+//   4. Okklusjonstoleranse: mistes motivet kort (noen passerer foran),
+//      fryses posisjonen og søket utvides — sporingen gjenopptas når
+//      motivet dukker opp igjen, og stopper først etter ~1,5 s uten treff.
 //
 // main.js mater denne med rå gråtonebytes fra ffmpeg (rawvideo/gray).
 
@@ -16,25 +25,36 @@
  * @param {number} sw, sh   — bildedimensjoner (nedskalert)
  * @param {number} nFrames
  * @param {object} region   — { x, y, w, h } senter + størrelse i nedskalerte px
- * @param {object} [opts]   — { searchR, adapt, cutThresh }
- * @returns {{ path: Array<{i:number,x:number,y:number}>, stoppedEarly: boolean, frames: number }}
+ * @param {object} [opts]
+ * @returns {{ path: Array<{i:number,x:number,y:number,s:number}>, stoppedEarly: boolean, frames: number }}
  */
 function trackRegion(buf, sw, sh, nFrames, region, opts) {
-  const o = Object.assign({ searchR: 26, adapt: 0.15, cutThresh: 30 }, opts || {});
+  const o = Object.assign({
+    searchR: 26,      // søkeradius i px (nedskalert)
+    adapt: 0.12,      // glidende template-oppdatering
+    minCorr: 0.30,    // under dette = motivet mistet denne framen
+    goodCorr: 0.55,   // over dette = trygt å adaptere template
+    scaleStep: 0.04,  // ±4 % skala testes per frame
+    maxLost: 8,       // frames uten treff før vi gir oss (~1,6 s ved 5 fps)
+  }, opts || {});
+
   const tw = Math.max(10, Math.round(region.w));
   const th = Math.max(10, Math.round(region.h));
   const hw = Math.floor(tw / 2), hh = Math.floor(th / 2);
+  const N = tw * th;
 
-  const clampX = (x) => Math.max(hw, Math.min(sw - hw - 1, Math.round(x)));
-  const clampY = (y) => Math.max(hh, Math.min(sh - hh - 1, Math.round(y)));
+  let scaleNow = 1;                       // akkumulert skala relativt til start
+  const minScale = 0.4, maxScale = 2.5;
 
-  let cx = clampX(region.x);
-  let cy = clampY(region.y);
+  const clampCX = (x, s) => Math.max(hw * s + 1, Math.min(sw - hw * s - 2, x));
+  const clampCY = (y, s) => Math.max(hh * s + 1, Math.min(sh - hh * s - 2, y));
+
+  let cx = Math.round(clampCX(region.x, 1));
+  let cy = Math.round(clampCY(region.y, 1));
 
   const frameAt = (i) => i * sw * sh;
 
-  // Template = Float64 for glidende oppdatering uten avrundingsdrift
-  const template = new Float64Array(tw * th);
+  // Heltalls-patch (rask, brukes i posisjonssøket)
   const readPatch = (fOff, px, py, out) => {
     const x0 = px - hw, y0 = py - hh;
     for (let y = 0; y < th; y++) {
@@ -42,11 +62,49 @@ function trackRegion(buf, sw, sh, nFrames, region, opts) {
       for (let x = 0; x < tw; x++) out[y * tw + x] = buf[rowOff + x];
     }
   };
-  readPatch(frameAt(0), cx, cy, template);
 
-  const patch = new Float64Array(tw * th);
+  // Bilineær patch ved vilkårlig senter og skala — brukes til skala-test
+  function samplePatch(fOff, pcx, pcy, s, out) {
+    for (let ty = 0; ty < th; ty++) {
+      const fy = pcy + (ty - (th - 1) / 2) * s;
+      const y0 = Math.max(0, Math.min(sh - 2, Math.floor(fy)));
+      const ay = fy - y0;
+      const r0 = fOff + y0 * sw, r1 = r0 + sw;
+      for (let tx = 0; tx < tw; tx++) {
+        const fx = pcx + (tx - (tw - 1) / 2) * s;
+        const x0 = Math.max(0, Math.min(sw - 2, Math.floor(fx)));
+        const ax = fx - x0;
+        out[ty * tw + tx] =
+          (buf[r0 + x0] * (1 - ax) + buf[r0 + x0 + 1] * ax) * (1 - ay) +
+          (buf[r1 + x0] * (1 - ax) + buf[r1 + x0 + 1] * ax) * ay;
+      }
+    }
+  }
 
-  // SAD mellom template og patch sentrert i (px,py); avbryt om verre enn best
+  // Zero-mean normalisert kryss-korrelasjon — 1 = perfekt, ~0 = urelatert.
+  // Robust mot jevn lysendring (eksponering, skygge) i motsetning til SAD.
+  function ncc(a, b) {
+    let ma = 0, mb = 0;
+    for (let k = 0; k < N; k++) { ma += a[k]; mb += b[k]; }
+    ma /= N; mb /= N;
+    let cov = 0, va = 0, vb = 0;
+    for (let k = 0; k < N; k++) {
+      const da = a[k] - ma, db = b[k] - mb;
+      cov += da * db; va += da * da; vb += db * db;
+    }
+    const denom = Math.sqrt(va * vb);
+    return denom < 1e-6 ? 0 : cov / denom;
+  }
+
+  const tOrig = new Float64Array(N);      // originalt utseende (anker mot drift)
+  const tAdapt = new Float64Array(N);     // glidende oppdatert
+  readPatch(frameAt(0), cx, cy, tOrig);
+  tAdapt.set(tOrig);
+
+  const patch = new Float64Array(N);
+  const patchS = new Float64Array(N);
+
+  // SAD mot adaptivt template med tidlig exit
   function sad(fOff, px, py, bestSoFar) {
     const x0 = px - hw, y0 = py - hh;
     let sum = 0;
@@ -54,54 +112,91 @@ function trackRegion(buf, sw, sh, nFrames, region, opts) {
       const rowOff = fOff + (y0 + y) * sw + x0;
       const tRow = y * tw;
       for (let x = 0; x < tw; x++) {
-        sum += Math.abs(buf[rowOff + x] - template[tRow + x]);
+        sum += Math.abs(buf[rowOff + x] - tAdapt[tRow + x]);
       }
-      if (sum > bestSoFar) return sum; // tidlig exit
+      if (sum > bestSoFar) return sum;
     }
     return sum;
   }
 
-  const path = [{ i: 0, x: cx, y: cy }];
+  const path = [{ i: 0, x: cx, y: cy, s: 1 }];
   let stoppedEarly = false;
+  let lost = 0;
+
+  const iclampX = (x) => Math.max(hw, Math.min(sw - hw - 1, Math.round(x)));
+  const iclampY = (y) => Math.max(hh, Math.min(sh - hh - 1, Math.round(y)));
 
   for (let f = 1; f < nFrames; f++) {
     const fOff = frameAt(f);
-    let best = Infinity, bx = cx, by = cy;
+    const R = lost > 0 ? Math.round(o.searchR * 1.8) : o.searchR;
 
-    // Grovt søk (steg 2), deretter finsøk (steg 1) rundt beste treff
-    for (let dy = -o.searchR; dy <= o.searchR; dy += 2) {
-      const py = clampY(cy + dy);
-      for (let dx = -o.searchR; dx <= o.searchR; dx += 2) {
-        const px = clampX(cx + dx);
+    // 1) Posisjonssøk: grovt (steg 2), så finsøk (steg 1)
+    let best = Infinity, bx = cx, by = cy;
+    for (let dy = -R; dy <= R; dy += 2) {
+      const py = iclampY(cy + dy);
+      for (let dx = -R; dx <= R; dx += 2) {
+        const px = iclampX(cx + dx);
         const s = sad(fOff, px, py, best);
         if (s < best) { best = s; bx = px; by = py; }
       }
     }
     for (let dy = -1; dy <= 1; dy++) {
-      const py = clampY(by + dy);
+      const py = iclampY(by + dy);
       for (let dx = -1; dx <= 1; dx++) {
-        const px = clampX(bx + dx);
         if (dx === 0 && dy === 0) continue;
+        const px = iclampX(bx + dx);
         const s = sad(fOff, px, py, best);
         if (s < best) { best = s; bx = px; by = py; }
       }
     }
 
-    // Gjennomsnittlig intensitetsavvik per piksel — høyt = klipp/mistet motiv
-    const meanDiff = best / (tw * th);
-    if (meanDiff > o.cutThresh) {
-      stoppedEarly = true;
-      break;
+    // 2) NCC-verifisering på beste posisjon: mot adaptivt template (samme
+    //    motiv som forrige frame?) og mot originalen ved gjeldende skala
+    //    (fortsatt det motivet redaktøren markerte?).
+    readPatch(fOff, bx, by, patch);
+    const corrA = ncc(patch, tAdapt);
+    samplePatch(fOff, clampCX(bx, scaleNow), clampCY(by, scaleNow), scaleNow, patchS);
+    const corrO = ncc(patchS, tOrig);
+    const corr = Math.max(corrA, corrO);
+
+    // Bevegelses-sjekk: et middelmådig treff som samtidig hopper langt er
+    // nesten alltid feiltreff (okklusjon som ligner bakgrunnen) — behandle
+    // det som mistet i stedet for å låse på feil sted og drifte.
+    const jump = Math.hypot(bx - cx, by - cy);
+    const suspicious = corrA < 0.75 && jump > o.searchR * 0.6;
+
+    if (corr < o.minCorr || suspicious) {
+      // Motivet borte (okklusjon/klipp?) — frys posisjonen, utvid søket,
+      // og gi opp først etter maxLost frames uten treff.
+      lost++;
+      if (lost > o.maxLost) { stoppedEarly = true; break; }
+      continue;
     }
+    lost = 0;
+
+    // 3) Skala-test mot ORIGINAL-templatet. Det adaptive absorberer gradvis
+    //    vekst og melder alltid «uendret» — originalen gjør ikke det: når
+    //    motivet har vokst, matcher et større samplingsvindu (skalert ned
+    //    til templatestørrelse) originalen best. Kandidatene deler frame,
+    //    så sammenligningen er rettferdig selv om utseendet eldes.
+    let bestS = scaleNow, bestSCorr = -2;
+    for (const rs of [1 - 2 * o.scaleStep, 1 - o.scaleStep, 1, 1 + o.scaleStep, 1 + 2 * o.scaleStep]) {
+      const s = Math.max(minScale, Math.min(maxScale, scaleNow * rs));
+      samplePatch(fOff, clampCX(bx, s), clampCY(by, s), s, patchS);
+      const c = ncc(patchS, tOrig) - (rs === 1 ? 0 : 0.008);
+      if (c > bestSCorr) { bestSCorr = c; bestS = s; }
+    }
+    scaleNow = bestS;
 
     cx = bx; cy = by;
-    path.push({ i: f, x: cx, y: cy });
+    path.push({ i: f, x: cx, y: cy, s: Math.round(scaleNow * 1000) / 1000 });
 
-    // Glidende template-oppdatering: tåler gradvis endring (rotasjon, lys)
-    // uten å drifte av gårde på én dårlig frame.
-    readPatch(fOff, cx, cy, patch);
-    for (let k = 0; k < template.length; k++) {
-      template[k] = (1 - o.adapt) * template[k] + o.adapt * patch[k];
+    // 4) Template-vedlikehold: adapter bare ved trygge treff uten mistenkelig
+    //    hopp — okklusjoner og feiltreff skal ikke forgifte templatet.
+    if (corrA >= o.goodCorr && jump <= o.searchR * 0.8) {
+      for (let k = 0; k < N; k++) {
+        tAdapt[k] = (1 - o.adapt) * tAdapt[k] + o.adapt * patch[k];
+      }
     }
   }
 
@@ -109,23 +204,23 @@ function trackRegion(buf, sw, sh, nFrames, region, opts) {
 }
 
 /**
- * Ramer-Douglas-Peucker på x(t) og y(t) hver for seg — beholder unionen av
- * punktene, så banen forenkles uten at bevegelsen avviker mer enn eps px.
+ * Ramer-Douglas-Peucker på x(t), y(t) og skala(t) hver for seg — beholder
+ * unionen av punktene, så banen forenkles uten at bevegelse eller
+ * størrelsesendring avviker merkbart.
  */
 function simplifyPath(points, eps) {
   if (points.length <= 2) return points;
 
-  function rdpKeep(vals, keep) {
+  function rdpKeep(vals, keep, tol) {
     function rec(a, b) {
       let maxD = 0, idx = -1;
       const va = vals[a], vb = vals[b];
       for (let i = a + 1; i < b; i++) {
-        // Avvik fra rett linje mellom a og b (lineær i indeks — jevn fps)
         const f = (i - a) / (b - a);
         const d = Math.abs(vals[i] - (va + (vb - va) * f));
         if (d > maxD) { maxD = d; idx = i; }
       }
-      if (maxD > eps && idx > 0) {
+      if (maxD > tol && idx > 0) {
         keep.add(idx);
         rec(a, idx);
         rec(idx, b);
@@ -135,8 +230,11 @@ function simplifyPath(points, eps) {
   }
 
   const keep = new Set([0, points.length - 1]);
-  rdpKeep(points.map(p => p.x), keep);
-  rdpKeep(points.map(p => p.y), keep);
+  rdpKeep(points.map(p => p.x), keep, eps);
+  rdpKeep(points.map(p => p.y), keep, eps);
+  // Skala-kanalen: 6 % endring tilsvarer eps px i posisjon — romslig nok til
+  // at ±4 %-trappetrinnene fra skala-søket ikke gir unødige keyframes
+  rdpKeep(points.map(p => ((p.s || 1) / 0.06) * eps), keep, eps);
   return [...keep].sort((a, b) => a - b).map(i => points[i]);
 }
 

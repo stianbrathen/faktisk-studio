@@ -291,6 +291,7 @@
 .canvas-area {
   position: relative;
   flex: 1;
+  min-height: 200px;
   background: var(--bg-letterbox);
   border-radius: 10px;
   overflow: hidden;
@@ -402,13 +403,16 @@
   cursor: nwse-resize;
 }
 
-/* Tidslinje */
+/* Tidslinje. Feltet skal aldri spise videoen: det tar maks ~45 % av høyden,
+   og med mange masker skroller lane-lista i stedet for å skvise resten. */
 .timeline-stack {
   display: flex;
   flex-direction: column;
   gap: 8px;
   flex-shrink: 0;
-  padding: 0 30px;
+  padding: 0 16px;
+  max-height: 45%;
+  min-height: 0;
 }
 .timeline-row {
   display: grid;
@@ -454,6 +458,12 @@
   color: #fff;
   opacity: 0.45;
   margin-left: auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (max-width: 1050px) {
+  .tl-hint { display: none; }   /* hintet skal ikke presse tidslinjen på smale vinduer */
 }
 
 .tl-wrap {
@@ -461,8 +471,9 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  max-height: 160px;
-  overflow-y: auto;
+  min-height: 0;
+  overflow-y: auto;   /* skroller bare når timeline-stackens 45 %-tak er nådd */
+  scrollbar-width: thin;
 }
 .timeline__track {
   position: relative;
