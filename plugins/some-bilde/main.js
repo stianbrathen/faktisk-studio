@@ -85,18 +85,27 @@ function loadImg(src) {
   });
 }
 
-// Faktisk-logoen: last logo.svg og farg den hvit
+// Faktisk-logoen: last logo.svg som Image og farg den hvit via canvas-
+// compositing (fetch av lokale filer er blokkert på file://-sider).
 let logoImg = null;
-(async function initLogo() {
-  try {
-    const svg = await fetch('logo.svg').then(r => r.text());
-    const hvit = svg.replace(/fill:\s*#000000/gi, 'fill:#ffffff')
-                    .replace(/fill="#000(000)?"/gi, 'fill="#ffffff"');
-    const blob = new Blob([hvit], { type: 'image/svg+xml' });
-    const url = URL.createObjectURL(blob);
-    logoImg = await loadImg(url);
+(function initLogo() {
+  const img = new Image();
+  img.onload = () => {
+    const c = document.createElement('canvas');
+    c.width = img.naturalWidth * 8;   // høy oppløsning for skarp nedskalering
+    c.height = img.naturalHeight * 8;
+    const cx = c.getContext('2d');
+    cx.drawImage(img, 0, 0, c.width, c.height);
+    cx.globalCompositeOperation = 'source-in';
+    cx.fillStyle = '#ffffff';
+    cx.fillRect(0, 0, c.width, c.height);
+    logoImg = c;
+    logoImg.naturalWidth = c.width;
+    logoImg.naturalHeight = c.height;
     scheduleRender();
-  } catch (e) { console.warn('Logo-lasting feilet:', e); }
+  };
+  img.onerror = e => console.warn('Logo-lasting feilet:', e);
+  img.src = 'logo.svg';
 })();
 
 // ── Regioner (helbilde eller delt) ───────────────────────────────────────
