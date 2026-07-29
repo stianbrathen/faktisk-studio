@@ -38,13 +38,24 @@ async function trackFace(session, buf, nFrames, region, opts) {
   const boxW = (b) => (b.x2 - b.x1) * MODEL_W;
   const boxH = (b) => (b.y2 - b.y1) * MODEL_H;
 
-  // Frame 0: finn deteksjonen som overlapper redaktørens maske best
-  const first = await detectFaces(session, frameAt(0), { confThresh: o.confThresh });
-  let start = null, bestDist = Infinity;
-  for (const d of first) {
-    const dist = Math.hypot(boxCx(d) - region.x, boxCy(d) - region.y);
-    const maxDim = Math.max(region.w, region.h);
-    if (dist < Math.max(o.gatePx, maxDim) && dist < bestDist) { bestDist = dist; start = d; }
+  // Startkrav: deteksjonen må faktisk ligge I maskeområdet redaktøren har
+  // plassert (senteret innenfor masken + litt slingring) — ellers hopper
+  // sporet til et annet ansikt i bildet. Er ansiktet ikke synlig ennå
+  // (bortvendt, kommer inn i bildet senere), skannes det fremover: masken
+  // står i ro til første ansikt dukker opp i området, og følges derfra.
+  const slackX = region.w * 0.5 + 12, slackY = region.h * 0.5 + 12;
+  const inRegion = (d) =>
+    Math.abs(boxCx(d) - region.x) < slackX && Math.abs(boxCy(d) - region.y) < slackY;
+
+  let start = null, startF = 0;
+  for (let f = 0; f < nFrames && !start; f++) {
+    const dets = await detectFaces(session, frameAt(f), { confThresh: o.confThresh });
+    let bd = Infinity;
+    for (const d of dets) {
+      if (!inRegion(d)) continue;
+      const dist = Math.hypot(boxCx(d) - region.x, boxCy(d) - region.y);
+      if (dist < bd) { bd = dist; start = d; startF = f; }
+    }
   }
   if (!start) return { ok: false, reason: 'no-face' };
 
@@ -55,9 +66,9 @@ async function trackFace(session, buf, nFrames, region, opts) {
   let vx = 0, vy = 0;   // enkel hastighetsmodell for prediksjon
   let lost = 0;
   let stoppedEarly = false;
-  const path = [{ i: 0, x: Math.round(cx), y: Math.round(cy), s: 1 }];
+  const path = [{ i: startF, x: Math.round(cx), y: Math.round(cy), s: 1 }];
 
-  for (let f = 1; f < nFrames; f++) {
+  for (let f = startF + 1; f < nFrames; f++) {
     const dets = await detectFaces(session, frameAt(f), { confThresh: o.confThresh });
 
     // Prediker og velg nærmeste deteksjon innenfor porten

@@ -816,6 +816,11 @@ async function trackMask(i) {
       w: Math.round(size.w * (k.s || 1)),
       h: Math.round(size.h * (k.s || 1)),
     }));
+    // Dukket ansiktet opp først senere i vinduet? Anker masken der redaktøren
+    // satte den frem til første treff, så den ikke glir mot ansiktet i forkant.
+    if (tracked.length && tracked[0].t > t0 + 0.15) {
+      tracked.unshift({ t: t0, x: pos.x, y: pos.y, w: Math.round(size.w), h: Math.round(size.h) });
+    }
     m.keyframes = kept.concat(tracked).sort((a, b) => a.t - b.t);
 
     selectMask(i);
