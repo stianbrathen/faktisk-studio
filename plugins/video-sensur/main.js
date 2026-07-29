@@ -759,20 +759,51 @@ async function trackMask(i) {
   els.video.pause();
   const pos = maskPosAt(m, t0);
   const size = maskSizeAt(m, t0);
-  setStatus('Sporer motivet…');
+
+  // Ansiktssporing (lokal AI-modell) hvis tilgjengelig: gjenfinner ansiktet
+  // per frame i stedet for å matche piksler — mye bedre på håndholdt/zoom.
+  // Modellen (1,4 MB) lastes ned én gang etter samtykke, og kjøres offline.
+  let useFace = false;
+  if (window.faktisk.aiModelStatus) {
+    try {
+      const st = await window.faktisk.aiModelStatus('ansikt');
+      if (st.ok && st.ready) {
+        useFace = true;
+      } else if (st.ok) {
+        const ja = await window.faktiskDialog.confirm(
+          'Bruke ansiktssporing? En liten modell (' + st.sizeMB + ' MB) lastes ned '
+          + 'én gang og kjøres kun lokalt på denne maskinen.\n\n'
+          + '(Avbryt gir vanlig pikselsporing.)', true);
+        if (ja) {
+          setStatus('Laster ned ansiktsmodell…');
+          const dl = await window.faktisk.aiModelEnsure('ansikt');
+          if (dl.ok) useFace = true;
+          else setStatus('Nedlasting feilet (' + dl.error + ') — bruker vanlig sporing.', true);
+        }
+      }
+    } catch (e2) { /* eldre Studio uten AI-støtte */ }
+  }
+
+  setStatus(useFace ? 'Sporer ansiktet…' : 'Sporer motivet…');
 
   const unsub = window.faktisk.onCensorTrackProgress(msg => {
     if (msg.phase === 'decoding') setStatus('Leser bilder… ' + msg.percent + '%');
-    else if (msg.phase === 'tracking') setStatus('Sporer motivet…');
+    else if (msg.phase === 'tracking') setStatus(useFace ? 'Sporer ansiktet…' : 'Sporer motivet…');
   });
 
   try {
-    const res = await window.faktisk.censorTrack({
+    const base = {
       url: state.url,
       from: t0, to,
       x: pos.x, y: pos.y, w: size.w, h: size.h,
       videoW: els.video.videoWidth, videoH: els.video.videoHeight,
-    });
+    };
+    let res = useFace ? await window.faktisk.censorTrack({ ...base, mode: 'face' }) : null;
+    if (useFace && res && !res.ok && res.reason === 'no-face') {
+      setStatus('Fant ikke ansikt i masken — bruker vanlig pikselsporing…');
+      res = null;
+    }
+    if (!res) res = await window.faktisk.censorTrack(base);
     if (!res.ok) { setStatus('Sporing feilet: ' + res.error, true); return; }
 
     // Erstatt keyframes i sporingsvinduet med de sporede punktene.
@@ -790,9 +821,10 @@ async function trackMask(i) {
     selectMask(i);
     renderAll();
     scheduleSaveState();
+    const metode = res.mode === 'face' ? 'Ansiktssporet' : 'Sporet';
     setStatus(res.stoppedEarly
-      ? `Sporet til ${formatSec(trackedEnd)} — stoppet der bildet endret seg brått (klipp?). Sjekk og juster.`
-      : `Sporet ferdig til ${formatSec(trackedEnd)} (${tracked.length} punkter). Se over og finjuster ved behov.`);
+      ? `${metode} til ${formatSec(trackedEnd)} — stoppet der motivet forsvant (klipp/bortvendt?). Sjekk og juster.`
+      : `${metode} ferdig til ${formatSec(trackedEnd)} (${tracked.length} punkter). Se over og finjuster ved behov.`);
   } catch (err) {
     setStatus('Sporing feilet: ' + err.message, true);
   } finally {

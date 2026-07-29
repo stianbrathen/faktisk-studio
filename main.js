@@ -1012,6 +1012,71 @@ ipcMain.handle('censor-export', async (e, opts) => {
 // Motiv-tracking: følger et markert område gjennom klippet via
 // template-matching på nedskalerte gråtonebilder (src/censor-track.js).
 // Alt kjører lokalt — ingen ML-modeller, ingen nettverkskall.
+// ============================================================
+//  AI-modeller — lokale, nedlastbare (ingen sky, ingen API-nøkler)
+// ============================================================
+//
+// Modeller lastes ned én gang til userData/models/ med sha256-verifisering,
+// og kjøres lokalt via onnxruntime. Plugins feature-detekter via
+// ai-model-status og ber om nedlasting via ai-model-ensure.
+
+const AI_MODELS = {
+  ansikt: {
+    file: 'ultraface-rfb-640.onnx',
+    url: 'https://huggingface.co/wide-video/ultraface-v0.0.0/resolve/main/version-RFB-640_simplified_fixed.onnx',
+    sha256: '7fad51c3261f17befe6e5637e18f8689eeeac48a40738e6c9182485c7aaaf547',
+    sizeMB: 1.4,
+    label: 'Ansiktsdeteksjon (UltraFace, MIT-lisens)',
+  },
+};
+
+function aiModelPath(id) {
+  return path.join(app.getPath('userData'), 'models', AI_MODELS[id].file);
+}
+
+function aiModelReady(id) {
+  const m = AI_MODELS[id];
+  if (!m) return false;
+  const p = aiModelPath(id);
+  if (!fs.existsSync(p)) return false;
+  const hash = crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex');
+  return hash === m.sha256;
+}
+
+ipcMain.handle('ai-model-status', async (e, id) => {
+  const m = AI_MODELS[id];
+  if (!m) return { ok: false, error: 'Ukjent modell: ' + id };
+  return { ok: true, ready: aiModelReady(id), sizeMB: m.sizeMB, label: m.label };
+});
+
+ipcMain.handle('ai-model-ensure', async (e, id) => {
+  const m = AI_MODELS[id];
+  if (!m) return { ok: false, error: 'Ukjent modell: ' + id };
+  if (aiModelReady(id)) return { ok: true, alreadyDownloaded: true };
+  try {
+    const buf = await httpGetBuffer(m.url);
+    const hash = crypto.createHash('sha256').update(buf).digest('hex');
+    if (hash !== m.sha256) {
+      return { ok: false, error: 'Nedlastet modell matcher ikke forventet sjekksum — avbrutt.' };
+    }
+    fs.mkdirSync(path.dirname(aiModelPath(id)), { recursive: true });
+    fs.writeFileSync(aiModelPath(id), buf);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+// Én ort-session per modell, gjenbrukes mellom sporinger
+const aiSessions = {};
+async function getFaceSession() {
+  if (!aiSessions.ansikt) {
+    const { createSession } = require('./src/face-detect.js');
+    aiSessions.ansikt = await createSession(aiModelPath('ansikt'));
+  }
+  return aiSessions.ansikt;
+}
+
 ipcMain.handle('censor-track', async (e, opts) => {
   const { url, inputPath, from, to, x, y, w, h, videoW, videoH } = opts || {};
   if ((!url && !inputPath) || typeof from !== 'number' || typeof to !== 'number'
@@ -1033,6 +1098,87 @@ ipcMain.handle('censor-track', async (e, opts) => {
       input = await ensureDownloaded(url);
     } catch (err) {
       return { ok: false, error: 'Kunne ikke laste ned video: ' + err.message };
+    }
+  }
+
+  // ── Ansiktsmodus: gjenfinn ansiktet per frame med UltraFace i stedet for
+  //    pikselmatch — tåler håndholdt kamera, zoom og lysendringer langt bedre.
+  if (opts.mode === 'face') {
+    if (!aiModelReady('ansikt')) {
+      return { ok: false, error: 'Ansiktsmodellen er ikke lastet ned', needModel: true };
+    }
+    const FPS = 5;
+    const MW = 640, MH = 480;
+    const scaleF = Math.min(MW / videoW, MH / videoH);
+    const dispW = Math.round(videoW * scaleF), dispH = Math.round(videoH * scaleF);
+    const padX = Math.floor((MW - dispW) / 2), padY = Math.floor((MH - dispH) / 2);
+    const span = to - from;
+    const frameBytes = MW * MH * 3;
+
+    const args = [
+      '-ss', String(Math.max(0, from)),
+      '-i', input,
+      '-t', String(span + 0.3),
+      '-vf', `fps=${FPS},scale=${MW}:${MH}:force_original_aspect_ratio=decrease,` +
+             `pad=${MW}:${MH}:(ow-iw)/2:(oh-ih)/2,format=rgb24`,
+      '-f', 'rawvideo',
+      '-pix_fmt', 'rgb24',
+      'pipe:1',
+    ];
+
+    let raw;
+    try {
+      raw = await new Promise((resolve, reject) => {
+        send({ phase: 'decoding', percent: 0 });
+        const ff = spawn(findFfmpeg(), args);
+        const chunks = [];
+        let bytes = 0;
+        const expected = Math.max(1, Math.ceil(span * FPS)) * frameBytes;
+        ff.stdout.on('data', c => {
+          chunks.push(c);
+          bytes += c.length;
+          send({ phase: 'decoding', percent: Math.min(99, Math.round((bytes / expected) * 100)) });
+        });
+        ff.on('error', err => reject(new Error('ffmpeg-prosessfeil: ' + err.message)));
+        ff.on('close', code => {
+          if (code === 0) resolve(Buffer.concat(chunks));
+          else reject(new Error('ffmpeg feilet (kode ' + code + ')'));
+        });
+      });
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+
+    const nFrames = Math.floor(raw.length / frameBytes);
+    if (nFrames < 2) return { ok: false, error: 'For få bilder å spore over' };
+
+    try {
+      const { trackFace } = require('./src/censor-track-face.js');
+      const { simplifyPath } = require('./src/censor-track.js');
+      send({ phase: 'tracking', percent: 0 });
+      const session = await getFaceSession();
+      const res = await trackFace(session, raw, nFrames, {
+        x: x * scaleF + padX, y: y * scaleF + padY,
+        w: w * scaleF, h: h * scaleF,
+      });
+      if (!res.ok) return { ok: false, reason: res.reason, error: 'Fant ikke ansikt i maskeområdet' };
+      const simplified = simplifyPath(res.path, 2);
+      const keyframes = simplified.map(p => ({
+        t: Math.round((from + p.i / FPS) * 10) / 10,
+        x: Math.round((p.x - padX) / scaleF),
+        y: Math.round((p.y - padY) / scaleF),
+        s: p.s || 1,
+      }));
+      send({ phase: 'done', percent: 100 });
+      return {
+        ok: true,
+        keyframes,
+        stoppedEarly: res.stoppedEarly,
+        trackedTo: from + (res.path[res.path.length - 1].i / FPS),
+        mode: 'face',
+      };
+    } catch (err) {
+      return { ok: false, error: err.message };
     }
   }
 

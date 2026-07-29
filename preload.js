@@ -61,6 +61,10 @@ contextBridge.exposeInMainWorld('faktisk', {
     ipcRenderer.on('labrador-upload-progress', listener);
     return () => ipcRenderer.removeListener('labrador-upload-progress', listener);
   },
+  // Lokale AI-modeller (nedlastbare, kjøres offline)
+  aiModelStatus: (id) => ipcRenderer.invoke('ai-model-status', id),
+  aiModelEnsure: (id) => ipcRenderer.invoke('ai-model-ensure', id),
+
   recentFileAdd: (entry) => ipcRenderer.invoke('recent-file-add', entry),
   recentFileList: (opts) => ipcRenderer.invoke('recent-file-list', opts),
   recentFileRemove: (url) => ipcRenderer.invoke('recent-file-remove', url),
