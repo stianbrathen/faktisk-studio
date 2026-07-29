@@ -112,6 +112,7 @@
 .check-inline { white-space: nowrap; font-size: 12px; }
 
 .opt-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.partner-opts { display: flex; flex-direction: column; gap: 6px; }
 .select-inline {
   flex: 1; height: 30px; padding: 0 26px 0 10px; font-size: 12px;
 }

@@ -87,15 +87,21 @@
         <div class="opt-row">
           <label class="link-btn filepick">Velg fil<input type="file" id="partnerFile" accept="image/*" hidden></label>
           <select id="partnerMode" class="project-select select-inline">
-            <option value="preset">Under Faktisk-logoen</option>
-            <option value="free">Fri plassering (dra)</option>
+            <option value="under">Under Faktisk-logoen</option>
+            <option value="right">Øverst til høyre</option>
           </select>
           <button id="partnerRemove" class="mini-del" type="button" style="display:none;">Fjern</button>
         </div>
-        <div class="slider-row" id="partnerOptions" style="display:none;">
-          <span class="lbl">Størrelse</span>
-          <input type="range" id="partnerSize" min="10" max="60" value="25">
-          <label class="check-row check-inline"><input type="checkbox" id="partnerLabel" checked> «I samarbeid med»</label>
+        <div class="partner-opts" id="partnerOptions" style="display:none;">
+          <div class="slider-row">
+            <span class="lbl">Størrelse</span>
+            <input type="range" id="partnerSize" min="6" max="40" value="14">
+          </div>
+          <div class="opt-row">
+            <label class="check-row check-inline"><input type="checkbox" id="partnerLabel" checked> «I samarbeid med»</label>
+            <label class="check-row check-inline"><input type="checkbox" id="partnerBox"> Hvit boks bak</label>
+            <label class="check-row check-inline"><input type="checkbox" id="partnerPlus"> Plusstegn foran</label>
+          </div>
         </div>
       </div>
 

@@ -28,6 +28,7 @@ const els = {};
  'splitOptions', 'splitLine', 'splitVertical',
  'textInput', 'textSize', 'textAuto',
  'partnerFile', 'partnerMode', 'partnerRemove', 'partnerOptions', 'partnerSize', 'partnerLabel',
+ 'partnerBox', 'partnerPlus',
  'fadeTop', 'fadeBottom', 'showLogo',
  'projectSelect', 'saveProjectBtn',
  'copyClipBtn', 'exportPngBtn', 'exportJpgBtn',
@@ -239,29 +240,58 @@ async function draw(ctx) {
     ctx.drawImage(logoImg, (W - lw) / 2, 56, lw, lh);
   }
 
-  // Partnerlogo
+  // Partnerlogo — faste plasseringer: øverst til høyre (på linje med
+  // Faktisk-logoen) eller sentrert under den. Valgfritt: hvit avrundet
+  // boks bak (for logoer som ikke finnes i hvitt) og plusstegn foran.
   partnerBounds = null;
   if (state.partner) {
     const p = state.partner;
     const pimg = await loadImg(p.src);
     const pw = W * (p.sizePct / 100);
     const ph = pw * (p.naturalH / p.naturalW);
+    const logoH = logoImg ? 220 * (logoImg.naturalHeight / logoImg.naturalWidth) : 44;
+    const logoSenterY = 56 + logoH / 2;
     let px, py;
-    if (p.mode === 'preset') {
+    if (p.mode === 'right') {
+      px = W - 64 - pw;
+      py = logoSenterY - ph / 2;
+    } else { // 'under'
       px = (W - pw) / 2;
-      py = 150;
-      if (p.label) {
-        ctx.font = '500 24px NHG';
-        ctx.fillStyle = '#fff';
-        ctx.textAlign = 'center';
-        ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 8;
-        ctx.fillText('I samarbeid med', W / 2, py - 12);
-        ctx.shadowBlur = 0;
-        ctx.textAlign = 'left';
-      }
-    } else {
-      px = p.x; py = p.y;
+      py = 56 + logoH + 34;
     }
+
+    if (p.label) {
+      ctx.font = '500 24px NHG';
+      ctx.fillStyle = '#fff';
+      ctx.textAlign = 'center';
+      ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 8;
+      ctx.fillText('I samarbeid med', px + pw / 2, py - (p.box ? Math.max(12, pw * 0.10) : 0) - 14);
+      ctx.shadowBlur = 0;
+      ctx.textAlign = 'left';
+    }
+
+    let boksVenstre = px;
+    if (p.box) {
+      const pad = Math.max(12, pw * 0.10);
+      boksVenstre = px - pad;
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.roundRect(px - pad, py - pad, pw + pad * 2, ph + pad * 2, Math.max(8, pad * 0.8));
+      ctx.fill();
+    }
+
+    if (p.plus) {
+      ctx.font = `700 ${Math.round(ph * 0.8)}px NHG`;
+      ctx.fillStyle = '#fff';
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 6;
+      ctx.fillText('+', boksVenstre - 16, py + ph / 2 + ph * 0.04);
+      ctx.shadowBlur = 0;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'alphabetic';
+    }
+
     ctx.drawImage(pimg, px, py, pw, ph);
     partnerBounds = { x: px, y: py, w: pw, h: ph };
   }
@@ -343,10 +373,7 @@ els.previewCanvas.addEventListener('pointerdown', e => {
   const start = canvasPoint(e);
   let mode = 'bg', targetKey = null, orig = null;
 
-  if (state.partner && state.partner.mode === 'free' && inBounds(start, partnerBounds)) {
-    mode = 'partner';
-    orig = { x: state.partner.x, y: state.partner.y };
-  } else if (inBounds(start, textBounds)) {
+  if (inBounds(start, textBounds)) {
     mode = 'text';
     orig = { y: state.text.y };
   } else {
@@ -361,10 +388,7 @@ els.previewCanvas.addEventListener('pointerdown', e => {
   function onMove(ev) {
     const p = canvasPoint(ev);
     const dx = p.x - start.x, dy = p.y - start.y;
-    if (mode === 'partner') {
-      state.partner.x = orig.x + dx;
-      state.partner.y = orig.y + dy;
-    } else if (mode === 'text') {
+    if (mode === 'text') {
       state.text.y = Math.max(100, Math.min(H - 40, orig.y + dy));
     } else if (targetKey) {
       state[targetKey].x = orig.x + dx;
@@ -454,13 +478,19 @@ els.partnerFile.addEventListener('change', async function () {
       mode: els.partnerMode.value,
       sizePct: +els.partnerSize.value,
       label: els.partnerLabel.checked,
-      x: (W - W * (+els.partnerSize.value / 100)) / 2,
-      y: 150,
+      box: els.partnerBox.checked,
+      plus: els.partnerPlus.checked,
     };
     els.partnerOptions.style.display = 'flex';
     els.partnerRemove.style.display = '';
     scheduleRender(); scheduleSaveState();
   } catch (err) { setStatus(err.message, true); }
+});
+els.partnerBox.addEventListener('change', () => {
+  if (state.partner) { state.partner.box = els.partnerBox.checked; scheduleRender(); scheduleSaveState(); }
+});
+els.partnerPlus.addEventListener('change', () => {
+  if (state.partner) { state.partner.plus = els.partnerPlus.checked; scheduleRender(); scheduleSaveState(); }
 });
 els.partnerMode.addEventListener('change', () => {
   if (state.partner) { state.partner.mode = els.partnerMode.value; scheduleRender(); scheduleSaveState(); }
@@ -552,9 +582,12 @@ async function applyState(saved) {
     els.textSize.value = state.text.size;
     els.textAuto.checked = state.text.auto;
     if (state.partner) {
+      if (!['under', 'right'].includes(state.partner.mode)) state.partner.mode = 'right';
       els.partnerMode.value = state.partner.mode;
       els.partnerSize.value = state.partner.sizePct;
       els.partnerLabel.checked = !!state.partner.label;
+      els.partnerBox.checked = !!state.partner.box;
+      els.partnerPlus.checked = !!state.partner.plus;
       els.partnerOptions.style.display = 'flex';
       els.partnerRemove.style.display = '';
     }
