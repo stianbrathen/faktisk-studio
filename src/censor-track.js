@@ -175,8 +175,19 @@ function trackRegion(buf, sw, sh, nFrames, region, opts) {
     const suspicious = corrA < 0.75 && jump > o.searchR * 0.6;
 
     if (corr < o.minCorr || suspicious) {
-      // Motivet borte (okklusjon/klipp?) — frys posisjonen, utvid søket,
-      // og gi opp først etter maxLost frames uten treff.
+      // Motivet borte. Skjedde det ved bildekanten med fart utover, har
+      // motivet gått ut av bildet: følg bevegelsen et lite stykke ut og
+      // avslutt der — ikke bli stående og lås på noe annet som passerer.
+      const edgeM = Math.max(tw, th) * 0.8;
+      const atEdge = cx < edgeM || cx > sw - edgeM || cy < edgeM || cy > sh - edgeM;
+      if (atEdge && (Math.abs(vx) > 0.7 || Math.abs(vy) > 0.7)) {
+        for (let g = 0; g < 3 && f + g < nFrames; g++) {
+          cx += vx; cy += vy;
+          path.push({ i: f + g, x: Math.round(cx), y: Math.round(cy), s: Math.round(scaleNow * 1000) / 1000 });
+        }
+        stoppedEarly = true;
+        break;
+      }
       lost++;
       vx = 0; vy = 0;
       if (lost > o.maxLost) { stoppedEarly = true; break; }

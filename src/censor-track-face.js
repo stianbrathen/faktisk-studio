@@ -75,12 +75,20 @@ async function trackFace(session, buf, nFrames, region, opts) {
   let stoppedEarly = false;
   const path = [{ i: startF, x: Math.round(cx), y: Math.round(cy), s: 1 }];
 
+  // Nær innholdskanten? (letterbox-bokser kan ikke inneholde ansikter, så
+  // frame-kantene fungerer som innholdskanter for formålet)
+  const nearEdge = (x0, y0) =>
+    x0 < size * 0.7 || x0 > MODEL_W - size * 0.7 ||
+    y0 < size * 0.7 || y0 > MODEL_H - size * 0.7;
+
   for (let f = startF + 1; f < nFrames; f++) {
     const dets = await detectFaces(session, frameAt(f), { confThresh: o.confThresh });
 
-    // Prediker og velg nærmeste deteksjon innenfor porten
+    // Prediker og velg nærmeste deteksjon innenfor porten. Porten er relativ
+    // til ansiktets størrelse og utvides nesten ikke når målet er mistet —
+    // en vid port er nettopp det som lar sporet «stjeles» av naboansikter.
     const px = cx + vx, py = cy + vy;
-    const gate = o.gatePx * (1 + Math.min(2, lost * 0.5));  // videre port når mistet
+    const gate = Math.max(46, size * 1.0) * (lost > 0 ? 1.25 : 1);
     let best = null, bd = Infinity;
     for (const d of dets) {
       const dist = Math.hypot(boxCx(d) - px, boxCy(d) - py);
@@ -91,6 +99,17 @@ async function trackFace(session, buf, nFrames, region, opts) {
 
     if (!best) {
       lost++;
+      // Forsvant målet ved kanten? Da har personen gått ut av bildet:
+      // følg bevegelsen et lite stykke ut, og avslutt sporet der — i stedet
+      // for å bli stående og til slutt gripe neste person som passerer.
+      if (nearEdge(cx, cy) && (Math.abs(vx) > 1 || Math.abs(vy) > 1)) {
+        for (let g = 0; g < 3 && f + g < nFrames; g++) {
+          cx += vx; cy += vy;
+          path.push({ i: f + g, x: Math.round(cx), y: Math.round(cy), s: Math.round((size / baseSize) * 1000) / 1000 });
+        }
+        stoppedEarly = true;
+        break;
+      }
       if (lost > o.maxLost) { stoppedEarly = true; break; }
       continue;   // frys posisjonen til ansiktet dukker opp igjen
     }
