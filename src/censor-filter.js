@@ -77,11 +77,28 @@ function buildCensorFilter(masks) {
   const parts = [];
   let prev = '0:v';
 
+  // Marg rundt bildet så masker kan gli inn og ut over kantene: videoen
+  // polstres med M piksler (kant-piksler smøres utover så blurren ser
+  // naturlig ut), maskene jobber i polstrede koordinater, og til slutt
+  // croppes originalstørrelsen tilbake. Uten dette spikres blur-boksen
+  // innenfor bildet og «venter» ved kanten i stedet for å følge motivet ut.
+  const M = even(Math.min(400, Math.max(...masks.map(m => {
+    const ws = m.keyframes.map(k => (k.w > 1 ? k.w : m.w) || 80);
+    const hs = m.keyframes.map(k => (k.h > 1 ? k.h : m.h) || 80);
+    return Math.max(...ws, ...hs);
+  })) + 16));
+  parts.push(
+    `[0:v]pad=iw+${2 * M}:ih+${2 * M}:${M}:${M},` +
+    `fillborders=left=${M}:right=${M}:top=${M}:bottom=${M}:mode=smear[pad0]`
+  );
+  prev = 'pad0';
+
   masks.forEach((m, i) => {
     validateMask(m, i);
     const isRound = m.shape === 'ellipse' || m.shape === 'circle';
 
-    // Normaliser keyframes: alle får størrelse (fallback til maskens standard)
+    // Normaliser keyframes: alle får størrelse (fallback til maskens
+    // standard) og forskyves til polstrede koordinater (+M).
     const kfs = m.keyframes
       .slice()
       .sort((a, b) => a.t - b.t)
@@ -89,7 +106,7 @@ function buildCensorFilter(masks) {
         let w = (k.w > 1 ? k.w : m.w);
         let h = (k.h > 1 ? k.h : m.h);
         if (m.shape === 'circle') h = w;
-        return { t: k.t, x: k.x, y: k.y, w, h };
+        return { t: k.t, x: k.x + M, y: k.y + M, w, h };
       });
 
     const sigma = Math.max(1, Math.round(m.blur || 24));
@@ -141,7 +158,10 @@ function buildCensorFilter(masks) {
     prev = `v${i}`;
   });
 
-  return { graph: parts.join(';'), outLabel: `[${prev}]` };
+  // Fjern polstringen — tilbake til original oppløsning
+  parts.push(`[${prev}]crop=iw-${2 * M}:ih-${2 * M}:${M}:${M}[vcrop]`);
+
+  return { graph: parts.join(';'), outLabel: '[vcrop]' };
 }
 
 module.exports = { buildCensorFilter, lerpExpr };

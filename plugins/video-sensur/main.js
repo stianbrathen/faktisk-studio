@@ -378,9 +378,13 @@ els.overlay.addEventListener('pointerdown', e => {
         : Math.min(els.video.videoHeight, Math.max(24, Math.round(startSize.h + dy * 2)));
       if (m.shape === 'circle') liveSize.w = liveSize.h;
     } else {
+      // Masken kan plasseres utenfor bildet (inntil sin egen bredde/høyde) —
+      // så sensuren kan «følge inn og ut» av kanten. Eksporten polstrer
+      // videoen tilsvarende, så boksen glir naturlig over kanten.
+      const mx = liveSize.w, my = liveSize.h;
       livePos = {
-        x: Math.max(0, Math.min(els.video.videoWidth, startPos.x + dx)),
-        y: Math.max(0, Math.min(els.video.videoHeight, startPos.y + dy)),
+        x: Math.max(-mx, Math.min(els.video.videoWidth + mx, startPos.x + dx)),
+        y: Math.max(-my, Math.min(els.video.videoHeight + my, startPos.y + dy)),
       };
     }
     box.style.left = (livePos.x - liveSize.w / 2) * s + 'px';
