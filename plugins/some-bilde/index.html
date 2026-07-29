@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https:; font-src 'self' data:;">
+<title>SoMe-bilde · Faktisk Studio</title>
+<link rel="stylesheet" href="shared/style.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="studio">
+
+  <header class="topbar">
+    <div class="faktisk-logo" role="img" aria-label="Faktisk Studio"></div>
+    <span class="topbar__version" id="appVersion" title="Versjoner"></span>
+    <div class="topbar__title" role="img" aria-label="Labrador"></div>
+    <div class="topbar__actions">
+      <button class="btn-primary" id="backBtn">Malside</button>
+      <button class="btn-icon" id="newProjectBtn" title="Nytt prosjekt (tøm gjeldende)" aria-label="Nytt prosjekt">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+          <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+        </svg>
+      </button>
+      <button class="btn-icon" id="fullscreenBtn" title="Fullskjerm" aria-label="Fullskjerm">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+          <path d="M5 5h5v2H7v3H5V5zm9 0h5v5h-2V7h-3V5zM5 14h2v3h3v2H5v-5zm12 0h2v5h-5v-2h3v-3z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="plugin-page">
+
+    <aside class="plugin-sidebar">
+      <h2 class="plugin-sidebar__title">SoMe-bilde</h2>
+
+      <p class="plugin-sidebar__desc">
+        Kvadratisk bilde til Facebook og sosiale medier — 1200×1200.
+        Dra i bildet for å flytte, scroll for å zoome. Dra teksten opp/ned.
+      </p>
+
+      <div class="url-section">
+        <div class="url-section__header">
+          <label class="url-section__label" for="imgUrl">Bilde 1</label>
+          <label class="link-btn filepick">Velg fil<input type="file" id="imgFile" accept="image/*" hidden></label>
+        </div>
+        <div class="url-row">
+          <input type="text" id="imgUrl" class="url-row__input"
+                 placeholder="https://… eller velg fil" spellcheck="false" autocomplete="off">
+          <button id="imgLoadUrl" class="btn-tiny">Hent</button>
+        </div>
+      </div>
+
+      <div class="url-section">
+        <div class="url-section__header">
+          <label class="url-section__label" for="img2Url">Bilde 2 (valgfri — delt bilde)</label>
+          <label class="link-btn filepick">Velg fil<input type="file" id="img2File" accept="image/*" hidden></label>
+        </div>
+        <div class="url-row">
+          <input type="text" id="img2Url" class="url-row__input"
+                 placeholder="https://… eller velg fil" spellcheck="false" autocomplete="off">
+          <button id="img2LoadUrl" class="btn-tiny">Hent</button>
+        </div>
+        <div class="opt-row" id="splitOptions" style="display:none;">
+          <label class="check-row"><input type="checkbox" id="splitLine" checked> Hvit delestrek</label>
+          <label class="check-row"><input type="checkbox" id="splitVertical" checked> Loddrett deling</label>
+          <button id="img2Remove" class="mini-del" type="button">Fjern bilde 2</button>
+        </div>
+      </div>
+
+      <div class="plugin-sidebar__status" id="status"></div>
+
+      <div class="tool-section">
+        <span class="url-section__label">Tekst</span>
+        <textarea id="textInput" class="caption-input" rows="2"
+                  placeholder="Skriv teksten — den deles automatisk i linjer. Enter overstyrer."></textarea>
+        <div class="slider-row">
+          <span class="lbl">Størrelse</span>
+          <input type="range" id="textSize" min="40" max="120" value="72">
+          <label class="check-row check-inline"><input type="checkbox" id="textAuto" checked> Auto-linjer</label>
+        </div>
+      </div>
+
+      <div class="tool-section">
+        <span class="url-section__label">Partnerlogo (valgfri)</span>
+        <div class="opt-row">
+          <label class="link-btn filepick">Velg fil<input type="file" id="partnerFile" accept="image/*" hidden></label>
+          <select id="partnerMode" class="project-select select-inline">
+            <option value="preset">Under Faktisk-logoen</option>
+            <option value="free">Fri plassering (dra)</option>
+          </select>
+          <button id="partnerRemove" class="mini-del" type="button" style="display:none;">Fjern</button>
+        </div>
+        <div class="slider-row" id="partnerOptions" style="display:none;">
+          <span class="lbl">Størrelse</span>
+          <input type="range" id="partnerSize" min="10" max="60" value="25">
+          <label class="check-row check-inline"><input type="checkbox" id="partnerLabel" checked> «I samarbeid med»</label>
+        </div>
+      </div>
+
+      <div class="tool-section">
+        <span class="url-section__label">Fades og logo</span>
+        <div class="slider-row">
+          <span class="lbl">Fade topp</span>
+          <input type="range" id="fadeTop" min="0" max="100" value="35">
+        </div>
+        <div class="slider-row">
+          <span class="lbl">Fade bunn</span>
+          <input type="range" id="fadeBottom" min="0" max="100" value="35">
+        </div>
+        <label class="check-row"><input type="checkbox" id="showLogo" checked> Faktisk-logo øverst</label>
+      </div>
+
+      <div class="plugin-sidebar__spacer"></div>
+
+      <div class="project-row">
+        <select id="projectSelect" class="project-select">
+          <option value="">Velg lagret prosjekt…</option>
+        </select>
+        <button id="saveProjectBtn" class="btn-tiny">Lagre…</button>
+      </div>
+
+      <div class="export-row">
+        <button id="copyClipBtn" class="btn-primary">Kopier til utklippstavle</button>
+        <div class="export-row__sub">
+          <button id="exportPngBtn" class="btn-tiny">Last ned PNG</button>
+          <button id="exportJpgBtn" class="btn-tiny">Last ned JPG</button>
+        </div>
+      </div>
+    </aside>
+
+    <section class="plugin-canvas">
+      <div class="canvas-area" id="canvasArea">
+        <canvas id="previewCanvas" width="1200" height="1200"></canvas>
+      </div>
+    </section>
+
+  </main>
+
+</div>
+
+<script src="shared/dialog.js"></script>
+<script>window.PLUGIN_ID = 'some-bilde';</script>
+<script src="shared/new-project.js"></script>
+<script src="shared/labrador-status.js"></script>
+<script src="shared/labrador-files.js"></script>
+<script src="main.js"></script>
+</body>
+</html>

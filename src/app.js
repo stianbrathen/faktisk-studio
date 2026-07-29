@@ -19,10 +19,11 @@ const ELEMENT_TYPES = [
 const CATEGORY_LABELS = {
   video: 'Video',
   image: 'Bilder',
+  some:  'SoMe',
   kart:  'Kart',
   annet: 'Annet',
 };
-const CATEGORY_ORDER = ['video', 'image', 'kart'];
+const CATEGORY_ORDER = ['video', 'image', 'some', 'kart'];
 
 function buildCategories(items) {
   const seen = new Set(items.map(it => it.category || 'annet'));
