@@ -1,0 +1,9 @@
+{
+  "id": "bilde-sensur",
+  "name": "Bildesensur",
+  "version": "0.1.0",
+  "entry": "index.html",
+  "description": "Sensurer ansikter eller deler av et bilde med blur, pixelering eller svart felt. Masker som sirkel, oval eller rektangel med myk kant. Eksporter i full oppløsning som PNG/JPG, kopier til utklippstavlen eller last rett opp til Labrador.",
+  "category": "image",
+  "minStudioVersion": "0.6.3"
+}

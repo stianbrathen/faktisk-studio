@@ -558,6 +558,21 @@ async function labradorUploadBuffer(fileName, buffer, contentType) {
     : { ok: true, url: null };
 }
 
+// Laster opp generert innhold (dataURL fra canvas) direkte til Labrador —
+// brukes av bilde-plugins som produserer ferdige bilder (f.eks. bilde-sensur).
+ipcMain.handle('labrador-upload-data', async (e, opts) => {
+  const { fileName, dataUrl } = opts || {};
+  if (!fileName || !dataUrl) return { ok: false, error: 'Mangler fileName eller dataUrl' };
+  const m = /^data:([^;,]+);base64,(.+)$/.exec(dataUrl);
+  if (!m) return { ok: false, error: 'Ugyldig dataURL — må være base64-kodet' };
+  const buffer = Buffer.from(m[2], 'base64');
+  if (buffer.length > 100 * 1024 * 1024) {
+    return { ok: false, error: 'Over 100 MB (Labradors grense).' };
+  }
+  try { return await labradorUploadBuffer(labradorSafeName(fileName), buffer, m[1]); }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+
 // Genererer stillbilde fra video og laster det opp til Labrador, slik at
 // embeds kan LENKE posteren i stedet for å bake inn ~100 KB base64.
 // Deterministisk filnavn (video + tidspunkt) → eksisterende fil gjenbrukes,
@@ -1285,7 +1300,13 @@ ipcMain.handle('plugin-install', async (e, pluginEntry) => {
       }
       const target = path.join(installPath, filename);
       fs.mkdirSync(path.dirname(target), { recursive: true });
-      fs.writeFileSync(target, String(content), 'utf-8');
+      // Binærfiler (fonter, bilder) markeres med «b64:»-prefiks av
+      // build-bundle.js — ren tekst-skriving korrumperer dem ellers.
+      if (typeof content === 'string' && content.startsWith('b64:')) {
+        fs.writeFileSync(target, Buffer.from(content.slice(4), 'base64'));
+      } else {
+        fs.writeFileSync(target, String(content), 'utf-8');
+      }
     }
     return { ok: true, installedAt: new Date().toISOString() };
   } catch (err) {

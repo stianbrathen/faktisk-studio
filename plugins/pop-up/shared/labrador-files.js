@@ -16,8 +16,10 @@
   const MOUNTS = [
     // Video-verktøyene (video-player, looping-video, video-hoydepunkter)
     { url: 'videoUrl',  btn: 'loadVideoBtn', accept: 'video' },
-    // Parallax bildecollage
+    // Parallax bildecollage + SoMe-bilde (bilde 1)
     { url: 'imgUrl',    btn: 'imgLoadUrl',   accept: 'image' },
+    // SoMe-bilde: bilde 2 (delt bilde)
+    { url: 'img2Url',   btn: 'img2LoadUrl',  accept: 'image' },
     // Bildemal: bakgrunn + bilde i boks
     { url: 'bgUrl',     btn: 'bgLoadUrl',    accept: 'image' },
     { url: 'shapeUrl',  btn: 'shapeLoadUrl', accept: 'image' },

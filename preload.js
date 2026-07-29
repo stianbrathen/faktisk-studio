@@ -54,6 +54,7 @@ contextBridge.exposeInMainWorld('faktisk', {
   labradorConnect: () => ipcRenderer.invoke('labrador-connect'),
   labradorListFiles: () => ipcRenderer.invoke('labrador-list-files'),
   labradorUpload: (opts) => ipcRenderer.invoke('labrador-upload', opts),
+  labradorUploadData: (opts) => ipcRenderer.invoke('labrador-upload-data', opts),
   labradorThumbnail: (opts) => ipcRenderer.invoke('labrador-thumbnail', opts),
   onLabradorUploadProgress: (cb) => {
     const listener = (_e, msg) => cb(msg);
