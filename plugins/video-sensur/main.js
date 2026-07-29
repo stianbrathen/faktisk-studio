@@ -187,6 +187,7 @@ function formatSec(s) {
 }
 
 const r10 = x => Math.round(x * 10) / 10;
+const r100 = x => Math.round(x * 100) / 100;   // centisekund — for keyframe-tider
 
 // ── Video-lasting ────────────────────────────────────────────────────────
 
@@ -438,7 +439,9 @@ els.overlay.addEventListener('pointerdown', e => {
 });
 
 function upsertKeyframe(m, t, x, y, w, h) {
-  t = r10(t);
+  // Centisekund-presisjon: 0,1s-avrunding la punktet inntil 2–3 frames unna
+  // spillehodet — godt synlig når tidslinjen er zoomet inn.
+  t = r100(t);
   x = Math.round(x); y = Math.round(y);
   const existing = m.keyframes.find(k => Math.abs(k.t - t) < 0.05);
   if (existing) {
@@ -703,7 +706,7 @@ function renderTimeline() {
 // Keyframes utenfor det nye vinduet fjernes; et nytt ankerpunkt legges på
 // kuttstedet med posisjonen/størrelsen masken hadde akkurat der.
 function trimMask(m, side, t) {
-  t = r10(t);
+  t = r100(t);
   const pos = maskPosAt(m, t);
   const size = maskSizeAt(m, t);
   const anchor = { t, x: pos.x, y: pos.y, w: Math.round(size.w), h: Math.round(size.h) };
