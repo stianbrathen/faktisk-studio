@@ -27,7 +27,7 @@ const els = {};
 ['imgUrl', 'imgLoadUrl', 'imgFile', 'img2Url', 'img2LoadUrl', 'img2File', 'img2Remove',
  'splitOptions', 'splitLine', 'splitVertical',
  'textInput', 'textSize', 'textAuto',
- 'partnerFile', 'partnerMode', 'partnerRemove', 'partnerOptions', 'partnerSize', 'partnerLabel',
+ 'partnerFile', 'partnerMode', 'partnerRemove', 'partnerOptions', 'partnerSize',
  'partnerBox', 'partnerPlus',
  'fadeTop', 'fadeBottom', 'showLogo',
  'projectSelect', 'saveProjectBtn',
@@ -264,16 +264,6 @@ async function draw(ctx) {
 
     const pad = Math.round(ph * 0.22);  // boks-luft skalerer med logohøyden
 
-    if (p.label) {
-      ctx.font = '500 24px NHG';
-      ctx.fillStyle = '#fff';
-      ctx.textAlign = 'center';
-      ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 8;
-      ctx.fillText('I samarbeid med', px + pw / 2, py - (p.box ? pad : 0) - 14);
-      ctx.shadowBlur = 0;
-      ctx.textAlign = 'left';
-    }
-
     let boksVenstre = px;
     if (p.box) {
       boksVenstre = px - pad;
@@ -480,7 +470,6 @@ els.partnerFile.addEventListener('change', async function () {
       ...data,
       mode: els.partnerMode.value,
       sizeH: +els.partnerSize.value,
-      label: els.partnerLabel.checked,
       box: els.partnerBox.checked,
       plus: els.partnerPlus.checked,
     };
@@ -500,9 +489,6 @@ els.partnerMode.addEventListener('change', () => {
 });
 els.partnerSize.addEventListener('input', () => {
   if (state.partner) { state.partner.sizeH = +els.partnerSize.value; scheduleRender(); scheduleSaveState(); }
-});
-els.partnerLabel.addEventListener('change', () => {
-  if (state.partner) { state.partner.label = els.partnerLabel.checked; scheduleRender(); scheduleSaveState(); }
 });
 els.partnerRemove.addEventListener('click', () => {
   state.partner = null;
@@ -589,7 +575,6 @@ async function applyState(saved) {
       if (!state.partner.sizeH) state.partner.sizeH = 60; // migrer fra gammel sizePct
       els.partnerMode.value = state.partner.mode;
       els.partnerSize.value = state.partner.sizeH;
-      els.partnerLabel.checked = !!state.partner.label;
       els.partnerBox.checked = !!state.partner.box;
       els.partnerPlus.checked = !!state.partner.plus;
       els.partnerOptions.style.display = 'flex';
@@ -642,7 +627,6 @@ els.projectSelect.addEventListener('change', async () => {
 
 (async function init() {
   await document.fonts.load('700 72px NHG').catch(() => {});
-  await document.fonts.load('500 24px NHG').catch(() => {});
   scheduleRender();
   await refreshProjectList();
   const pending = localStorage.getItem('faktisk-pending-project');

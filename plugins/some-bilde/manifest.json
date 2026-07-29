@@ -1,7 +1,7 @@
 {
   "id": "some-bilde",
   "name": "SoMe-bilde",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "entry": "index.html",
   "description": "Lag kvadratiske bilder til Facebook og sosiale medier: bakgrunnsbilde (eller to med delestrek), Faktisk-logo, tekst med blå bokser og automatisk linjedeling, partnerlogo og fades. Eksporter som PNG/JPG eller kopier rett til utklippstavlen.",
   "category": "some",
