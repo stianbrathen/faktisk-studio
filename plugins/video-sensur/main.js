@@ -616,11 +616,88 @@ function renderTimeline() {
       track.appendChild(dot);
     });
 
+    // Trim-håndtak: dra i endene av spennet for å forkorte masken —
+    // f.eks. når personen har gått ut av bildet og sporet skal slutte der.
+    if (!m.locked) {
+      [['start', L], ['end', R]].forEach(([side, pct]) => {
+        if (pct < 0 || pct > 100) return;
+        const h = document.createElement('div');
+        h.className = 'ms-trimh';
+        h.style.left = pct + '%';
+        h.title = side === 'start'
+          ? 'Dra for å endre maskens start'
+          : 'Dra for å endre maskens slutt';
+        h.addEventListener('mousedown', ev => beginMaskTrim(ev, i, side, track));
+        track.appendChild(h);
+      });
+    }
+
     row.appendChild(label);
     row.appendChild(track);
     els.laneList.appendChild(row);
   });
   renderTrim(); // utsnitt-håndtakene følger samme zoom-vindu
+}
+
+// Forkort/forleng en maske ved å dra i spenn-endene på lanen.
+// Keyframes utenfor det nye vinduet fjernes; et nytt ankerpunkt legges på
+// kuttstedet med posisjonen/størrelsen masken hadde akkurat der.
+function trimMask(m, side, t) {
+  t = r10(t);
+  const pos = maskPosAt(m, t);
+  const size = maskSizeAt(m, t);
+  const anchor = { t, x: pos.x, y: pos.y, w: Math.round(size.w), h: Math.round(size.h) };
+  if (side === 'end') {
+    m.keyframes = m.keyframes.filter(k => k.t < t - 0.05);
+    m.keyframes.push(anchor);
+  } else {
+    m.keyframes = m.keyframes.filter(k => k.t > t + 0.05);
+    m.keyframes.unshift(anchor);
+  }
+  m.keyframes.sort((a, b) => a.t - b.t);
+}
+
+function beginMaskTrim(ev, i, side, track) {
+  ev.preventDefault();
+  ev.stopPropagation();
+  const m = state.masks[i];
+  if (!m || m.locked || state.exporting) return;
+  const rect = track.getBoundingClientRect();
+  const { from, to } = maskRange(m);
+  let t = side === 'end' ? to : from;
+
+  const toT = (e) => {
+    const x = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+    return state.view.start + (x / rect.width) * viewSpan();
+  };
+
+  const onMove = (e) => {
+    t = toT(e);
+    if (side === 'end') t = Math.max(from + 0.2, Math.min(state.duration, t));
+    else t = Math.max(0, Math.min(to - 0.2, t));
+    // Live-oppdater spennet og håndtaket visuelt mens man drar
+    const span = track.querySelector('.ms-span');
+    const Lp = Math.max(0, t2pct(side === 'start' ? t : from));
+    const Rp = Math.min(100, t2pct(side === 'end' ? t : to));
+    if (span) {
+      span.style.left = Lp + '%';
+      span.style.width = Math.max(0.4, Rp - Lp) + '%';
+    }
+    ev.target.style.left = (side === 'start' ? Lp : Rp) + '%';
+  };
+  const onUp = () => {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    trimMask(m, side, t);
+    selectMask(i);
+    renderAll();
+    scheduleSaveState();
+    setStatus(side === 'end'
+      ? `${m.name} slutter nå ved ${formatSec(t)}.`
+      : `${m.name} starter nå ved ${formatSec(t)}.`);
+  };
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
 }
 
 function seekFromEvent(ev, trackEl) {

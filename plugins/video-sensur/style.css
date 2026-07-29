@@ -571,6 +571,23 @@
   pointer-events: none;
   box-shadow: 0 0 3px rgba(0,0,0,0.6);
 }
+/* Trim-håndtak i endene av maskespennet — dra for å forkorte/forlenge */
+.ms-trimh {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 6px;
+  transform: translateX(-50%);
+  background: #fff;
+  border-radius: 3px;
+  cursor: ew-resize;
+  box-shadow: 0 0 3px rgba(0,0,0,0.7);
+  opacity: 0;
+  transition: opacity 0.12s;
+  z-index: 2;
+}
+.lane:hover .ms-trimh,
+.lane.selected .ms-trimh { opacity: 1; }
 .ms-head {
   position: absolute;
   top: 0;
