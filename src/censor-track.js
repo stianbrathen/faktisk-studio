@@ -29,8 +29,12 @@
  * @returns {{ path: Array<{i:number,x:number,y:number,s:number}>, stoppedEarly: boolean, frames: number }}
  */
 function trackRegion(buf, sw, sh, nFrames, region, opts) {
+  const tw0 = Math.max(10, Math.round(region.w));
+  const th0 = Math.max(10, Math.round(region.h));
   const o = Object.assign({
-    searchR: 26,      // søkeradius i px (nedskalert)
+    // Søkeradius skalerer med motivet: store (kameranære) motiver beveger
+    // seg flere piksler per frame enn små i bakgrunnen.
+    searchR: Math.max(26, Math.round(Math.max(tw0, th0) * 0.8)),
     adapt: 0.12,      // glidende template-oppdatering
     minCorr: 0.30,    // under dette = motivet mistet denne framen
     goodCorr: 0.55,   // over dette = trygt å adaptere template
@@ -38,8 +42,7 @@ function trackRegion(buf, sw, sh, nFrames, region, opts) {
     maxLost: 8,       // frames uten treff før vi gir oss (~1,6 s ved 5 fps)
   }, opts || {});
 
-  const tw = Math.max(10, Math.round(region.w));
-  const th = Math.max(10, Math.round(region.h));
+  const tw = tw0, th = th0;
   const hw = Math.floor(tw / 2), hh = Math.floor(th / 2);
   const N = tw * th;
 

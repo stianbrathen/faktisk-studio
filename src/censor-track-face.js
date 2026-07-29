@@ -27,7 +27,8 @@ async function trackFace(session, buf, nFrames, region, opts) {
     confThresh: 0.55,
     gatePx: 90,        // maks hopp mellom frames (px i 640×480)
     maxLost: 12,       // frames uten deteksjon før vi gir oss (~2,4 s ved 5 fps)
-    smooth: 0.55,      // EMA-glatting av posisjon/størrelse (1 = ta deteksjonen rått)
+    smooth: 0.8,       // lett EMA-glatting av posisjon (1 = ta deteksjonen rått).
+                       // Hardere glatting gir synlig etterslep på raske motiv.
     scanFrames: 8,     // hvor lenge vi leter etter et ansikt i maskeområdet ved
                        // start (~1,6 s). Lenger skanning øker sjansen for at et
                        // ANNET ansikt driver innom området (håndholdt kamera) og
@@ -88,7 +89,9 @@ async function trackFace(session, buf, nFrames, region, opts) {
     // til ansiktets størrelse og utvides nesten ikke når målet er mistet —
     // en vid port er nettopp det som lar sporet «stjeles» av naboansikter.
     const px = cx + vx, py = cy + vy;
-    const gate = Math.max(46, size * 1.0) * (lost > 0 ? 1.25 : 1);
+    // Målt på ekte gatekryssing-klipp: fotgjengere nær kamera flytter seg
+    // ~40 px/frame ved 10 fps — porten må ha god margin over det.
+    const gate = Math.max(70, size * 1.6) * (lost > 0 ? 1.2 : 1);
     let best = null, bd = Infinity;
     for (const d of dets) {
       const dist = Math.hypot(boxCx(d) - px, boxCy(d) - py);
@@ -121,7 +124,7 @@ async function trackFace(session, buf, nFrames, region, opts) {
     lost = 0;
     cx = cx + (nx - cx) * o.smooth;
     cy = cy + (ny - cy) * o.smooth;
-    size = size + (nsize - size) * o.smooth;
+    size = size + (nsize - size) * 0.5;   // størrelse glattes hardere enn posisjon
 
     path.push({
       i: f,

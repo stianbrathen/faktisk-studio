@@ -1107,7 +1107,9 @@ ipcMain.handle('censor-track', async (e, opts) => {
     if (!aiModelReady('ansikt')) {
       return { ok: false, error: 'Ansiktsmodellen er ikke lastet ned', needModel: true };
     }
-    const FPS = 5;
+    // 10 fps: fotgjengere nær kamera flytter seg ~75 px/frame ved 5 fps
+    // (målt) — dobling halverer spranget og holder assosiasjonen stabil.
+    const FPS = 10;
     const MW = 640, MH = 480;
     const scaleF = Math.min(MW / videoW, MH / videoH);
     const dispW = Math.round(videoW * scaleF), dispH = Math.round(videoH * scaleF);
@@ -1182,9 +1184,9 @@ ipcMain.handle('censor-track', async (e, opts) => {
     }
   }
 
-  // Nedskalert analyse: ~480px bredde og 5 fps holder for maskebaner,
-  // og gjør både ffmpeg-dekoding og matching rask.
-  const FPS = 5;
+  // Nedskalert analyse: ~480px bredde. 10 fps — 5 var for glissent for
+  // motiver nær kamera (målt ~35 px/frame i analyseoppløsning ved 5 fps).
+  const FPS = 10;
   const sw = Math.min(480, videoW);
   const scale = sw / videoW;
   const sh = Math.max(2, 2 * Math.round((videoH * scale) / 2));
