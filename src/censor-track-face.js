@@ -28,6 +28,12 @@ async function trackFace(session, buf, nFrames, region, opts) {
     gatePx: 90,        // maks hopp mellom frames (px i 640×480)
     maxLost: 12,       // frames uten deteksjon før vi gir oss (~2,4 s ved 5 fps)
     smooth: 0.55,      // EMA-glatting av posisjon/størrelse (1 = ta deteksjonen rått)
+    scanFrames: 8,     // hvor lenge vi leter etter et ansikt i maskeområdet ved
+                       // start (~1,6 s). Lenger skanning øker sjansen for at et
+                       // ANNET ansikt driver innom området (håndholdt kamera) og
+                       // stjeler sporet. Profilansikter ser detektoren ofte ikke
+                       // i det hele tatt — da er pikselsporing riktig verktøy,
+                       // så vi gir heller raskt beskjed enn å gjette feil.
   }, opts || {});
 
   const frameSize = MODEL_W * MODEL_H * 3;
@@ -48,7 +54,8 @@ async function trackFace(session, buf, nFrames, region, opts) {
     Math.abs(boxCx(d) - region.x) < slackX && Math.abs(boxCy(d) - region.y) < slackY;
 
   let start = null, startF = 0;
-  for (let f = 0; f < nFrames && !start; f++) {
+  const scanMax = Math.min(nFrames, o.scanFrames);
+  for (let f = 0; f < scanMax && !start; f++) {
     const dets = await detectFaces(session, frameAt(f), { confThresh: o.confThresh });
     let bd = Infinity;
     for (const d of dets) {

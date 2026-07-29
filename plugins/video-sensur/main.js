@@ -800,7 +800,7 @@ async function trackMask(i) {
     };
     let res = useFace ? await window.faktisk.censorTrack({ ...base, mode: 'face' }) : null;
     if (useFace && res && !res.ok && res.reason === 'no-face') {
-      setStatus('Fant ikke ansikt i masken — bruker vanlig pikselsporing…');
+      setStatus('Fant ikke et tydelig ansikt i maskeområdet (profil/bortvendt?) — bruker pikselsporing…');
       res = null;
     }
     if (!res) res = await window.faktisk.censorTrack(base);
