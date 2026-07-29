@@ -119,6 +119,28 @@ function drawShape(ctx, m) {
   }
 }
 
+// Blur drar inn gjennomsiktige piksler utenfor bildekanten — ved sterk blur
+// blir en stripe på opptil radiusen halvgjennomsiktig, og originalen skinner
+// gjennom. Løses ved å tegne bildet med strukket kant-fyll som margin før
+// blurring. Memoiseres så drag/slider ikke re-blurrer i hver frame.
+let blurMemo = { key: '', canvas: null };
+function blurredImage(img, W, H, r) {
+  const key = img.src.length + ':' + img.src.slice(-120) + '|' + W + 'x' + H + '|' + Math.round(r);
+  if (blurMemo.key === key) return blurMemo.canvas;
+  const M = Math.ceil(r * 2) + 2;
+  const big = makeCanvas(W + 2 * M, H + 2 * M);
+  const b = big.getContext('2d');
+  b.drawImage(img, -M, -M, W + 2 * M, H + 2 * M);   // strukket versjon som kant-fyll
+  b.drawImage(img, 0, 0, W, H, M, M, W, H);          // skarp original i midten
+  const out = makeCanvas(W, H);
+  const o = out.getContext('2d');
+  o.filter = `blur(${r}px)`;
+  o.drawImage(big, -M, -M);
+  o.filter = 'none';
+  blurMemo = { key, canvas: out };
+  return out;
+}
+
 function applyMask(ctx, m, img, W, H) {
   const rel = Math.max(W, H) / 1600;                 // skaler effekter med oppløsningen
   const feather = m.mode === 'pixel'
@@ -129,9 +151,7 @@ function applyMask(ctx, m, img, W, H) {
   const fctx = fx.getContext('2d');
   if (m.mode === 'blur') {
     const r = Math.max(3, (6 + m.strength * 54) * rel);
-    fctx.filter = `blur(${r}px)`;
-    fctx.drawImage(img, 0, 0, W, H);
-    fctx.filter = 'none';
+    fctx.drawImage(blurredImage(img, W, H, r), 0, 0);
   } else if (m.mode === 'pixel') {
     const block = Math.max(4, Math.round((8 + m.strength * 56) * rel));
     const sw = Math.max(1, Math.round(W / block));
@@ -145,14 +165,19 @@ function applyMask(ctx, m, img, W, H) {
     fctx.fillRect(0, 0, W, H);
   }
 
-  // Feather-kantet form som alfamaske
+  // Feather-kantet form som alfamaske. Blurring av formen alene gjør at
+  // alfaen aldri når 100 % i midten på små masker (hele sensuren blir svak) —
+  // derfor tegnes en solid kjerne, inset med feather, oppå den blurrede formen.
   const mk = makeCanvas(W, H);
   const mctx = mk.getContext('2d');
-  mctx.filter = `blur(${feather}px)`;
   mctx.fillStyle = '#fff';
+  mctx.filter = `blur(${feather}px)`;
   drawShape(mctx, m);
   mctx.fill();
   mctx.filter = 'none';
+  const inner = { ...m, w: Math.max(6, m.w - feather * 1.2), h: Math.max(6, m.h - feather * 1.2) };
+  drawShape(mctx, inner);
+  mctx.fill();
 
   fctx.globalCompositeOperation = 'destination-in';
   fctx.drawImage(mk, 0, 0);
