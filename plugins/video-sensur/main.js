@@ -494,6 +494,9 @@ function renderList() {
           <option value="0.3"${m.fade === 0.3 ? ' selected' : ''}>0,3s</option>
           <option value="0.6"${m.fade === 0.6 ? ' selected' : ''}>0,6s</option>
         </select>
+        <button class="mask-row__kf" data-act="sizeDown" title="Krymp sensurområdet med 12 % i ALLE punkter (beholder størrelsesanimasjonen)"${dis}>Str −</button>
+        <button class="mask-row__kf" data-act="sizeUp" title="Forstørr sensurområdet med 12 % i ALLE punkter (beholder størrelsesanimasjonen)"${dis}>Str +</button>
+        <button class="mask-row__kf" data-act="sizeSame" title="Sett ALLE punkter til størrelsen masken har ved spilletiden (fjerner størrelsesanimasjonen)"${dis}>Lik str.</button>
         <button class="mask-row__kf" data-act="addKf" title="Legg til punkt ved spilletid (forlenger tidsrommet)"${dis}>+ punkt</button>
         <button class="mask-row__kf" data-act="delKf" title="Slett punktet nærmest spilletid"${dis}>− punkt</button>
         <button class="mask-row__kf mask-row__track" data-act="track" title="Spor motivet gjennom maskens spenn på tidslinjen (dra i spenn-endene for å sette start/stopp). Står spilletiden inne i spennet, spores derfra."${dis}>Spor →</button>
@@ -522,6 +525,34 @@ els.maskList.addEventListener('click', e => {
     return;
   }
   if (m.locked) return; // låst maske: ingen andre handlinger
+
+  // Global størrelsesjustering: skalerer alle punkter proporsjonalt, så en
+  // sporet størrelsesanimasjon beholdes men hele området blir større/mindre.
+  if (act === 'sizeUp' || act === 'sizeDown') {
+    const f = act === 'sizeUp' ? 1.12 : 1 / 1.12;
+    m.keyframes.forEach(k => {
+      k.w = Math.max(16, Math.round(k.w * f));
+      k.h = Math.max(16, Math.round(k.h * f));
+    });
+    selectMask(i);
+    renderOverlay();
+    scheduleSaveState();
+    setStatus(`${m.name}: sensurområdet ${act === 'sizeUp' ? 'forstørret' : 'krympet'} 12 % i alle ${m.keyframes.length} punkter.`);
+    return;
+  }
+  // Lik størrelse overalt: bruk størrelsen ved spilletiden som fasit.
+  if (act === 'sizeSame') {
+    const sz = maskSizeAt(m, els.video.currentTime);
+    m.keyframes.forEach(k => {
+      k.w = Math.round(sz.w);
+      k.h = Math.round(sz.h);
+    });
+    selectMask(i);
+    renderOverlay();
+    scheduleSaveState();
+    setStatus(`${m.name}: alle punkter satt til ${Math.round(sz.w)}×${Math.round(sz.h)} px (størrelsen ved spilletiden).`);
+    return;
+  }
 
   if (act === 'del') {
     state.masks.splice(i, 1);
