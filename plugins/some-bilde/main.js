@@ -281,13 +281,16 @@ async function draw(ctx) {
     const totalH = lines.length * lineH + (lines.length - 1) * gap;
     let top = Math.min(H - 40 - totalH, Math.max(40, t.y - totalH));
     let minX = W, maxX = 0;
+    const radius = Math.round(t.size * 0.14); // svak avrunding, som på boxes-siden
     for (let i = 0; i < lines.length; i++) {
       const tw = ctx.measureText(lines[i]).width;
       const bw = tw + padX * 2;
       const bx = (W - bw) / 2;
       const by = top + i * (lineH + gap);
       ctx.fillStyle = '#0050FC';
-      ctx.fillRect(bx, by, bw, lineH);
+      ctx.beginPath();
+      ctx.roundRect(bx, by, bw, lineH, radius);
+      ctx.fill();
       ctx.fillStyle = '#fff';
       ctx.fillText(lines[i], W / 2, by + lineH / 2 + t.size * 0.04);
       minX = Math.min(minX, bx); maxX = Math.max(maxX, bx + bw);
