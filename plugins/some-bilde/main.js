@@ -247,46 +247,49 @@ async function draw(ctx) {
   if (state.partner) {
     const p = state.partner;
     const pimg = await loadImg(p.src);
-    const pw = W * (p.sizePct / 100);
-    const ph = pw * (p.naturalH / p.naturalW);
+    // Fast HØYDE (spesifisert: 60px standard) — bredden følger logoens
+    // format, og boksen omslutter logoen uansett bredde.
+    const ph = p.sizeH || 60;
+    const pw = ph * (p.naturalW / p.naturalH);
     const logoH = logoImg ? 220 * (logoImg.naturalHeight / logoImg.naturalWidth) : 44;
     const logoSenterY = 56 + logoH / 2;
     let px, py;
     if (p.mode === 'right') {
-      px = W - 64 - pw;
-      py = logoSenterY - ph / 2;
+      px = W - 52 - pw;                 // høyremarg fra spesifikasjonen
+      py = logoSenterY - ph / 2;        // på linje med Faktisk-logoen
     } else { // 'under'
       px = (W - pw) / 2;
       py = 56 + logoH + 34;
     }
+
+    const pad = Math.round(ph * 0.22);  // boks-luft skalerer med logohøyden
 
     if (p.label) {
       ctx.font = '500 24px NHG';
       ctx.fillStyle = '#fff';
       ctx.textAlign = 'center';
       ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 8;
-      ctx.fillText('I samarbeid med', px + pw / 2, py - (p.box ? Math.max(12, pw * 0.10) : 0) - 14);
+      ctx.fillText('I samarbeid med', px + pw / 2, py - (p.box ? pad : 0) - 14);
       ctx.shadowBlur = 0;
       ctx.textAlign = 'left';
     }
 
     let boksVenstre = px;
     if (p.box) {
-      const pad = Math.max(12, pw * 0.10);
       boksVenstre = px - pad;
       ctx.fillStyle = '#fff';
       ctx.beginPath();
-      ctx.roundRect(px - pad, py - pad, pw + pad * 2, ph + pad * 2, Math.max(8, pad * 0.8));
+      ctx.roundRect(px - pad, py - pad, pw + pad * 2, ph + pad * 2, Math.round(pad * 0.9));
       ctx.fill();
     }
 
     if (p.plus) {
-      ctx.font = `700 ${Math.round(ph * 0.8)}px NHG`;
+      ctx.font = `700 ${Math.round(ph * 0.66)}px NHG`;
       ctx.fillStyle = '#fff';
       ctx.textAlign = 'right';
       ctx.textBaseline = 'middle';
       ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 6;
-      ctx.fillText('+', boksVenstre - 16, py + ph / 2 + ph * 0.04);
+      ctx.fillText('+', boksVenstre - 24, py + ph / 2 + ph * 0.03); // 24px luft
       ctx.shadowBlur = 0;
       ctx.textAlign = 'left';
       ctx.textBaseline = 'alphabetic';
@@ -476,7 +479,7 @@ els.partnerFile.addEventListener('change', async function () {
     state.partner = {
       ...data,
       mode: els.partnerMode.value,
-      sizePct: +els.partnerSize.value,
+      sizeH: +els.partnerSize.value,
       label: els.partnerLabel.checked,
       box: els.partnerBox.checked,
       plus: els.partnerPlus.checked,
@@ -496,7 +499,7 @@ els.partnerMode.addEventListener('change', () => {
   if (state.partner) { state.partner.mode = els.partnerMode.value; scheduleRender(); scheduleSaveState(); }
 });
 els.partnerSize.addEventListener('input', () => {
-  if (state.partner) { state.partner.sizePct = +els.partnerSize.value; scheduleRender(); scheduleSaveState(); }
+  if (state.partner) { state.partner.sizeH = +els.partnerSize.value; scheduleRender(); scheduleSaveState(); }
 });
 els.partnerLabel.addEventListener('change', () => {
   if (state.partner) { state.partner.label = els.partnerLabel.checked; scheduleRender(); scheduleSaveState(); }
@@ -583,8 +586,9 @@ async function applyState(saved) {
     els.textAuto.checked = state.text.auto;
     if (state.partner) {
       if (!['under', 'right'].includes(state.partner.mode)) state.partner.mode = 'right';
+      if (!state.partner.sizeH) state.partner.sizeH = 60; // migrer fra gammel sizePct
       els.partnerMode.value = state.partner.mode;
-      els.partnerSize.value = state.partner.sizePct;
+      els.partnerSize.value = state.partner.sizeH;
       els.partnerLabel.checked = !!state.partner.label;
       els.partnerBox.checked = !!state.partner.box;
       els.partnerPlus.checked = !!state.partner.plus;
