@@ -403,16 +403,14 @@
   cursor: nwse-resize;
 }
 
-/* Tidslinje. Feltet skal aldri spise videoen: det tar maks ~45 % av høyden,
-   og med mange masker skroller lane-lista i stedet for å skvise resten. */
+/* Tidslinje. Feltet får sin naturlige høyde (Utsnitt/Spol/labels vises
+   alltid uklippet) — bare maskelistene skroller når de blir mange. */
 .timeline-stack {
   display: flex;
   flex-direction: column;
   gap: 8px;
   flex-shrink: 0;
   padding: 0 16px;
-  max-height: 45%;
-  min-height: 0;
 }
 .timeline-row {
   display: grid;
@@ -471,9 +469,6 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  min-height: 0;
-  overflow-y: auto;   /* skroller bare når timeline-stackens 45 %-tak er nådd */
-  scrollbar-width: thin;
 }
 .timeline__track {
   position: relative;
@@ -517,7 +512,13 @@
   color: #fff;
   opacity: 0.9;
 }
-#laneList { display: flex; flex-direction: column; gap: 6px; }
+#laneList {
+  display: flex; flex-direction: column; gap: 6px;
+  max-height: 104px;          /* ~4 maskelinjer — flere skroller */
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+}
 .lane .timeline__track { height: 13px; background: #5A5A5A; }
 .lane .timeline-row__label {
   font-size: 11px;
