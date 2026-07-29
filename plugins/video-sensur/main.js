@@ -399,35 +399,37 @@ els.overlay.addEventListener('pointerdown', e => {
     window.removeEventListener('pointercancel', onUp);
     state.dragging = false;
     box.classList.remove('dragging');
-    // Både flytting og størrelsesendring lagres som keyframe ved spilletid —
-    // størrelsen animeres altså på samme måte som posisjonen.
-    //
-    // Statisk-flytt: nabo-punkter som sto på SAMME sted som masken gjorde
-    // her (i praksis: masken var i ro over det spennet) følger med flyttet.
-    // Da forblir en manuelt plassert maske bom stille mellom punktene sine,
-    // i stedet for å gli mot gamle posisjoner — mens en sporet bane fortsatt
-    // kan finjusteres punkt for punkt (nabopunktene der har ulik posisjon).
-    const dxAll = livePos.x - startPos.x;
-    const dyAll = livePos.y - startPos.y;
-    if (!resizing && (dxAll || dyAll)) {
+    // Forutsigbar drag-regel:
+    //  • Urørt maske (kun de to opprinnelige punktene): draget flytter HELE
+    //    masken — så plassering av en ny, statisk maske er ett grep.
+    //  • Maske med flere punkter: draget endrer KUN punktet ved spillehodet.
+    //    Punkter du allerede har satt, røres aldri.
+    //  • ⇧-drag: flytt alltid hele masken rigid (samme delta på alle punkter).
+    const untouched = m.keyframes.length <= 2
+      && m.keyframes.every(k =>
+        Math.abs(k.x - m.keyframes[0].x) < 2 && Math.abs(k.y - m.keyframes[0].y) < 2);
+    const rigid = e.shiftKey || untouched;
+
+    if (rigid) {
+      const dxAll = Math.round(livePos.x - startPos.x);
+      const dyAll = Math.round(livePos.y - startPos.y);
+      const dwAll = Math.round(liveSize.w - startSize.w);
+      const dhAll = Math.round(liveSize.h - startSize.h);
       m.keyframes.forEach(k => {
-        if (Math.abs(k.x - startPos.x) < 2 && Math.abs(k.y - startPos.y) < 2) {
-          k.x = Math.round(k.x + dxAll);
-          k.y = Math.round(k.y + dyAll);
+        k.x += dxAll; k.y += dyAll;
+        if (k.w > 1) {
+          k.w = Math.max(16, k.w + dwAll);
+          k.h = Math.max(16, k.h + dhAll);
         }
       });
+      m.w = Math.max(16, Math.round(m.w + dwAll));
+      m.h = Math.max(16, Math.round(m.h + dhAll));
+    } else {
+      // Både flytting og størrelsesendring lagres som keyframe ved spilletid —
+      // størrelsen animeres altså på samme måte som posisjonen.
+      upsertKeyframe(m, els.video.currentTime, livePos.x, livePos.y, liveSize.w, liveSize.h);
+      m.w = Math.round(liveSize.w); m.h = Math.round(liveSize.h); // ny standard
     }
-    if (resizing) {
-      const dwAll = liveSize.w - startSize.w, dhAll = liveSize.h - startSize.h;
-      m.keyframes.forEach(k => {
-        if (k.w > 1 && Math.abs(k.w - startSize.w) < 2 && Math.abs(k.h - startSize.h) < 2) {
-          k.w = Math.max(16, Math.round(k.w + dwAll));
-          k.h = Math.max(16, Math.round(k.h + dhAll));
-        }
-      });
-    }
-    upsertKeyframe(m, els.video.currentTime, livePos.x, livePos.y, liveSize.w, liveSize.h);
-    m.w = Math.round(liveSize.w); m.h = Math.round(liveSize.h); // ny standard
     renderTimeline();
     renderList();
     renderOverlay();
