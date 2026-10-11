@@ -445,11 +445,31 @@ ipcMain.handle('labrador-upload', async (e, opts) => {
     return { ok: false, error: 'Fila er over 100 MB (Labradors grense).' };
   }
 
+  // Labrador ser på Content-Type, ikke bare filendelsen. Med
+  // application/octet-stream for alt ble .mov stille forkastet — serveren
+  // svarte 200, men fila dukket aldri opp i lista.
+  const MIME_BY_EXT = {
+    '.mov': 'video/quicktime',
+    '.mp4': 'video/mp4',
+    '.m4v': 'video/x-m4v',
+    '.mpg': 'video/mpeg',
+    '.mpeg': 'video/mpeg',
+    '.webm': 'video/webm',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.avif': 'image/avif',
+    '.heic': 'image/heic',
+    '.pdf': 'application/pdf',
+  };
+  const mimeType = MIME_BY_EXT[path.extname(fileName).toLowerCase()] || 'application/octet-stream';
+
   const boundary = '----FaktiskStudio' + Math.random().toString(36).slice(2);
   const head = Buffer.from(
     '--' + boundary + '\r\n'
     + 'Content-Disposition: form-data; name="file"; filename="' + fileName.replace(/"/g, '') + '"\r\n'
-    + 'Content-Type: application/octet-stream\r\n\r\n'
+    + 'Content-Type: ' + mimeType + '\r\n\r\n'
   );
   const tail = Buffer.from('\r\n--' + boundary + '--\r\n');
   const body = Buffer.concat([head, fs.readFileSync(filePath), tail]);
@@ -511,8 +531,18 @@ ipcMain.handle('labrador-upload', async (e, opts) => {
         || list.files.find(f => f.name.includes(fileName.replace(/\.[^.]+$/, '')));
       if (hit) return { ok: true, name: hit.name, url: hit.url, id: hit.id };
     }
-    return { ok: true, name: fileName, url: null,
-      note: 'Lastet opp, men fant ikke URL automatisk — sjekk «Mine filer».' };
+    // Serveren svarte 200, men fila er ikke i lista. Logg hva Labrador
+    // faktisk svarte — uten det er dette umulig å feilsøke.
+    console.warn('[labrador-upload] Fil ikke funnet etter opplasting.',
+      '\n  filnavn:', fileName,
+      '\n  MIME:', mimeType,
+      '\n  størrelse:', (stat.size / 1048576).toFixed(1), 'MB',
+      '\n  HTTP:', res.status,
+      '\n  svar:', String(res.body).slice(0, 500));
+    return { ok: false, name: fileName,
+      error: 'Labrador svarte OK, men fila dukket ikke opp i lista. '
+        + 'Se konsollen (Vis → Utviklerverktøy) for serverens svar.',
+      debug: { status: res.status, body: String(res.body).slice(0, 500), mimeType, sizeMB: (stat.size / 1048576).toFixed(1) } };
   } catch (err) {
     return { ok: false, error: err.message };
   }
@@ -752,6 +782,65 @@ ipcMain.handle('project-delete', async (e, pluginId, fileId) => {
     const file = path.join(projectsDir, safeId(pluginId), safeId(fileId) + '.json');
     if (fs.existsSync(file)) fs.unlinkSync(file);
     return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+// Deling mellom journalister: eksporter et prosjekt som .faktiskprosjekt-fil
+// (samme JSON som på disk) som kan sendes på Slack/e-post og importeres i
+// mottakerens Studio. Bilder/video i prosjektene er Labrador-URL-er, så
+// innholdet virker hos mottakeren. Prosjekter som peker på LOKALE filer
+// (f.eks. Klippsamler med klipp fra maskinen) deler bare referansene.
+ipcMain.handle('project-export', async (e, pluginId, fileId) => {
+  try {
+    const file = path.join(projectsDir, safeId(pluginId), safeId(fileId) + '.json');
+    if (!fs.existsSync(file)) return { ok: false, error: 'Prosjektet finnes ikke' };
+    const payload = JSON.parse(fs.readFileSync(file, 'utf-8'));
+    const res = await dialog.showSaveDialog(mainWindow, {
+      title: 'Eksporter prosjekt',
+      defaultPath: (payload.name || fileId) + '.faktiskprosjekt',
+      filters: [{ name: 'Faktisk Studio-prosjekt', extensions: ['faktiskprosjekt'] }],
+    });
+    if (res.canceled || !res.filePath) return { ok: false, canceled: true };
+    fs.writeFileSync(res.filePath, JSON.stringify(payload, null, 2), 'utf-8');
+    return { ok: true, savePath: res.filePath };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('project-import', async () => {
+  try {
+    const res = await dialog.showOpenDialog(mainWindow, {
+      title: 'Importer prosjekt',
+      properties: ['openFile'],
+      filters: [{ name: 'Faktisk Studio-prosjekt', extensions: ['faktiskprosjekt', 'json'] }],
+    });
+    if (res.canceled || !res.filePaths.length) return { ok: false, canceled: true };
+    const payload = JSON.parse(fs.readFileSync(res.filePaths[0], 'utf-8'));
+    if (!payload || payload.schemaVersion !== 1 || !payload.pluginId || !payload.state) {
+      return { ok: false, error: 'Filen er ikke et gyldig Faktisk Studio-prosjekt.' };
+    }
+    const name = String(payload.name || 'Importert prosjekt').trim();
+    const dir = path.join(projectsDir, safeId(payload.pluginId));
+    ensureDir(dir);
+    // Ikke overskriv et eksisterende prosjekt med samme navn — legg på suffiks
+    let fileId = safeId(name);
+    let target = path.join(dir, fileId + '.json');
+    let n = 2;
+    while (fs.existsSync(target)) {
+      fileId = safeId(name) + '_' + n++;
+      target = path.join(dir, fileId + '.json');
+    }
+    fs.writeFileSync(target, JSON.stringify({
+      schemaVersion: 1,
+      name,
+      pluginId: payload.pluginId,
+      savedAt: new Date().toISOString(),
+      state: payload.state,
+    }, null, 2), 'utf-8');
+    return { ok: true, pluginId: payload.pluginId, fileId, name };
   } catch (err) {
     return { ok: false, error: err.message };
   }
@@ -1009,6 +1098,1107 @@ ipcMain.handle('censor-export', async (e, opts) => {
   return { ok: true, savePath };
 });
 
+// Skriv tekstfil til en sti brukeren har valgt via saveDialog.
+// Brukes av eksporter som lages i renderer (FCPXML, SRT) — pluginene har
+// ikke fs-tilgang selv.
+ipcMain.handle('write-text-file', async (e, opts) => {
+  const { savePath, content } = opts || {};
+  if (!savePath || typeof content !== 'string') {
+    return { ok: false, error: 'Mangler savePath eller content' };
+  }
+  try {
+    fs.writeFileSync(savePath, content, 'utf-8');
+    return { ok: true, savePath };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+// Velg en lokal fil uten opplasting. Keynote-klipp lages ofte fra opptak
+// som aldri skal publiseres, så det er ingen grunn til å tvinge dem via
+// Labrador først.
+ipcMain.handle('open-file-dialog', async (e, opts) => {
+  const res = await dialog.showOpenDialog(mainWindow, {
+    title: (opts && opts.title) || 'Velg fil',
+    // Kallere kan be om f.eks. multiSelections (klippsetter); standard er én fil
+    properties: (opts && opts.properties) || ['openFile'],
+    filters: (opts && opts.filters) || [],
+  });
+  if (res.canceled || !res.filePaths.length) return { canceled: true };
+  // path beholdes for bakoverkompatibilitet; filePaths har alle valgte
+  return { canceled: false, path: res.filePaths[0], filePaths: res.filePaths };
+});
+
+// ============================================================
+//  Keynote-klipp: video med runde hjørner og ekte alfakanal
+// ============================================================
+//
+// Produserer HEVC med alfakanal (hevc_videotoolbox) slik at hjørnene blir
+// gjennomsiktige i Keynote og lysbildebakgrunnen skinner gjennom. Keynotes
+// egen skygge følger da den runde formen, mens Keynotes "outline" alltid
+// tegner et firkantet omriss — derfor bakes rammen inn i videoen her.
+//
+// Maske og ramme genereres som PNG i renderer (canvas gir gratis
+// antialiasering, samme kvalitet som CSS border-radius) og sendes hit som
+// dataURL. ffmpeg kombinerer dem med videoen:
+//   video → trim → crop → scale → alphamerge(maske) → overlay(ramme) → HEVC
+//
+// Lyd fjernes alltid (-an): Keynote-klipp skal være stumme.
+
+// Minimal PNG (RGBA, helt gjennomsiktig) i gitt størrelse — uten eksterne pakker
+function transparentPng(w, h) {
+  const zlib = require('zlib');
+  const crcTable = (() => { const t = []; for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+  const crc = buf => { let c = 0xFFFFFFFF; for (const b of buf) c = crcTable[(c ^ b) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+  const chunk = (type, data) => {
+    const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
+    const td = Buffer.concat([Buffer.from(type), data]);
+    const c = Buffer.alloc(4); c.writeUInt32BE(crc(td));
+    return Buffer.concat([len, td, c]);
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4); ihdr[8] = 8; ihdr[9] = 6; ihdr[10] = 0; ihdr[11] = 0; ihdr[12] = 0;
+  const raw = Buffer.alloc((w * 4 + 1) * h);   // filterbyte 0 + nuller per rad
+  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
+}
+
+function writeTempPng(dataUrl, name) {
+  const base64 = String(dataUrl || '').replace(/^data:image\/png;base64,/, '');
+  if (!base64) throw new Error('Ugyldig PNG-dataURL: ' + name);
+  const file = path.join(app.getPath('temp'), `faktisk-keynote-${name}-${Date.now()}.png`);
+  fs.writeFileSync(file, Buffer.from(base64, 'base64'));
+  return file;
+}
+
+ipcMain.handle('keynote-export', async (e, opts) => {
+  const {
+    url, inputPath, savePath,
+    outWidth, outHeight,
+    cropX, cropY, cropW, cropH,   // utsnitt i kildens pikselkoordinater
+    maskPng, borderPng,            // dataURL-er fra renderer
+    trimStart, trimEnd, duration,
+    codec,                         // 'hevc' (standard) | 'prores'
+    keepAudio,                     // som regel false — Keynote-klipp er stumme
+  } = opts || {};
+
+  if ((!url && !inputPath) || !savePath) {
+    return { ok: false, error: 'Mangler kilde (url/inputPath) eller savePath' };
+  }
+  if (!outWidth || !outHeight) {
+    return { ok: false, error: 'Mangler målformat (outWidth/outHeight)' };
+  }
+  if (!maskPng) {
+    return { ok: false, error: 'Mangler maske' };
+  }
+
+  const hasFfmpeg = await checkFfmpeg();
+  if (!hasFfmpeg) {
+    return { ok: false, error: 'Klarte ikke finne ffmpeg. Prøv å starte appen på nytt.' };
+  }
+
+  const send = msg => {
+    try { mainWindow && mainWindow.webContents.send('keynote-export-progress', msg); } catch (e) {}
+  };
+
+  // Hent kilden hvis den ligger på nett
+  let input = inputPath;
+  if (!input || !fs.existsSync(input)) {
+    try {
+      send({ phase: 'downloading', percent: 0 });
+      input = await ensureDownloaded(url);
+      send({ phase: 'downloading', percent: 100 });
+    } catch (err) {
+      return { ok: false, error: 'Kunne ikke laste ned video: ' + err.message };
+    }
+  }
+
+  // Skriv maske/ramme til temp
+  let maskFile = null, borderFile = null;
+  try {
+    maskFile = writeTempPng(maskPng, 'mask');
+    if (borderPng) borderFile = writeTempPng(borderPng, 'border');
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+
+  const ts = (typeof trimStart === 'number' && trimStart > 0.01) ? trimStart : 0;
+  const te = (typeof trimEnd === 'number' && trimEnd > ts + 0.1) ? trimEnd : null;
+
+  // Filtergraf. Maske-PNG-en er allerede i målformat, så videoen croppes og
+  // skaleres dit før alphamerge. format=gray henter lumina som alfaverdi.
+  const cropFilter = (cropW && cropH)
+    ? `crop=${Math.round(cropW)}:${Math.round(cropH)}:${Math.round(cropX || 0)}:${Math.round(cropY || 0)},`
+    : '';
+  const scaleFilter = `scale=${outWidth}:${outHeight}:flags=lanczos`;
+
+  let graph =
+    `[0:v]${cropFilter}${scaleFilter},format=rgba,setsar=1[v];` +
+    `[1:v]format=gray[m];` +
+    `[v][m]alphamerge[a]`;
+  let outLabel = '[a]';
+
+  if (borderFile) {
+    graph += `;[a][2:v]overlay=0:0:format=auto[out]`;
+    outLabel = '[out]';
+  }
+
+  const useProres = codec === 'prores';
+
+  // hevc_videotoolbox velger en svært lav bitrate hvis man ikke sier noe, og
+  // VBR-en bruker et par sekunder på å finne nivået — det gir synlig
+  // pixelering i starten av klippet. Sett derfor en romslig bitrate ut fra
+  // oppløsningen, og be om keyframe hvert sekund så den stabiliserer raskt.
+  const fps = 30;
+  const bitrateKbps = Math.round((outWidth * outHeight * fps * 0.2) / 1000);
+
+  const videoArgs = useProres
+    ? ['-c:v', 'prores_ks', '-profile:v', '4444', '-pix_fmt', 'yuva444p10le']
+    : [
+        '-c:v', 'hevc_videotoolbox',
+        '-alpha_quality', '1.0',
+        '-pix_fmt', 'bgra',
+        '-tag:v', 'hvc1',
+        '-b:v', bitrateKbps + 'k',
+        '-maxrate', Math.round(bitrateKbps * 1.5) + 'k',
+        '-bufsize', Math.round(bitrateKbps * 2) + 'k',
+        '-g', String(fps),          // keyframe hvert sekund
+        '-realtime', '0',           // la encoderen bruke tid på kvalitet
+      ];
+
+  const args = [
+    ...(ts > 0 ? ['-ss', String(ts)] : []),
+    '-i', input,
+    ...(te !== null ? ['-t', String(te - ts)] : []),
+    '-i', maskFile,
+    ...(borderFile ? ['-i', borderFile] : []),
+    '-filter_complex', graph,
+    '-map', outLabel,
+    // Keynote-klipp er som regel stumme, men lyden kan beholdes på forespørsel.
+    // AAC framfor kopiering: kildelyden kan være i et format QuickTime ikke
+    // tar i .mov, og re-encoding er billig for korte klipp.
+    ...(keepAudio
+      ? ['-map', '0:a?', '-c:a', 'aac', '-b:a', '192k']
+      : ['-an']),
+    ...videoArgs,
+    '-movflags', '+faststart',
+    '-y',
+    savePath,
+  ];
+
+  const totalDur = te !== null ? (te - ts)
+    : (typeof duration === 'number' && duration > 0 ? duration - ts : 0);
+
+  try {
+    await new Promise((resolve, reject) => {
+      send({ phase: 'encoding', percent: 0 });
+      const ff = spawn(findFfmpeg(), args);
+      let stderr = '';
+      ff.stderr.on('data', chunk => {
+        const text = chunk.toString();
+        stderr += text;
+        if (totalDur) {
+          const m = text.match(/time=(\d+):(\d+):(\d+(?:\.\d+)?)/);
+          if (m) {
+            const t = parseInt(m[1]) * 3600 + parseInt(m[2]) * 60 + parseFloat(m[3]);
+            send({ phase: 'encoding', percent: Math.min(100, Math.round((t / totalDur) * 100)) });
+          }
+        }
+      });
+      ff.on('error', err => reject(new Error('ffmpeg-prosessfeil: ' + err.message)));
+      ff.on('close', code => {
+        if (code === 0) resolve();
+        else reject(new Error('ffmpeg feilet (kode ' + code + '). Siste output: ' + stderr.split('\n').slice(-4).join(' | ')));
+      });
+    });
+    send({ phase: 'done', percent: 100 });
+  } catch (err) {
+    return { ok: false, error: err.message };
+  } finally {
+    try { maskFile && fs.unlinkSync(maskFile); } catch (e) {}
+    try { borderFile && fs.unlinkSync(borderFile); } catch (e) {}
+  }
+
+  let sizeMB = null;
+  try { sizeMB = (fs.statSync(savePath).size / (1024 * 1024)).toFixed(1); } catch (e) {}
+  return { ok: true, savePath, sizeMB };
+});
+
+// ============================================================
+//  Klippsetter: trim + sammenslåing av flere klipp
+// ============================================================
+//
+// Bevisst avgrenset: trim per klipp, rekkefølge, felles format, valgfri
+// lyd. INGEN tidslinje/spor/musikk — det er Final Cut sin jobb.
+
+// Les metadata for en mediefil fra ffmpeg -i (ffprobe følger ikke med
+// ffmpeg-static). Exit-koden er alltid 1 uten output — det er forventet.
+function probeMedia(input) {
+  return new Promise((resolve, reject) => {
+    const ff = spawn(findFfmpeg(), ['-i', input]);
+    let stderr = '';
+    ff.stderr.on('data', c => { stderr += c.toString(); });
+    ff.on('error', err => reject(new Error('ffmpeg-prosessfeil: ' + err.message)));
+    ff.on('close', () => {
+      const vm = stderr.match(/Stream #.*Video:.* (\d{2,5})x(\d{2,5})/);
+      const dm = stderr.match(/Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/);
+      if (!vm) return reject(new Error('Fant ikke videospor i: ' + input));
+      resolve({
+        width: parseInt(vm[1], 10),
+        height: parseInt(vm[2], 10),
+        hasAudio: /Stream #.*Audio:/.test(stderr),
+        duration: dm
+          ? parseInt(dm[1]) * 3600 + parseInt(dm[2]) * 60 + parseFloat(dm[3])
+          : 0,
+      });
+    });
+  });
+}
+
+ipcMain.handle('sequence-export', async (e, opts) => {
+  const { clips, savePath, outWidth, outHeight, keepAudio } = opts || {};
+  if (!Array.isArray(clips) || clips.length < 1) {
+    return { ok: false, error: 'Ingen klipp å eksportere' };
+  }
+  if (clips.length > 20) {
+    return { ok: false, error: 'Maks 20 klipp per eksport.' };
+  }
+  if (!savePath) return { ok: false, error: 'Mangler savePath' };
+
+  const hasFfmpeg = await checkFfmpeg();
+  if (!hasFfmpeg) return { ok: false, error: 'ffmpeg ikke tilgjengelig' };
+
+  const send = msg => {
+    try { mainWindow && mainWindow.webContents.send('sequence-export-progress', msg); } catch (e) {}
+  };
+
+  // Hent kilder (Labrador-URL-er lastes ned) og prob dem
+  const sources = [];
+  try {
+    for (let i = 0; i < clips.length; i++) {
+      const c = clips[i];
+      let input = c.inputPath;
+      if (!input || !fs.existsSync(input)) {
+        send({ phase: 'downloading', percent: Math.round(i / clips.length * 100) });
+        input = await ensureDownloaded(c.url);
+      }
+      const meta = await probeMedia(input);
+      const start = Math.max(0, Number(c.start) || 0);
+      const end = (typeof c.end === 'number' && c.end > start + 0.05)
+        ? Math.min(c.end, meta.duration || c.end)
+        : (meta.duration || 0);
+      sources.push({ input, meta, start, end, dur: Math.max(0.1, end - start) });
+    }
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+
+  // Målformat: eksplisitt, eller første klipps oppløsning (avrundet til partall)
+  const even = n => Math.max(2, 2 * Math.round(n / 2));
+  const W = even(outWidth || sources[0].meta.width);
+  const H = even(outHeight || sources[0].meta.height);
+  const FPS = 30;
+
+  const args = [];
+  const parts = [];
+  const pairLabels = [];
+
+  sources.forEach((s, k) => { args.push('-i', s.input); });
+
+  // Klipp uten lyd får stille stereo fra anullsrc-inputs (etter videoene)
+  const silentIdx = {};
+  if (keepAudio) {
+    sources.forEach((s, k) => {
+      if (!s.meta.hasAudio) {
+        silentIdx[k] = args.filter(a => a === '-i').length;
+        args.push('-f', 'lavfi', '-t', s.dur.toFixed(3),
+          '-i', 'anullsrc=channel_layout=stereo:sample_rate=48000');
+      }
+    });
+  }
+
+  sources.forEach((s, k) => {
+    parts.push(
+      `[${k}:v]trim=${s.start.toFixed(3)}:${s.end.toFixed(3)},setpts=PTS-STARTPTS,` +
+      `fps=${FPS},scale=${W}:${H}:force_original_aspect_ratio=increase,` +
+      `crop=${W}:${H},setsar=1,format=yuv420p[v${k}]`);
+    if (keepAudio) {
+      if (s.meta.hasAudio) {
+        parts.push(
+          `[${k}:a]atrim=${s.start.toFixed(3)}:${s.end.toFixed(3)},asetpts=PTS-STARTPTS,` +
+          `aresample=48000,aformat=channel_layouts=stereo[a${k}]`);
+      } else {
+        parts.push(`[${silentIdx[k]}:a]asetpts=PTS-STARTPTS[a${k}]`);
+      }
+      pairLabels.push(`[v${k}][a${k}]`);
+    } else {
+      pairLabels.push(`[v${k}]`);
+    }
+  });
+
+  parts.push(pairLabels.join('')
+    + `concat=n=${sources.length}:v=1:a=${keepAudio ? 1 : 0}`
+    + (keepAudio ? '[vout][aout]' : '[vout]'));
+
+  args.push(
+    '-filter_complex', parts.join(';'),
+    '-map', '[vout]',
+    ...(keepAudio ? ['-map', '[aout]', '-c:a', 'aac', '-b:a', '192k'] : ['-an']),
+    '-c:v', 'libx264', '-crf', '18', '-preset', 'veryfast',
+    '-pix_fmt', 'yuv420p',
+    '-movflags', '+faststart',
+    '-y', savePath,
+  );
+
+  const totalDur = sources.reduce((sum, s) => sum + s.dur, 0);
+  try {
+    await new Promise((resolve, reject) => {
+      send({ phase: 'encoding', percent: 0 });
+      const ff = spawn(findFfmpeg(), args);
+      let stderr = '';
+      ff.stderr.on('data', chunk => {
+        const text = chunk.toString();
+        stderr += text;
+        if (totalDur) {
+          const m = text.match(/time=(\d+):(\d+):(\d+(?:\.\d+)?)/);
+          if (m) {
+            const t = parseInt(m[1]) * 3600 + parseInt(m[2]) * 60 + parseFloat(m[3]);
+            send({ phase: 'encoding', percent: Math.min(100, Math.round((t / totalDur) * 100)) });
+          }
+        }
+      });
+      ff.on('error', err => reject(new Error('ffmpeg-prosessfeil: ' + err.message)));
+      ff.on('close', code => {
+        if (code === 0) resolve();
+        else reject(new Error('ffmpeg feilet (kode ' + code + '). Siste output: '
+          + stderr.split('\n').slice(-4).join(' | ')));
+      });
+    });
+    send({ phase: 'done', percent: 100 });
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+
+  let sizeMB = null;
+  try { sizeMB = (fs.statSync(savePath).size / (1024 * 1024)).toFixed(1); } catch (e) {}
+  return { ok: true, savePath, sizeMB, width: W, height: H };
+});
+
+// ============================================================
+//  Teksting: brenn tekstboksene inn i videoen
+// ============================================================
+//
+// Pluginen tegner én full-frame PNG per segment (samme canvas-tegning som
+// forhåndsvisningen — Faktisk-boksene, riktig font og malgeometri), og
+// ffmpeg legger dem over videoen med fade-inn og enable-vinduer. Utdata
+// er H.264 + AAC (MP4) — klar for Labrador og SoMe uten Final Cut.
+
+ipcMain.handle('caption-burn-export', async (e, opts) => {
+  const { url, inputPath, savePath, pngs, duration } = opts || {};
+  if ((!url && !inputPath) || !savePath) {
+    return { ok: false, error: 'Mangler kilde (url/inputPath) eller savePath' };
+  }
+  if (!Array.isArray(pngs) || !pngs.length) {
+    return { ok: false, error: 'Ingen tekstsegmenter å brenne inn' };
+  }
+  if (pngs.length > 5000) {
+    return { ok: false, error: 'For mange segmenter for innbrenning (maks 5000).' };
+  }
+
+  const hasFfmpeg = await checkFfmpeg();
+  if (!hasFfmpeg) {
+    return { ok: false, error: 'Klarte ikke finne ffmpeg. Prøv å starte appen på nytt.' };
+  }
+
+  const send = msg => {
+    try { mainWindow && mainWindow.webContents.send('caption-burn-progress', msg); } catch (e) {}
+  };
+
+  let input = inputPath;
+  if (!input || !fs.existsSync(input)) {
+    try {
+      send({ phase: 'downloading', percent: 0 });
+      input = await ensureDownloaded(url);
+      send({ phase: 'downloading', percent: 100 });
+    } catch (err) {
+      return { ok: false, error: 'Kunne ikke laste ned video: ' + err.message };
+    }
+  }
+
+  // Skriv PNG-ene til temp
+  const pngFiles = [];
+  try {
+    for (let i = 0; i < pngs.length; i++) {
+      pngFiles.push(writeTempPng(pngs[i].png, 'cap' + i));
+    }
+  } catch (err) {
+    pngFiles.forEach(f => { try { fs.unlinkSync(f); } catch (e) {} });
+    return { ok: false, error: err.message };
+  }
+
+  // Alle tekstbildene settes sammen til ÉN bildesekvens med ffmpegs concat-
+  // liste (bilde + varighet, tomt gjennomsiktig bilde i pausene) og legges
+  // oppå videoen i ett overlay. Tidligere var hvert segment en egen input og
+  // et eget overlay i en lang kjede — det tålte bare ~100 segmenter, så lange
+  // opptak (15 min+) feilet.
+  const segs = pngs.map((p, i) => ({ file: pngFiles[i], start: Math.max(0, Number(p.start) || 0), end: Number(p.end) || 0 }))
+    .filter(x => x.end > x.start + 0.02)
+    .sort((a, b) => a.start - b.start);
+  // Tomt, gjennomsiktig bilde i samme størrelse som tekstbildene (leses fra PNG-hodet)
+  let blankFile;
+  try {
+    const head = fs.readFileSync(pngFiles[0]).subarray(16, 24);
+    const pw = head.readUInt32BE(0), ph = head.readUInt32BE(4);
+    blankFile = path.join(app.getPath('temp'), `faktisk-teksting-blank-${Date.now()}.png`);
+    fs.writeFileSync(blankFile, transparentPng(pw, ph));
+  } catch (err) {
+    pngFiles.forEach(f => { try { fs.unlinkSync(f); } catch (e) {} });
+    return { ok: false, error: 'Kunne ikke lage tomt tekstbilde: ' + err.message };
+  }
+  const q = f => "'" + String(f).replace(/'/g, "'\\''") + "'";
+  const lines = ['ffconcat version 1.0'];
+  let cur = 0;
+  for (let i = 0; i < segs.length; i++) {
+    const sg = segs[i];
+    const st = Math.max(cur, sg.start);
+    const next = segs[i + 1];
+    const en = Math.max(st + 0.04, Math.min(sg.end, next ? next.start : sg.end));
+    if (st - cur > 0.001) { lines.push('file ' + q(blankFile), 'duration ' + (st - cur).toFixed(3)); }
+    lines.push('file ' + q(sg.file), 'duration ' + (en - st).toFixed(3));
+    cur = en;
+  }
+  const tail = Math.max(1, ((typeof duration === 'number' && duration > 0) ? duration : cur) - cur + 1);
+  lines.push('file ' + q(blankFile), 'duration ' + tail.toFixed(3));
+  lines.push('file ' + q(blankFile));     // concat-demuxeren trenger siste fil to ganger for at varigheten skal gjelde
+  const listFile = path.join(app.getPath('temp'), `faktisk-teksting-${Date.now()}.ffconcat`);
+  fs.writeFileSync(listFile, lines.join('\n') + '\n');
+  pngFiles.push(blankFile, listFile);     // ryddes bort til slutt sammen med tekstbildene
+
+  const graph = '[1:v]format=rgba[ov];[0:v][ov]overlay=0:0:eof_action=pass:format=auto[vout]';
+  const args = ['-i', input, '-f', 'concat', '-safe', '0', '-i', listFile];
+  args.push(
+    '-filter_complex', graph,
+    '-map', '[vout]',
+    '-map', '0:a?', '-c:a', 'aac', '-b:a', '192k',
+    '-c:v', 'libx264', '-crf', '18', '-preset', 'veryfast',
+    '-pix_fmt', 'yuv420p',
+    '-movflags', '+faststart',
+    '-y', savePath,
+  );
+
+  const totalDur = (typeof duration === 'number' && duration > 0) ? duration : 0;
+  try {
+    await new Promise((resolve, reject) => {
+      send({ phase: 'encoding', percent: 0 });
+      const ff = spawn(findFfmpeg(), args);
+      let stderr = '';
+      ff.stderr.on('data', chunk => {
+        const text = chunk.toString();
+        stderr += text;
+        if (totalDur) {
+          const m = text.match(/time=(\d+):(\d+):(\d+(?:\.\d+)?)/);
+          if (m) {
+            const t = parseInt(m[1]) * 3600 + parseInt(m[2]) * 60 + parseFloat(m[3]);
+            send({ phase: 'encoding', percent: Math.min(100, Math.round((t / totalDur) * 100)) });
+          }
+        }
+      });
+      ff.on('error', err => reject(new Error('ffmpeg-prosessfeil: ' + err.message)));
+      ff.on('close', code => {
+        if (code === 0) resolve();
+        else reject(new Error('ffmpeg feilet (kode ' + code + '). Siste output: '
+          + stderr.split('\n').slice(-4).join(' | ')));
+      });
+    });
+    send({ phase: 'done', percent: 100 });
+  } catch (err) {
+    return { ok: false, error: err.message };
+  } finally {
+    pngFiles.forEach(f => { try { fs.unlinkSync(f); } catch (e) {} });
+  }
+
+  let sizeMB = null;
+  try { sizeMB = (fs.statSync(savePath).size / (1024 * 1024)).toFixed(1); } catch (e) {}
+  return { ok: true, savePath, sizeMB };
+});
+
+// ============================================================
+//  Teksting: transkribering med NB-Whisper via whisper.cpp
+// ============================================================
+//
+// Kjøres som frittstående whisper-cli-binær — samme mønster som ffmpeg.
+// Historikk som IKKE må gjentas: onnxruntime (transformers.js) krasjer i
+// alle Electron-prosesstyper (main, utilityProcess, ELECTRON_RUN_AS_NODE)
+// fordi store tensor-allokeringer i BFCArena trapper i Electrons
+// minne-hooks — bekreftet i krasjrapporter for både ORT 1.21 og 1.27.
+// En separat binær har ikke Electrons allokator, og whisper.cpp har
+// Metal-akselerasjon på Apple Silicon i tillegg.
+//
+// Modellen (NB-Whisper small, ggml q5_0, 167 MB) håndteres av det
+// eksisterende AI_MODELS-systemet med sha256-verifisering.
+
+// Selvstendig whisper-cli-binær, bygget statisk med scripts/build-whisper-cli.sh
+// og hostet som release-asset. Lastes ned til userData/bin ved første behov —
+// samme mønster som AI-modellene, med sha256-verifisering.
+// Nedlasting via vår egen https (ikke nettleser) setter ikke quarantine-
+// attributt, så Gatekeeper blokkerer ikke kjøringen.
+const WHISPER_CLI_TOOL = {
+  file: 'whisper-cli',
+  url: 'https://github.com/stianbrathen/faktiskorg-studio-plugins/releases/download/tools-v1/whisper-cli-arm64',
+  // whisper.cpp v1.9.2, statisk + portabel (GGML_NATIVE=OFF), Developer ID-signert
+  sha256: '0d1257a2e4acf00530411759e892a5e12f47b1c2f4ce95842111c70f794a4adb',
+  sizeMB: 3,
+};
+
+function bundledWhisperCliPath() {
+  return path.join(app.getPath('userData'), 'bin', WHISPER_CLI_TOOL.file);
+}
+
+function findWhisperCli() {
+  const candidates = [
+    // Vår distribuerte binær (lastes ned automatisk)
+    bundledWhisperCliPath(),
+    // Homebrew som fallback for utviklere (Apple Silicon + Intel)
+    '/opt/homebrew/bin/whisper-cli',
+    '/usr/local/bin/whisper-cli',
+    // Eldre navn på binæren i homebrew-formelen
+    '/opt/homebrew/bin/whisper-cpp',
+    '/usr/local/bin/whisper-cpp',
+  ];
+  for (const p of candidates) {
+    if (fs.existsSync(p)) return p;
+  }
+  return null;
+}
+
+// Last ned den distribuerte binæren om ingen finnes fra før.
+// Returnerer sti, eller kaster med forklarende feilmelding.
+async function ensureWhisperCli(sendProgress) {
+  const existing = findWhisperCli();
+  if (existing) return existing;
+
+  if (WHISPER_CLI_TOOL.sha256.startsWith('FYLL-INN')) {
+    throw new Error('whisper.cpp mangler. Installer med: brew install whisper-cpp '
+      + '(distribuert binær er ikke publisert ennå).');
+  }
+
+  if (sendProgress) sendProgress({ phase: 'downloading-engine', percent: 0 });
+  const buf = await httpGetBuffer(WHISPER_CLI_TOOL.url);
+  const hash = crypto.createHash('sha256').update(buf).digest('hex');
+  if (hash !== WHISPER_CLI_TOOL.sha256) {
+    throw new Error('Nedlastet transkriberingsmotor matcher ikke forventet sjekksum — avbrutt.');
+  }
+  const dest = bundledWhisperCliPath();
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  fs.writeFileSync(dest, buf);
+  fs.chmodSync(dest, 0o755);
+  if (sendProgress) sendProgress({ phase: 'downloading-engine', percent: 100 });
+  return dest;
+}
+
+// Hent lydsporet som 16 kHz mono WAV (formatet whisper-cli forventer)
+function extractAudioWav(inputPath) {
+  return new Promise((resolve, reject) => {
+    const outFile = path.join(app.getPath('temp'), 'faktisk-transkriber-' + Date.now() + '.wav');
+    const ff = spawn(findFfmpeg(), [
+      '-i', inputPath,
+      '-vn',
+      '-ac', '1',
+      '-ar', '16000',
+      // Adaptiv nivånormalisering: løfter lav/fjern tale (f.eks. stemme
+      // som bare ligger i én kanal — mono-miksen halverer den — eller
+      // med musikk over) så Whisper hører den. Uten dette druknet hele
+      // setninger i test mot andre transkriberingstjenester.
+      '-af', 'dynaudnorm=f=150:g=15',
+      '-c:a', 'pcm_s16le',
+      '-y',
+      outFile,
+    ]);
+    let stderr = '';
+    ff.stderr.on('data', c => { stderr += c.toString(); });
+    ff.on('error', err => reject(new Error('ffmpeg-prosessfeil: ' + err.message)));
+    ff.on('close', code => {
+      if (code !== 0) {
+        return reject(new Error(
+          stderr.includes('does not contain any stream')
+          || stderr.includes('Output file does not contain')
+            ? 'Videoen har ikke noe lydspor.'
+            : 'Klarte ikke hente ut lyden: ' + stderr.split('\n').slice(-3).join(' | ')));
+      }
+      resolve(outFile);
+    });
+  });
+}
+
+ipcMain.handle('transcribe-reset-model', async (e, modelId) => {
+  try {
+    const id = whisperModelId(modelId);
+    const p = aiModelPath(id);
+    if (fs.existsSync(p)) fs.unlinkSync(p);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('transcribe-status', async () => {
+  const cli = findWhisperCli();
+  const canDownload = !WHISPER_CLI_TOOL.sha256.startsWith('FYLL-INN');
+  if (!cli && !canDownload) {
+    return {
+      ok: false,
+      error: 'whisper.cpp mangler. Installer med: brew install whisper-cpp — '
+        + 'eller si fra, så legger vi binæren inn i Studio.',
+    };
+  }
+  const models = {};
+  for (const id of Object.keys(AI_MODELS)) {
+    if (!id.startsWith('whisper-')) continue;
+    models[id] = {
+      ready: aiModelReady(id),
+      sizeMB: AI_MODELS[id].sizeMB,
+      label: AI_MODELS[id].label,
+    };
+  }
+  return { ok: true, models };
+});
+
+// Varighet av 16 kHz mono s16-WAV rett fra filstørrelsen (ffprobe følger
+// ikke med ffmpeg-static): 32 000 byte per sekund + 44 byte header.
+function wavDurationSec(file) {
+  try { return Math.max(0, (fs.statSync(file).size - 44) / 32000); } catch (e) { return 0; }
+}
+
+// Klipp ut et tidsrom av en WAV uten re-koding.
+function extractWavSlice(wav, startSec, durSec, outFile) {
+  return new Promise((resolve, reject) => {
+    const ff = spawn(findFfmpeg(), [
+      '-ss', String(startSec.toFixed(3)),
+      '-t', String(durSec.toFixed(3)),
+      // pcm_s16le i stedet for «-c copy»: copy + -ss ga en tom WAV
+      // (130 byte) med enkelte ffmpeg-versjoner — da feilet hull-passet stille
+      '-i', wav, '-c:a', 'pcm_s16le', '-y', outFile,
+    ]);
+    ff.on('error', err => reject(new Error('ffmpeg-prosessfeil: ' + err.message)));
+    ff.on('close', code => code === 0 ? resolve(outFile)
+      : reject(new Error('Klarte ikke klippe ut lydutsnitt (kode ' + code + ')')));
+  });
+}
+
+// Ord med tider fra whisper-tokens (-ojf). Et token som starter med
+// mellomrom begynner et nytt ord; spesialtokens ([_BEG_], [_TT_123]) hoppes
+// over. Brukes av teksting-pluginen til å dele opp tekstboksene på ordnivå.
+//
+// OBS (whisper.cpp v1.9.2, lest i kildekoden): med --vad er segmentenes
+// tider kartlagt tilbake til originalopptaket, men TOKEN-tidene i JSON-en
+// er ikke — de ligger på den komprimerte tidslinjen der stillhet er klippet
+// bort. Vi forankrer derfor ordene til segmentets (riktige) start/slutt:
+// ren forskyvning når lengdene stemmer, ellers lineær skalering.
+function wordsFromWhisperTokens(tokens, segFrom, segTo) {
+  const raw = [];
+  let cur = null;
+  for (const t of tokens || []) {
+    const txt = String(t.text || '');
+    if (!txt || /^\s*\[_/.test(txt) || /^\s*<\|/.test(txt)) continue;
+    const from = t.offsets && t.offsets.from != null ? t.offsets.from / 1000 : null;
+    const to = t.offsets && t.offsets.to != null ? t.offsets.to / 1000 : null;
+    if (/^\s/.test(txt) || !cur) {
+      const w = txt.trim();
+      if (!w) continue;
+      cur = { w, start: from, end: to };
+      raw.push(cur);
+    } else {
+      cur.w += txt;
+      if (to != null) cur.end = to;
+      if (cur.start == null) cur.start = from;
+    }
+  }
+  const words = raw.filter(w => w.w.trim() && w.start != null && w.end != null);
+  if (!words.length || words.length !== raw.length) return null;
+  const r0 = words[0].start, r1 = Math.max(r0 + 0.01, words[words.length - 1].end);
+  const span = Math.max(0.01, segTo - segFrom);
+  const exact = Math.abs((r1 - r0) - span) < 0.15;
+  const map = t => exact ? segFrom + (t - r0) : segFrom + (t - r0) * span / (r1 - r0);
+  let prev = segFrom;
+  return words.map(w => {
+    const start = Math.max(prev, Math.min(segTo, map(w.start)));
+    const end = Math.max(start, Math.min(segTo, map(w.end)));
+    prev = start;
+    return { w: w.w, start: Math.round(start * 1000) / 1000, end: Math.round(end * 1000) / 1000 };
+  });
+}
+
+// Én whisper-kjøring → segmenter. vadThreshold styrer hvor forsiktig
+// taledeteksjonen er (lavere = mer inkluderende). Med -ojf får hvert
+// segment også ordene med tider (seg.words) når de lar seg lese.
+function runWhisperPass(cli, wav, commonArgs, outPrefix, vadThreshold, onPercent) {
+  // vadThreshold null = uten taledeteksjon (se hull-passet)
+  const vadArgs = vadThreshold == null ? []
+    : ['--vad', '--vad-model', aiModelPath('vad'), '--vad-threshold', vadThreshold];
+  const args = commonArgs.concat(['-f', wav], vadArgs, [
+    '-ojf',
+    '-of', outPrefix,
+    '--print-progress',
+  ]);
+  return new Promise((resolve, reject) => {
+    const wp = spawn(cli, args);
+    let stderr = '';
+    wp.stderr.on('data', c => {
+      const text = c.toString();
+      stderr += text;
+      const m = text.match(/progress\s*=\s*(\d+)%/);
+      if (m && onPercent) onPercent(parseInt(m[1], 10));
+    });
+    // KRITISK: stdout MÅ dreneres. whisper-cli skriver transkribert tekst
+    // fortløpende dit, og uten en leser fylles rørbufferen (64 KB) —
+    // da blokkerer whisper-cli på write og henger for alltid.
+    wp.stdout.on('data', () => {});
+    wp.on('error', err => reject(new Error('whisper-prosessfeil: ' + err.message)));
+    wp.on('close', code => {
+      if (code !== 0) {
+        return reject(new Error('whisper-cli feilet (kode ' + code + '): '
+          + stderr.split('\n').slice(-4).join(' | ')));
+      }
+      try {
+        const jsonPath = outPrefix + '.json';
+        const parsed = JSON.parse(fs.readFileSync(jsonPath, 'utf-8'));
+        fs.unlinkSync(jsonPath);
+        resolve((parsed.transcription || []).map(t => {
+          const seg = {
+            start: (t.offsets && t.offsets.from != null) ? t.offsets.from / 1000 : 0,
+            end: (t.offsets && t.offsets.to != null) ? t.offsets.to / 1000 : 0,
+            // Spesialtokens som «<|nocaptions|>» kan lekke inn i teksten
+            text: (t.text || '').replace(/<\|[^|>]*\|>/g, ' ').replace(/\s+/g, ' ').trim(),
+          };
+          // «<|nocaptions|>» = whisper ga opp her (sett over tale med musikk
+          // under). Merkes, så hull-passet prøver tidsrommet på nytt.
+          if (/<\|nocaptions\|>/.test(t.text || '')) seg.nocap = true;
+          // Ordtider er en bonus — feiler de, brukes segmentet som før
+          try {
+            const words = wordsFromWhisperTokens(t.tokens, seg.start, seg.end);
+            if (words && words.length) seg.words = words;
+          } catch (e) {}
+          return seg;
+        }).filter(s => s.text || s.nocap));
+      } catch (err) {
+        reject(new Error('Klarte ikke lese transkriberingsresultatet: ' + err.message));
+      }
+    });
+  });
+}
+
+async function ensureTranscribeModel(id, send) {
+  if (aiModelReady(id)) return;
+  send({ phase: 'downloading-model', percent: 0, file: AI_MODELS[id].file });
+  const buf = await httpGetBuffer(AI_MODELS[id].url);
+  const hash = crypto.createHash('sha256').update(buf).digest('hex');
+  if (hash !== AI_MODELS[id].sha256) {
+    throw new Error('Nedlastet modell matcher ikke forventet sjekksum — avbrutt.');
+  }
+  fs.mkdirSync(path.dirname(aiModelPath(id)), { recursive: true });
+  fs.writeFileSync(aiModelPath(id), buf);
+  send({ phase: 'downloading-model', percent: 100 });
+}
+
+// ---------- Hull-passet: planlegging og filtrering (rene funksjoner) ----------
+const normWs = t => String(t).toLowerCase().replace(/[^a-zæøåäöüé0-9 ]/g, '').replace(/\s+/g, ' ').trim();
+
+// «Tynt» segment: noen få ord strukket over lang tid. Typisk når whisper
+// mister tråden i et vindu — den skriver et par ord og hopper over flere
+// setninger (sett i podkasttest 11.10.2026: «av det. finnes ikke.» over
+// 26 s). Normal tale er 10–16 tegn/s; under 4 over minst 2,5 s er mistenkelig.
+function isThinSegment(seg) {
+  if (seg.nocap) return true;
+  const dur = seg.end - seg.start;
+  if (dur < 2.5) return false;
+  const chars = normWs(seg.text).replace(/ /g, '').length;
+  return chars / dur < 4;
+}
+
+// Finn tidsrom som skal dekodes på nytt: tomme hull ≥ gapMin, og tynne
+// segmenter (de tas ut og legges i g.replaced — legges tilbake hvis
+// ny dekoding ikke gir mer tekst). Segmenter som ender i «...» rett før
+// et hull er skadde rester og tas med i hullet på samme måte.
+function planGaps(segments, totalDur, gapMin) {
+  const keep = [], gaps = [];
+  const sorted = segments.slice().sort((a, b) => a.start - b.start);
+  let cursor = 0, pending = [];
+  for (let i = 0; i <= sorted.length; i++) {
+    const seg = sorted[i];
+    if (seg && isThinSegment(seg)) { pending.push(seg); continue; }
+    const gapEnd = seg ? seg.start : totalDur;
+    if (gapEnd - cursor >= gapMin || pending.length) {
+      let gapStart = pending.length ? Math.min(cursor, pending[0].start) : cursor;
+      const replaced = pending.slice();
+      const prev = keep[keep.length - 1];
+      if (prev && /(\.\.\.|…)$/.test(prev.text) && gapStart - prev.end < 0.5) {
+        gapStart = prev.start;
+        replaced.unshift(keep.pop());
+      }
+      if (gapEnd - gapStart >= 0.5) {
+        // Nabotekst: de tre segmentene før og de to etter (gjentakelser fra
+        // polstringen kan strekke seg over mer enn ett segment)
+        const after = sorted.slice(i, i + 4).filter(x => !isThinSegment(x)).slice(0, 2);
+        gaps.push({
+          start: gapStart, end: gapEnd, replaced,
+          prevText: keep.slice(-3).map(x => x.text).join(' '),
+          nextText: after.map(x => x.text).join(' '),
+        });
+      } else keep.push(...replaced);
+    }
+    pending = [];
+    if (seg) { keep.push(seg); cursor = Math.max(cursor, seg.end); }
+  }
+  return { keep, gaps };
+}
+
+// Fjern ord i starten av `text` som bare gjentar slutten av `prev`
+// (minst 2 ord), og ord på slutten som gjentar starten av `next`.
+// Returnerer { text, dropStart, dropEnd } (antall ord fjernet).
+function trimRepeatedEdges(text, prev, next) {
+  const raw = String(text).trim().split(/\s+/);
+  const t = raw.map(normWs);
+  const p = normWs(prev).split(' ').filter(Boolean);
+  const nx = normWs(next).split(' ').filter(Boolean);
+  let dropStart = 0, dropEnd = 0;
+  for (let k = Math.min(t.length, p.length, 12); k >= 2; k--) {
+    if (t.slice(0, k).join(' ') === p.slice(p.length - k).join(' ')) { dropStart = k; break; }
+  }
+  for (let k = Math.min(t.length - dropStart, nx.length, 12); k >= 2; k--) {
+    if (t.slice(t.length - k).join(' ') === nx.slice(0, k).join(' ')) { dropEnd = k; break; }
+  }
+  return { text: raw.slice(dropStart, raw.length - dropEnd).join(' '), dropStart, dropEnd };
+}
+
+// Filtrer funn fra én hull-dekoding. Whisper gjentar gjerne nabotale:
+// 1) ord i funnet som ligger i polstringen FØR hullet (PAD) og som finnes i
+//    slutten av forrige segment, er gjentakelser — kuttes. Tilsvarende ord
+//    etter hullet som finnes i starten av neste. (Sett i podkasttest:
+//    «… bekrefter vi | et langt skriftlig intervju …» to ganger.)
+// 2) funn som (normalisert) finnes i nabo-teksten, eller i naboene
+//    KOMBINERT (prev + next limt sammen til ett «nytt» segment)
+// 3) funn inneholdt i et annet, lengre funn fra samme hull — behold det lengste
+function acceptGapFindings(g, found, s0, sliceEnd) {
+  const prevN = normWs(g.prevText), nextN = normWs(g.nextText);
+  const neighbors = prevN + ' ' + nextN;
+  const prevTail = new Set(prevN.split(' ').slice(-30));
+  const nextHead = new Set(nextN.split(' ').slice(0, 30));
+  const candidates = [];
+  for (const s of found) {
+    const start = s.start + s0;
+    const end = Math.min(s.end + s0, sliceEnd);
+    if (start >= g.end - 0.05) continue; // starter ikke i hullet
+    let toks = s.text.replace(/(\.\.\.|…)$/, '').trim().split(/\s+/).filter(Boolean);
+    let ws = Array.isArray(s.words) && s.words.length === toks.length
+      ? s.words.map(w => ({ w: w.w, start: w.start + s0, end: w.end + s0 })) : null;
+    if (ws) {
+      // Tidsbasert kutt av gjentakelser i kantene
+      // Ordene som ligger i polstringen før hullet: er de fleste av dem
+      // med i slutten av teksten før, er de en gjentakelse (whisper hører
+      // gjerne litt annerledes andre gang: «team fox» → «Team Fax»)
+      let a = 0, b = toks.length;
+      while (a < b && ws[a].start < g.start - 0.15) a++;
+      if (a && toks.slice(0, a).filter(t => prevTail.has(normWs(t))).length / a < 0.6) a = 0;
+      while (b > a && ws[b - 1].start > g.end + 0.1) b--;
+      const nTail = toks.length - b;
+      if (nTail && toks.slice(b).filter(t => nextHead.has(normWs(t))).length / nTail < 0.6) b = toks.length;
+      toks = toks.slice(a, b); ws = ws.slice(a, b);
+    } else {
+      const tr = trimRepeatedEdges(toks.join(' '), g.prevText, g.nextText);
+      toks = tr.text.split(/\s+/).filter(Boolean);
+    }
+    const text = toks.join(' ');
+    if (!text) continue;
+    const cStart = Math.max(g.start, ws && ws.length ? ws[0].start : start);
+    if (end - cStart <= 0.2) continue;
+    const n = normWs(text);
+    if (!n) continue;
+    if (prevN.includes(n) || nextN.includes(n) || neighbors.includes(n)) continue;
+    const c = { start: cStart, end, text, n };
+    if (ws && ws.length) {
+      c.words = ws.map(w => ({ w: w.w,
+        start: Math.round(Math.max(c.start, Math.min(end, w.start)) * 1000) / 1000,
+        end: Math.round(Math.max(c.start, Math.min(end, w.end)) * 1000) / 1000 }));
+    }
+    candidates.push(c);
+  }
+  candidates.sort((a, b) => b.n.length - a.n.length);
+  const accepted = [];
+  for (const c of candidates) {
+    if (accepted.some(a => a.n.includes(c.n))) continue;
+    accepted.push(c);
+  }
+  return accepted;
+}
+
+// Skal et segment vi tok ut (tynt/«...»-rest) legges tilbake? Ja, med
+// mindre den nye dekodingen dekker minst 60 % av ordene i det.
+function replacedStillNeeded(seg, accepted) {
+  const got = new Set(accepted.map(c => c.n).join(' ').split(' '));
+  const ws = normWs(String(seg.text).replace(/<\|[^|>]*\|>/g, ' ')).split(' ').filter(Boolean);
+  if (!ws.length) return false;
+  return ws.filter(w => got.has(w)).length / ws.length < 0.6;
+}
+
+ipcMain.handle('transcribe', async (e, opts) => {
+  const { url, inputPath } = opts || {};
+  const modelId = whisperModelId(opts && opts.model);
+  if (!url && !inputPath) return { ok: false, error: 'Mangler kilde (url/inputPath)' };
+
+  const hasFfmpeg = await checkFfmpeg();
+  if (!hasFfmpeg) return { ok: false, error: 'ffmpeg ikke tilgjengelig' };
+
+  const send = msg => {
+    try { mainWindow && mainWindow.webContents.send('transcribe-progress', msg); } catch (e) {}
+  };
+
+  // Sørg for transkriberingsmotoren (lastes ned første gang om nødvendig)
+  let cli;
+  try {
+    cli = await ensureWhisperCli(send);
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+
+  // Sørg for modellene (AI_MODELS-mønsteret: nedlasting + sha256-sjekk).
+  // VAD-modellen (under 1 MB) trengs i tillegg til talemodellen.
+  try {
+    await ensureTranscribeModel(modelId, send);
+    await ensureTranscribeModel('vad', send);
+  } catch (err) {
+    return { ok: false, error: 'Kunne ikke laste ned modellen: ' + err.message };
+  }
+
+  let input = inputPath;
+  if (!input || !fs.existsSync(input)) {
+    try {
+      send({ phase: 'downloading', percent: 0 });
+      input = await ensureDownloaded(url);
+      send({ phase: 'downloading', percent: 100 });
+    } catch (err) {
+      return { ok: false, error: 'Kunne ikke laste ned video: ' + err.message };
+    }
+  }
+
+  let wavFile = null;
+  const outPrefix = path.join(app.getPath('temp'), 'faktisk-transkriber-' + Date.now());
+  try {
+    send({ phase: 'extracting-audio', percent: 0 });
+    wavFile = await extractAudioWav(input);
+    send({ phase: 'extracting-audio', percent: 100 });
+
+    // Språk: 'no' (standard), 'auto' (autodeteksjon) eller ISO-kode.
+    // Oversettelse: Whispers innebygde translate-oppgave — går KUN til
+    // engelsk, fra hvilket som helst språk.
+    const lang = /^([a-z]{2,3}|auto)$/.test(String(opts.language || ''))
+      ? opts.language : 'no';
+    const commonArgs = [
+      '-m', aiModelPath(modelId),
+      '-l', lang,
+      '-bs', '5',            // beam search: dropper færre setninger enn
+                             // grådig dekoding (standard), koster litt fart
+    ];
+    if (opts.translate === true) commonArgs.push('-tr');
+
+    // Manus-hint (fra teksting-pluginen): navn og fagord, så whisper staver
+    // dem riktig. Kun i hovedpasset — i hull-passet (VAD 0,1, nesten stille
+    // partier) kunne et hint ellers bli «gjentatt» som falsk tekst.
+    const prompt = typeof opts.prompt === 'string'
+      ? opts.prompt.replace(/[\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 400)
+      : '';
+    const pass1Args = prompt ? commonArgs.concat(['--prompt', prompt]) : commonArgs;
+
+    // Pass 1: hele opptaket med VAD (deler ved talepauser i stedet for
+    // blinde 30-sekunders vinduer — uten VAD forsvant setninger som
+    // krysset vindusgrensa). Terskel 0.2 er empirisk: standard 0.5
+    // droppet telefonkvalitets-tale, 0.3 avviste fjern stemme under
+    // musikk som ikke-tale.
+    send({ phase: 'transcribing', percent: 0 });
+    let segments = await runWhisperPass(cli, wavFile, pass1Args, outPrefix,
+      '0.2', p => send({ phase: 'transcribing', percent: p }));
+
+    // Pass 2 — hull-pass. VAD/vindusgrenser kan fortsatt miste tale i
+    // overgangene (verifisert: setninger nær 30 s-grensa forsvant, mens
+    // NØYAKTIG samme lyd dekodet isolert ble perfekt). Derfor: finn hull
+    // i tidslinja, dekod dem isolert, og flett inn resultatet.
+    const totalDur = wavDurationSec(wavFile);
+    const GAP_MIN = 1.5;   // sekunder uten tekst før vi undersøker
+    const PAD = 2.5;       // kontekst FØR hullet. Whisper er følsom for
+                           // hvor utsnittet starter: med 0,25 s mistet den
+                           // ord midt i setningen («denne Facebook-gruppa»
+                           // → «gruppa»), med 2,5 s ble frasen ordrett.
+                           // Duplikatvernet under tar seg av at polstringen
+                           // overlapper nabotale.
+    const EXTEND = 2.5;    // dekod et stykke inn i neste segment, så
+                           // setninger som krysser hullkanten blir hele
+    if (totalDur > 0 && segments.length) {
+      const { keep, gaps } = planGaps(segments, totalDur, GAP_MIN);
+
+      const MAX_GAPS = 30; // sikkerhetstak for kjøretid
+      // Hull over taket: legg tilbake det vi tok ut, så ingenting forsvinner
+      for (const g of gaps.slice(MAX_GAPS)) keep.push(...g.replaced);
+      const gapsToCheck = gaps.slice(0, MAX_GAPS);
+      for (let i = 0; i < gapsToCheck.length; i++) {
+        const g = gapsToCheck[i];
+        send({ phase: 'transcribing-gaps',
+               percent: Math.round(i / gapsToCheck.length * 100) });
+        const s0 = Math.max(0, g.start - PAD);
+        const sliceEnd = Math.min(totalDur, g.end + EXTEND);
+        const sliceWav = outPrefix + '-gap' + i + '.wav';
+        let used = false;
+        try {
+          await extractWavSlice(wavFile, s0, sliceEnd - s0, sliceWav);
+          // Enda mer inkluderende VAD (0.1) i hullene: her VET vi at
+          // hovedpasset ikke fant noe — finnes det tale, vil vi ha den.
+          const found = await runWhisperPass(cli, sliceWav, commonArgs,
+            outPrefix + '-gap' + i, '0.1', null);
+          let accepted = acceptGapFindings(g, found, s0, sliceEnd);
+          // Taledeteksjonen kan selv være problemet: VAD klipper bort
+          // musikken mellom ordene, og det oppkuttede lydsporet ga
+          // «<|nocaptions|>» — mens SAMME utsnitt uten VAD ga alle
+          // setningene (verifisert, podkasttest 11.10.2026). Prøv uten VAD,
+          // men bare der hovedpasset faktisk fant noe (tynt/nocaptions-
+          // segment): i helt stille hull kan whisper uten VAD dikte tekst.
+          if (g.replaced.length && (!accepted.length
+              || g.replaced.some(r => replacedStillNeeded(r, accepted)))) {
+            const found2 = await runWhisperPass(cli, sliceWav, commonArgs,
+              outPrefix + '-gap' + i + 'b', null, null);
+            const accepted2 = acceptGapFindings(g, found2, s0, sliceEnd);
+            const len = a => a.reduce((n, c) => n + c.n.length, 0);
+            if (len(accepted2) > len(accepted)) accepted = accepted2;
+          }
+          for (const c of accepted) {
+            const seg = { start: c.start, end: c.end, text: c.text };
+            if (c.words) seg.words = c.words;
+            keep.push(seg);
+          }
+          // Det vi tok ut, legges tilbake med mindre ny dekoding dekket det
+          // — ingenting forsvinner i stillhet
+          for (const r of g.replaced) if (replacedStillNeeded(r, accepted)) keep.push(r);
+          used = true;
+        } catch (e) {
+          // Hull-passet er best effort — hovedresultatet står seg uansett
+          console.error('Hull-pass feilet for', g.start.toFixed(1), '–', g.end.toFixed(1), ':', e.message);
+        } finally {
+          if (!used) keep.push(...g.replaced);
+          try { fs.unlinkSync(sliceWav); } catch (e) {}
+        }
+      }
+      segments = keep.filter(x => x.text).sort((a, b) => a.start - b.start);
+    }
+
+    segments = segments.filter(x => x.text);
+    send({ phase: 'done', percent: 100 });
+    return {
+      ok: true,
+      text: segments.map(s => s.text).join(' '),
+      segments,
+    };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  } finally {
+    try { wavFile && fs.unlinkSync(wavFile); } catch (e) {}
+  }
+});
 // Motiv-tracking: følger et markert område gjennom klippet via
 // template-matching på nedskalerte gråtonebilder (src/censor-track.js).
 // Alt kjører lokalt — ingen ML-modeller, ingen nettverkskall.
@@ -1028,7 +2218,73 @@ const AI_MODELS = {
     sizeMB: 1.4,
     label: 'Ansiktsdeteksjon (UltraFace, MIT-lisens)',
   },
+  // NB-Whisper i tre størrelser. Samme fil-navn for small som før slik at
+  // allerede nedlastede modeller gjenbrukes.
+  'whisper-small': {
+    file: 'ggml-nb-whisper-small-q5.bin',
+    url: 'https://huggingface.co/NbAiLab/nb-whisper-small/resolve/main/ggml-model-q5_0.bin',
+    sha256: '2a9025afb6e825fc4ae6a46671e0cb2f43e62f1dec87270deea6fe61b5285a20',
+    sizeMB: 167,
+    label: 'NB-Whisper small — rask, god til utkast',
+  },
+  'whisper-medium': {
+    file: 'ggml-nb-whisper-medium-q5.bin',
+    url: 'https://huggingface.co/NbAiLab/nb-whisper-medium/resolve/main/ggml-model-q5_0.bin',
+    sha256: '18733de634af639a43b0f8c5f5a2ea0920de4c5b32a5570ec130981581c0e5e7',
+    sizeMB: 514,
+    label: 'NB-Whisper medium — bedre på navn og utydelig tale',
+  },
+  'whisper-large': {
+    file: 'ggml-nb-whisper-large-q5.bin',
+    url: 'https://huggingface.co/NbAiLab/nb-whisper-large/resolve/main/ggml-model-q5_0.bin',
+    sha256: 'feb5951ae694a62cfeb81fb501f6cfa8cc50d96bcddb1e4e8215f7006bac23a2',
+    sizeMB: 1031,
+    label: 'NB-Whisper large — best kvalitet, tregest',
+  },
+  // Original OpenAI Whisper (flerspråklig, ~100 språk) for klipp på andre
+  // språk enn norsk — NB-modellene er finjustert på norsk og hopper gjerne
+  // over f.eks. engelske partier. Samme kvantisering (q5) fra whisper.cpp-
+  // repoet. «large» er large-v3-turbo: nesten large-kvalitet, mye raskere
+  // og mindre.
+  'whisper-ml-small': {
+    file: 'ggml-whisper-small-q5.bin',
+    url: 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small-q5_1.bin',
+    sha256: 'ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb',
+    sizeMB: 190,
+    label: 'Whisper small (flerspråklig) — rask, god til utkast',
+  },
+  'whisper-ml-medium': {
+    file: 'ggml-whisper-medium-q5.bin',
+    url: 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium-q5_0.bin',
+    sha256: '19fea4b380c3a618ec4723c3eef2eb785ffba0d0538cf43f8f235e7b3b34220f',
+    sizeMB: 539,
+    label: 'Whisper medium (flerspråklig) — bedre på navn og utydelig tale',
+  },
+  'whisper-ml-large': {
+    file: 'ggml-whisper-large-v3-turbo-q5.bin',
+    url: 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin',
+    sha256: '394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2',
+    sizeMB: 574,
+    label: 'Whisper large-v3-turbo (flerspråklig) — best kvalitet',
+  },
+  // Taledeteksjon (VAD) for whisper-cli: deler lyden ved pauser i stedet
+  // for faste 30-sekunders vinduer. Id-en starter bevisst IKKE med
+  // 'whisper-' så den holdes utenfor modellvalg-listene.
+  vad: {
+    file: 'ggml-silero-v5.1.2.bin',
+    url: 'https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v5.1.2.bin',
+    sha256: '29940d98d42b91fbd05ce489f3ecf7c72f0a42f027e4875919a28fb4c04ea2cf',
+    sizeMB: 0.9,
+    label: 'Taledeteksjon (Silero VAD)',
+  },
 };
+
+// Gyldige modellvalg for transkribering, med small som trygg standard
+function whisperModelId(requested) {
+  return AI_MODELS[requested] && String(requested).startsWith('whisper-')
+    ? requested
+    : 'whisper-small';
+}
 
 function aiModelPath(id) {
   return path.join(app.getPath('userData'), 'models', AI_MODELS[id].file);

@@ -1,0 +1,9 @@
+{
+  "id": "teksting",
+  "name": "Teksting",
+  "version": "0.7.0",
+  "entry": "index.html",
+  "description": "Transkriber tale i video med NB-Whisper — helt lokalt. Tekstboksene deles ved punktum, komma og pauser, og et valgfritt manus gir riktig stavemåte (avvik markeres gult). Rediger segmentene, del og flett med Enter/rettetast, se teksten balansert på Faktisk-malens tre linjer, og eksporter til Final Cut (FCPXML) eller SRT.",
+  "category": "video",
+  "minStudioVersion": "0.7.3"
+}
