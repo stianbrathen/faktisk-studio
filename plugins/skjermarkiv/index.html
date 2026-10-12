@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https: file:; media-src 'self' blob: https: file:; connect-src 'self' https:; font-src 'self' data:;">
+<title>Skjermarkiv · Faktisk Studio</title>
+<link rel="stylesheet" href="shared/style.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="studio">
+
+  <header class="topbar">
+    <div class="faktisk-logo" role="img" aria-label="Faktisk Studio"></div>
+    <span class="topbar__version" id="appVersion" title="Versjoner"></span>
+    <div class="topbar__title" role="img" aria-label="Labrador"></div>
+    <div class="topbar__actions">
+      <button class="btn-primary" id="backBtn">Malside</button>
+      <button class="btn-icon" id="fullscreenBtn" title="Fullskjerm" aria-label="Fullskjerm">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+          <path d="M5 5h5v2H7v3H5V5zm9 0h5v5h-2V7h-3V5zM5 14h2v3h3v2H5v-5zm12 0h2v5h-5v-2h3v-3z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="plugin-page">
+
+    <aside class="plugin-sidebar">
+      <div class="plugin-sidebar__head">
+        <h2 class="plugin-sidebar__title">Skjermarkiv</h2>
+      </div>
+      <p class="sa-desc">
+        Søkbar oversikt over skjermbilder og skjermopptak. Klippene deles i
+        nøkkelbilder, og teksten på skjermen leses med Apple Vision — alt
+        skjer lokalt på maskinen.
+      </p>
+
+      <div class="sa-block">
+        <button id="pickFolderBtn" class="btn-mini btn-mini--block" type="button">Nytt arkiv fra mappe…</button>
+        <button id="rescanBtn" class="btn-mini btn-mini--block btn-mini--light" type="button" disabled
+                title="Les mappa på nytt og analyser bare filer som er nye siden sist">Oppdater fra mappa</button>
+        <label class="sa-check"><input type="checkbox" id="ocrChk" checked> <span>Les tekst i bildene (OCR)</span></label>
+      </div>
+
+      <div class="plugin-sidebar__status" id="status"></div>
+      <div class="sa-progress" id="progressBox" style="display:none;">
+        <div class="export-progress"><div class="export-progress__bar" id="progressBar"></div></div>
+        <div class="sa-progress__row">
+          <span id="progressNote"></span>
+          <button id="stopBtn" class="link-btn" type="button">Stopp</button>
+        </div>
+      </div>
+
+      <div class="sa-block">
+        <span class="url-section__label">Mine arkiver</span>
+        <div id="archiveList" class="sa-archives"></div>
+      </div>
+
+      <div class="sa-block">
+        <button id="openFileBtn" class="btn-mini btn-mini--block btn-mini--light" type="button"
+                title="Åpne en .skjermarkiv.json — også arkiver laget på nettsiden">Åpne arkivfil…</button>
+        <button id="exportBtn" class="btn-mini btn-mini--block btn-mini--light" type="button" disabled
+                title="Lagre arkivet som fil (samme format som nettsiden kan åpne)">Lagre arkivfil…</button>
+      </div>
+      <p class="sa-ocrinfo" id="ocrInfo"></p>
+    </aside>
+
+    <section class="plugin-canvas sa-canvas">
+      <div class="sa-toolbar">
+        <input type="search" id="searchInput" class="sa-search" placeholder="Søk i filnavn og tekst på skjermen…" spellcheck="false" autocomplete="off">
+        <div class="sa-seg" id="kindSeg">
+          <button type="button" data-kind="all" class="is-on">Alle</button>
+          <button type="button" data-kind="image">Bilder</button>
+          <button type="button" data-kind="video">Klipp</button>
+        </div>
+        <select id="sortSelect" class="project-select sa-select">
+          <option value="date-desc">Tatt, nyeste først</option>
+          <option value="date-asc">Tatt, eldste først</option>
+          <option value="name">Navn</option>
+          <option value="duration">Lengde</option>
+          <option value="size">Størrelse</option>
+        </select>
+        <select id="groupSelect" class="project-select sa-select">
+          <option value="day">Grupper etter dag</option>
+          <option value="folder">Grupper etter mappe</option>
+          <option value="none">Ingen gruppering</option>
+        </select>
+        <span class="sa-count" id="countInfo"></span>
+      </div>
+      <div class="sa-title" id="archiveTitle"></div>
+      <div class="sa-grid-wrap" id="gridWrap">
+        <div class="slider-empty" id="emptyState">
+          <p>Velg en mappe med skjermbilder og skjermopptak — også en mappe i
+             Google Drive (via Drive for Mac) — eller åpne et arkiv.</p>
+        </div>
+        <div class="sa-grid" id="grid"></div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Detaljvisning -->
+  <div class="sa-detail" id="detail" style="display:none;" role="dialog" aria-modal="true">
+    <div class="sa-detail__box">
+      <div class="sa-detail__media">
+        <div class="sa-detail__stage" id="detailStage"></div>
+        <div class="sa-strip" id="detailStrip"></div>
+      </div>
+      <div class="sa-detail__side">
+        <div class="sa-detail__nav">
+          <button id="prevBtn" class="btn-mini btn-mini--light" type="button" title="Forrige (←)">‹</button>
+          <button id="nextBtn" class="btn-mini btn-mini--light" type="button" title="Neste (→)">›</button>
+          <span class="sa-detail__pos" id="detailPos"></span>
+          <button id="closeBtn" class="btn-mini" type="button" title="Lukk (Esc)">Lukk</button>
+        </div>
+        <h3 class="sa-detail__name" id="detailName"></h3>
+        <dl class="sa-meta" id="detailMeta"></dl>
+        <div class="sa-detail__actions" id="detailActions"></div>
+        <div class="sa-texts" id="detailTexts"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script src="shared/dialog.js"></script>
+<script>window.PLUGIN_ID = 'skjermarkiv';</script>
+<script src="main.js"></script>
+</body>
+</html>

@@ -2733,3 +2733,7 @@ ipcMain.handle('plugin-uninstall', async (e, pluginId) => {
 });
 
 ipcMain.handle('app-version', async () => APP_VERSION);
+
+// Skjermarkiv (Studio 0.7.8): skann mappe, nøkkelbilder, tekstlesing med
+// Apple Vision og lagring av arkiver — se src/skjermarkiv-main.js
+require('./src/skjermarkiv-main.js').register(ipcMain, { app, findFfmpeg });

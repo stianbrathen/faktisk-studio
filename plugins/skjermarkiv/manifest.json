@@ -1,0 +1,9 @@
+{
+  "id": "skjermarkiv",
+  "name": "Skjermarkiv",
+  "version": "0.1.0",
+  "entry": "index.html",
+  "description": "Søkbar oversikt over skjermbilder og skjermopptak: velg en mappe, så finner Studio nøkkelbilder i klippene og leser teksten på skjermen med Apple Vision — helt lokalt. Søk, filtrer og hopp rett til riktig tidspunkt. Samme arkivformat som nettsiden Skjermarkiv.",
+  "category": "video",
+  "minStudioVersion": "0.7.8"
+}
