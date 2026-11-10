@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Kildevern: fila og analysen forlater aldri maskinen. De to https-adressene i connect-src er
+     bare for å LASTE NED modellfilene til leppesynk (MediaPipe) én gang, etter samtykke (models.js). -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' blob: 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' blob: data: https://cdn.jsdelivr.net https://storage.googleapis.com; font-src 'self' data:; worker-src blob:;">
+<title>Verifisering · Faktisk Studio</title>
+<link rel="stylesheet" href="shared/style.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="studio">
+
+  <header class="topbar">
+    <div class="faktisk-logo" role="img" aria-label="Faktisk Studio"></div>
+    <span class="topbar__version" id="appVersion" title="Versjoner"></span>
+    <div class="topbar__title" role="img" aria-label="Labrador"></div>
+    <div class="topbar__actions">
+      <button class="btn-primary" id="backBtn">Malside</button>
+      <button class="btn-icon" id="fullscreenBtn" title="Fullskjerm" aria-label="Fullskjerm">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+          <path d="M5 5h5v2H7v3H5V5zm9 0h5v5h-2V7h-3V5zM5 14h2v3h3v2H5v-5zm12 0h2v5h-5v-2h3v-3z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="plugin-page">
+
+    <aside class="plugin-sidebar">
+      <div class="plugin-sidebar__head">
+        <h2 class="plugin-sidebar__title">Verifisering</h2>
+      </div>
+      <p class="vf-desc">
+        Slipp inn en video eller et bilde. Studio leser merking og metadata og lager
+        hjelpebilder du selv vurderer. Alt skjer på maskinen din — fila sendes ikke noe sted.
+      </p>
+
+      <div class="vf-block">
+        <label class="vf-drop" id="dropZone">
+          <input type="file" id="fileInput" accept="video/*,image/*,.heic,.heif,.avif,.mov,.mp4,.m4v" hidden>
+          <span class="vf-drop__big">Dra en fil hit</span>
+          <span class="vf-drop__small">eller klikk for å velge</span>
+        </label>
+      </div>
+
+      <div class="vf-block" id="fileBox" style="display:none;">
+        <span class="url-section__label">Fil</span>
+        <div class="vf-file" id="fileInfo"></div>
+      </div>
+
+      <div class="plugin-sidebar__status" id="status"></div>
+      <div class="vf-progress" id="progressBox" style="display:none;">
+        <div class="export-progress"><div class="export-progress__bar" id="progressBar"></div></div>
+      </div>
+
+      <div class="vf-block" id="reportBox" style="display:none;">
+        <span class="url-section__label">Rapport</span>
+        <textarea id="noteInput" class="caption-input vf-note" rows="4" placeholder="Notat til rapporten (valgfritt): kilde, hvor du fant fila, hva du har sjekket…"></textarea>
+        <div class="vf-shots" id="shotList"></div>
+        <button id="saveReportBtn" class="btn-mini btn-mini--block" type="button">Lagre rapport…</button>
+        <button id="copyBtn" class="btn-mini btn-mini--block btn-mini--light" type="button">Kopier funn som tekst</button>
+      </div>
+
+      <div class="vf-block" id="searchBox" style="display:none;">
+        <span class="url-section__label">Bildesøk (er bildet brukt før?)</span>
+        <button id="copyImgBtn" class="btn-mini btn-mini--block btn-mini--light" type="button">Kopier bildet som vises</button>
+        <button id="dlImgBtn" class="btn-mini btn-mini--block btn-mini--light" type="button">Lagre bildet som vises…</button>
+        <div class="vf-row vf-row--wrap">
+          <button class="btn-mini btn-mini--light vf-search" data-url="https://lens.google.com/" type="button">Google Lens</button>
+          <button class="btn-mini btn-mini--light vf-search" data-url="https://tineye.com/" type="button">TinEye</button>
+          <button class="btn-mini btn-mini--light vf-search" data-url="https://yandex.com/images/" type="button">Yandex</button>
+          <button class="btn-mini btn-mini--light vf-search" data-url="https://www.bing.com/visualsearch" type="button">Bing</button>
+        </div>
+        <p class="vf-small">Kopier eller lagre et godt bilde (velg det under Bilder), åpne en tjeneste og lim inn eller last opp. Bildet sendes da til tjenesten.</p>
+      </div>
+
+      <div class="vf-block" id="moreBox" style="display:none;">
+        <span class="url-section__label">Kontroller videre (laster opp fila)</span>
+        <button id="ccBtn" class="btn-mini btn-mini--block btn-mini--light" type="button">Content Credentials-signatur…</button>
+        <button id="synthBtn" class="btn-mini btn-mini--block btn-mini--light" type="button">SynthID (Google m.fl.)…</button>
+        <p class="vf-small">Disse åpner nettsider der du laster opp fila selv. Ikke gjør det med upublisert eller kildesensitivt materiale uten at det er avklart.</p>
+      </div>
+    </aside>
+
+    <section class="plugin-canvas vf-canvas">
+      <div class="vf-empty" id="emptyState">
+        <h3>Ingen fil valgt</h3>
+        <p>Verktøyet viser hva fila selv sier om opprinnelsen (Content Credentials, IPTC/XMP, EXIF, videoens metadata) og lager bilder som gjør det lettere å se om noe er klippet inn. Det gir <b>ingen</b> samlet dom om ekte eller falsk.</p>
+      </div>
+
+      <div class="vf-main" id="mainArea" style="display:none;">
+        <div class="vf-tabs" id="tabs">
+          <button type="button" data-tab="funn" class="is-on">Funn</button>
+          <button type="button" data-tab="bilder">Bilder</button>
+          <button type="button" data-tab="lyd" id="lydTab">Lyd og leppesynk</button>
+          <button type="button" data-tab="tid">Sted og tid</button>
+          <button type="button" data-tab="tekst">Tekst i bildet</button>
+          <button type="button" data-tab="meta">Metadata</button>
+        </div>
+
+        <div class="vf-panel" id="panel-funn">
+          <div class="vf-banner">Ingen samlet vurdering: hvert funn står for seg. At noe <i>ikke</i> er funnet, betyr ikke at fila er ekte.</div>
+          <div id="findingList" class="vf-findings"></div>
+        </div>
+
+        <div class="vf-panel" id="panel-bilder" style="display:none;">
+          <div class="vf-toolbar">
+            <div class="vf-seg" id="modeSeg">
+              <button type="button" data-mode="bilde" class="is-on">Bilde</button>
+              <button type="button" data-mode="kanter">Kanter</button>
+              <button type="button" data-mode="hjorner">Hjørner</button>
+              <button type="button" data-mode="endring" data-video>Endring</button>
+              <button type="button" data-mode="snitt" data-video>Snitt av endring</button>
+              <button type="button" data-mode="parallakse" data-video>Parallakse</button>
+            </div>
+            <label class="vf-check" id="alignWrap"><input type="checkbox" id="alignChk" checked> <span>Juster for kamerabevegelse</span></label>
+            <div class="vf-seg vf-seg--small" id="zoomSeg">
+              <button type="button" data-zoom="fit" class="is-on">Tilpass</button>
+              <button type="button" data-zoom="1">1×</button>
+              <button type="button" data-zoom="2">2×</button>
+              <button type="button" data-zoom="4">4×</button>
+            </div>
+            <button id="parScanBtn" class="btn-mini btn-mini--light" type="button" style="display:none;" title="Mål dybde i 10 bildepar spredt over klippet">Sjekk hele klippet</button>
+            <button id="addShotBtn" class="btn-mini" type="button">Legg i rapport</button>
+          </div>
+          <div class="vf-stage" id="stage"><canvas id="viewCanvas"></canvas></div>
+          <div class="vf-scrub" id="scrubRow">
+            <button id="playBtn" class="btn-mini btn-mini--light vf-play" type="button" title="Spill av med lyd (mellomrom)">▶</button>
+            <button id="prevFrameBtn" class="btn-mini btn-mini--light" type="button" title="Forrige bilde (←)">‹</button>
+            <input type="range" id="scrub" min="0" max="1000" value="0" step="1">
+            <button id="nextFrameBtn" class="btn-mini btn-mini--light" type="button" title="Neste bilde (→)">›</button>
+            <span class="vf-time" id="timeLabel">0,00 s</span>
+          </div>
+          <div class="vf-strip" id="strip"></div>
+          <div class="vf-explain" id="explain"></div>
+        </div>
+
+        <div class="vf-panel" id="panel-lyd" style="display:none;">
+          <div class="vf-banner">Målinger, ikke dom. God synk betyr ikke at videoen er ekte (dubbing og AI kan også være i synk), og dårlig synk kan skyldes at munnen er liten eller utydelig i bildet.</div>
+          <div id="audioBox" class="vf-findings"></div>
+          <div class="vf-ls">
+            <div class="vf-ls__ctl">
+              <span class="vf-ls__title">Leppesynk</span>
+              <select id="lsSpan" class="project-select vf-select">
+                <option value="20">20 s fra der du står</option>
+                <option value="40">40 s fra der du står</option>
+                <option value="all">Hele klippet</option>
+              </select>
+              <button id="lsBtn" class="btn-mini" type="button">Analyser leppesynk</button>
+              <span class="vf-muted" id="lsNote"></span>
+            </div>
+            <div class="vf-ls__body">
+              <div class="vf-ls__vid"><video id="lsVideo" muted playsinline></video><canvas id="lsOverlay"></canvas></div>
+              <canvas id="lsPlot" width="560" height="260"></canvas>
+            </div>
+            <div class="vf-explain" id="lsExplain">Studio finner munnen i hvert bilde (MediaPipe Face Landmarker, kjører lokalt) og sammenligner hvor åpen den er med lydstyrken i talen. Ekte tale gir en tydelig topp nær 0 ms, ofte med munnen litt før lyden. Grafen viser også hva tilfeldig forskjøvet lyd gir, som sammenligning.</div>
+          </div>
+        </div>
+
+        <div class="vf-panel" id="panel-tid" style="display:none;">
+          <div class="vf-banner">Sammenlign tidspunkt og sted med det kilden sier og med det du ser i bildet. Skyggene skal peke bort fra sola.</div>
+          <div class="vf-two">
+            <div class="vf-card">
+              <h4>Tidspunkt og sted</h4>
+              <label class="vf-lbl">Tidspunkt<input type="datetime-local" id="tidInput" class="caption-input caption-input--single" step="60"></label>
+              <label class="vf-lbl">Tidssone (UTC ±timer)<input type="number" id="tzInput" class="caption-input caption-input--single" step="0.5" min="-12" max="14"></label>
+              <label class="vf-lbl">Breddegrad<input type="number" id="latInput" class="caption-input caption-input--single" step="0.00001" placeholder="f.eks. 27.76138"></label>
+              <label class="vf-lbl">Lengdegrad<input type="number" id="lonInput" class="caption-input caption-input--single" step="0.00001" placeholder="f.eks. -15.68388"></label>
+              <label class="vf-check vf-check--dark"><input type="checkbox" id="srcChk"> <span>Dette er tidspunktet kilden oppgir (sammenlign med fila)</span></label>
+              <div class="vf-row"><button id="useMetaBtn" class="btn-mini btn-mini--light" type="button">Bruk tid og sted fra fila</button><button id="sunBtn" class="btn-mini" type="button">Regn ut sola</button></div>
+              <p class="vf-muted vf-muted--dark" id="tidNote"></p>
+            </div>
+            <div class="vf-card">
+              <h4>Sola på dette tidspunktet</h4>
+              <canvas id="sunCanvas" width="320" height="320"></canvas>
+              <div id="sunOut" class="vf-sunout"></div>
+            </div>
+          </div>
+          <div class="vf-card"><h4>Alle tidspunkter i fila</h4><div id="timelineBox"></div></div>
+        </div>
+
+        <div class="vf-panel" id="panel-tekst" style="display:none;">
+          <div class="vf-banner">Studio leser teksten i bildene med Apple Vision, lokalt på maskinen. I AI-video endrer bokstaver seg ofte fra bilde til bilde. Tekstlesing kan også gjøre feil — se på bildene selv.</div>
+          <div class="vf-row"><button id="ocrBtn" class="btn-mini" type="button">Les tekst i bildene</button><span class="vf-muted" id="ocrNote"></span></div>
+          <div id="ocrOut"></div>
+        </div>
+
+        <div class="vf-panel" id="panel-meta" style="display:none;">
+          <div id="metaTables"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <video id="srcVideo" muted playsinline preload="auto" style="display:none;"></video>
+</div>
+
+<script src="shared/dialog.js"></script>
+<script src="lib/exifr.umd.js"></script>
+<script src="lib/mp-vision.js"></script>
+<script src="models.js"></script>
+<script src="audio.js"></script>
+<script src="forensics.js"></script>
+<script src="parallax.js"></script>
+<script src="c2pa-lite.js"></script>
+<script src="media-meta.js"></script>
+<script src="findings.js"></script>
+<script src="visual.js"></script>
+<script src="report.js"></script>
+<script>window.PLUGIN_ID = 'verifisering';</script>
+<script src="main.js"></script>
+</body>
+</html>
