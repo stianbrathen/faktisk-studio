@@ -1721,12 +1721,14 @@ ipcMain.handle('sequence-export', async (e, opts) => {
   sources.forEach((s, k) => { args.push('-i', s.input); });
 
   // Klipp uten lyd får stille stereo fra anullsrc-inputs (etter videoene)
+  // Lengde på lydovergangen mellom klipp (kortere hvis klippene er korte)
+  const XF = Math.max(0.03, Math.min(0.15, ...sources.map(x => x.dur / 3)));
   const silentIdx = {};
   if (keepAudio) {
     sources.forEach((s, k) => {
       if (!s.meta.hasAudio) {
         silentIdx[k] = args.filter(a => a === '-i').length;
-        args.push('-f', 'lavfi', '-t', s.dur.toFixed(3),
+        args.push('-f', 'lavfi', '-t', (s.dur + 0.2).toFixed(3),
           '-i', 'anullsrc=channel_layout=stereo:sample_rate=48000');
       }
     });
@@ -1738,26 +1740,38 @@ ipcMain.handle('sequence-export', async (e, opts) => {
       `fps=${FPS},scale=${W}:${H}:force_original_aspect_ratio=increase,` +
       `crop=${W}:${H},setsar=1,format=yuv420p[v${k}]`);
     if (keepAudio) {
+      // Lyden glir over i neste klipp (kort krysstoning) mens bildet kuttes
+      // rent. For at lyd og bilde skal holde følge, tar hvert klipp med seg
+      // XF sekunder ekstra lyd etter utpunktet – det er den biten som
+      // overlapper med starten på neste klipp.
+      const extra = k < sources.length - 1 ? XF : 0;
+      const len = s.dur + extra;
       if (s.meta.hasAudio) {
         parts.push(
-          `[${k}:a]atrim=${s.start.toFixed(3)}:${s.end.toFixed(3)},asetpts=PTS-STARTPTS,` +
+          `[${k}:a]atrim=${s.start.toFixed(3)}:${(s.end + extra).toFixed(3)},asetpts=PTS-STARTPTS,` +
           `aresample=48000,aformat=channel_layouts=stereo,` +
-          // fyll ut hvis lyden er kortere enn bildet, kutt nøyaktig, og myk
-          // overgang (15 ms) i hver ende så kuttet ikke gir klikk
-          `apad,atrim=0:${s.dur.toFixed(4)},` +
-          `afade=t=in:d=0.015,afade=t=out:st=${Math.max(0, s.dur - 0.015).toFixed(4)}:d=0.015[a${k}]`);
+          // fyll ut hvis lyden tar slutt før bildet, og kutt nøyaktig
+          `apad,atrim=0:${len.toFixed(4)},` +
+          `afade=t=in:d=0.01,afade=t=out:st=${Math.max(0, len - 0.01).toFixed(4)}:d=0.01[a${k}]`);
       } else {
-        parts.push(`[${silentIdx[k]}:a]asetpts=PTS-STARTPTS[a${k}]`);
+        parts.push(`[${silentIdx[k]}:a]asetpts=PTS-STARTPTS,apad,atrim=0:${len.toFixed(4)}[a${k}]`);
       }
-      pairLabels.push(`[v${k}][a${k}]`);
-    } else {
-      pairLabels.push(`[v${k}]`);
     }
+    pairLabels.push(`[v${k}]`);
   });
 
-  parts.push(pairLabels.join('')
-    + `concat=n=${sources.length}:v=1:a=${keepAudio ? 1 : 0}`
-    + (keepAudio ? '[vout][aout]' : '[vout]'));
+  parts.push(pairLabels.join('') + `concat=n=${sources.length}:v=1:a=0[vout]`);
+  if (keepAudio) {
+    if (sources.length === 1) parts.push(`[a0]anull[aout]`);
+    else {
+      let prev = '[a0]';
+      for (let k = 1; k < sources.length; k++) {
+        const out = k === sources.length - 1 ? '[aout]' : `[ax${k}]`;
+        parts.push(`${prev}[a${k}]acrossfade=d=${XF.toFixed(3)}:c1=qsin:c2=qsin${out}`);
+        prev = out;
+      }
+    }
+  }
 
   args.push(
     '-filter_complex', parts.join(';'),
