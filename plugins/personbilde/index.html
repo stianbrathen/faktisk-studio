@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https:; font-src 'self' data:;">
+<title>Personbilde · Faktisk Studio</title>
+<link rel="stylesheet" href="shared/style.css">
+<link rel="stylesheet" href="style.css">
+<script src="shared/embed-tokens.js"></script>
+</head>
+<body>
+<div class="studio">
+
+  <header class="topbar">
+    <div class="faktisk-logo" role="img" aria-label="Faktisk Studio"></div>
+    <span class="topbar__version" id="appVersion" title="Versjoner"></span>
+    <div class="topbar__title" role="img" aria-label="Labrador"></div>
+    <div class="topbar__actions">
+      <button class="btn-primary" id="backBtn">Malside</button>
+      <button class="btn-icon" id="newProjectBtn" title="Nytt prosjekt (tøm gjeldende)" aria-label="Nytt prosjekt">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+          <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+        </svg>
+      </button>
+      <button class="btn-icon" id="fullscreenBtn" title="Fullskjerm" aria-label="Fullskjerm">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+          <path d="M5 5h5v2H7v3H5V5zm9 0h5v5h-2V7h-3V5zM5 14h2v3h3v2H5v-5zm12 0h2v5h-5v-2h3v-3z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="plugin-page">
+
+    <aside class="plugin-sidebar">
+      <div class="plugin-sidebar__head">
+        <h2 class="plugin-sidebar__title">Personbilde</h2>
+        <button id="openLabradorBtn" class="link-btn" type="button">Åpne Labrador ↗</button>
+      </div>
+
+      <!-- Bilde -->
+      <div class="ftb-opts">
+        <span class="url-section__label">Bilde</span>
+        <div id="imgBox"></div>
+        <div class="cb-grid2">
+          <select id="shape" class="project-select">
+            <option value="rect" selected>Boks</option>
+            <option value="circle">Sirkel</option>
+          </select>
+          <select id="aspect" class="project-select" title="Format på boksen">
+            <option value="auto">Som bildet</option>
+            <option value="1/1">Kvadrat</option>
+            <option value="4/5" selected>Stående 4:5</option>
+            <option value="3/4">Stående 3:4</option>
+            <option value="3/2">Liggende 3:2</option>
+            <option value="16/9">Liggende 16:9</option>
+          </select>
+        </div>
+        <label class="cb-range pb-rect"><span>Avrunding</span><input type="range" id="radius" min="0" max="60" step="1" value="16"><output id="radiusOut"></output></label>
+        <label class="cb-range"><span>Zoom</span><input type="range" id="zoom" min="1" max="3" step="0.02" value="1"><output id="zoomOut"></output></label>
+        <label class="cb-range"><span>Utsnitt ↔</span><input type="range" id="focusX" min="0" max="100" step="1" value="50"><output id="focusXOut"></output></label>
+        <label class="cb-range"><span>Utsnitt ↕</span><input type="range" id="focusY" min="0" max="100" step="1" value="35"><output id="focusYOut"></output></label>
+      </div>
+
+      <!-- Ramme og skygge -->
+      <div class="ftb-opts">
+        <span class="url-section__label">Ramme og skygge</span>
+        <div class="cb-grid2">
+          <label class="ks-check"><input type="checkbox" id="frame"><span>Ramme</span></label>
+          <label class="mn-color pb-frame"><input type="color" id="frameColor" value="#ffffff"><span>Farge</span></label>
+        </div>
+        <label class="cb-range pb-frame"><span>Tykkelse</span><input type="range" id="frameW" min="1" max="16" step="1" value="4"><output id="frameWOut"></output></label>
+        <select id="shadow" class="project-select">
+          <option value="none">Ingen skygge</option>
+          <option value="soft" selected>Myk skygge</option>
+          <option value="strong">Tydelig skygge</option>
+        </select>
+      </div>
+
+      <!-- Bevegelse -->
+      <div class="ftb-opts">
+        <span class="url-section__label">Bevegelse</span>
+        <select id="breathe" class="project-select">
+          <option value="none">Står stille</option>
+          <option value="inner" selected>Bildet puster sakte inni rammen</option>
+          <option value="whole">Hele bildet puster sakte</option>
+        </select>
+        <label class="cb-range pb-breathe"><span>Hvor mye</span><input type="range" id="breatheAmt" min="1" max="12" step="0.5" value="4"><output id="breatheAmtOut"></output></label>
+        <label class="cb-range pb-breathe"><span>Tempo</span><input type="range" id="breatheDur" min="3" max="16" step="0.5" value="8"><output id="breatheDurOut"></output></label>
+      </div>
+
+      <!-- Tekst -->
+      <div class="ftb-opts">
+        <span class="url-section__label">Navn og tittel</span>
+        <input type="text" id="name" class="caption-input caption-input--single" placeholder="Navn" value="">
+        <input type="text" id="title" class="caption-input caption-input--single" placeholder="Tittel" value="">
+        <select id="textMode" class="project-select">
+          <option value="under" selected>Under bildet</option>
+          <option value="bubbles">I bobler som popper opp</option>
+          <option value="box">I en boks</option>
+          <option value="none">Ikke vis tekst</option>
+        </select>
+        <select id="textAlign" class="project-select pb-under pb-box">
+          <option value="center" selected>Midtstilt</option>
+          <option value="left">Venstrestilt</option>
+        </select>
+        <div class="pb-bubbles">
+          <div class="cb-grid2">
+            <select id="bubbleStyle" class="project-select">
+              <option value="light" selected>Hvite bobler</option>
+              <option value="dark">Mørke bobler</option>
+              <option value="blue">Blå bobler</option>
+              <option value="grey">Grå bobler</option>
+            </select>
+            <label class="ks-check"><input type="checkbox" id="oneBubble"><span>Én boble</span></label>
+          </div>
+          <div class="cb-grid2">
+            <select id="tailName" class="project-select" title="Hale på navneboblen"><option value="left" selected>Navn: hale venstre</option><option value="right">Navn: hale høyre</option><option value="none">Navn: ingen hale</option></select>
+            <select id="tailTitle" class="project-select pb-two" title="Hale på tittelboblen"><option value="left">Tittel: hale venstre</option><option value="right" selected>Tittel: hale høyre</option><option value="none">Tittel: ingen hale</option></select>
+          </div>
+          <label class="cb-range"><span>Venter før</span><input type="range" id="popDelay" min="0" max="3" step="0.05" value="0.3"><output id="popDelayOut"></output></label>
+          <label class="cb-range pb-two"><span>Mellom bobler</span><input type="range" id="popGap" min="0" max="2" step="0.05" value="0.4"><output id="popGapOut"></output></label>
+          <button id="resetPos" class="btn-mini btn-mini--light" type="button">Tilbakestill plassering</button>
+          <p class="hk-hint">Dra boblene dit du vil ha dem i forhåndsvisningen. De popper opp når leseren scroller dit.</p>
+        </div>
+        <div class="pb-box">
+          <div class="cb-grid2">
+            <select id="boxStyle" class="project-select">
+              <option value="dark" selected>Mørk boks</option>
+              <option value="light">Hvit boks</option>
+              <option value="blue">Blå boks</option>
+              <option value="grey">Grå boks</option>
+            </select>
+            <select id="boxPlace" class="project-select">
+              <option value="below" selected>Under bildet</option>
+              <option value="over">Nederst i bildet</option>
+            </select>
+          </div>
+          <label class="cb-range"><span>Avrunding</span><input type="range" id="boxRadius" min="0" max="30" step="1" value="12"><output id="boxRadiusOut"></output></label>
+        </div>
+      </div>
+
+      <!-- Størrelse -->
+      <div class="ftb-opts">
+        <span class="url-section__label">Størrelse og plassering</span>
+        <label class="cb-range"><span>Bredde</span><input type="range" id="width" min="120" max="900" step="10" value="360"><output id="widthOut"></output></label>
+        <select id="align" class="project-select">
+          <option value="center" selected>Midtstilt i artikkelen</option>
+          <option value="left">Venstre i artikkelen</option>
+        </select>
+      </div>
+
+      <div class="caption-section">
+        <label class="url-section__label" for="credit">Kreditering (valgfri)</label>
+        <input type="text" id="credit" class="caption-input caption-input--single" placeholder="F.eks. Foto: NTB">
+        <label class="url-section__label" for="altText" style="margin-top:6px;">Beskrivelse for skjermlesere</label>
+        <input type="text" id="altText" class="caption-input caption-input--single" placeholder="Tom = navn og tittel">
+      </div>
+
+      <div class="plugin-sidebar__spacer"></div>
+
+      <div class="project-row">
+        <select id="projectSelect" class="project-select">
+          <option value="">Velg lagret prosjekt…</option>
+        </select>
+        <button id="saveProjectBtn" class="btn-mini">Lagre…</button>
+      </div>
+
+      <button id="copyEmbedBtn" class="btn-mini btn-mini--block">Kopier embed</button>
+    </aside>
+
+    <section class="plugin-canvas">
+      <div class="cb-toolbar">
+        <button id="replayBtn" class="btn-mini" type="button">▶ Spill av på nytt</button>
+        <div class="cb-seg cb-seg--dark" role="group" aria-label="Forhåndsvis bredde">
+          <button type="button" class="cb-seg__btn" data-pw="380">Mobil</button>
+          <button type="button" class="cb-seg__btn is-active" data-pw="680">Spalte</button>
+          <button type="button" class="cb-seg__btn" data-pw="1100">Full</button>
+        </div>
+        <span class="cb-toolbar__hint">Dra boblene for å flytte dem.</span>
+      </div>
+      <div class="slider-stage ftb-stage" id="stage">
+        <div class="cb-article" id="articleHost">
+          <p class="cb-article__fake">Brødtekst i artikkelen …</p>
+          <div id="previewHost"></div>
+          <p class="cb-article__fake">… artikkelen fortsetter.</p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+</div>
+
+<script src="shared/dialog.js"></script>
+<script>window.PLUGIN_ID = 'personbilde';</script>
+<script src="shared/new-project.js"></script>
+<script src="shared/labrador-status.js"></script>
+<script src="snippet.js"></script>
+<script src="main.js"></script>
+</body>
+</html>

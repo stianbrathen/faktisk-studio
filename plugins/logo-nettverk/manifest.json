@@ -1,0 +1,9 @@
+{
+  "id": "logo-nettverk",
+  "name": "Logo-nettverk",
+  "version": "0.2.1",
+  "entry": "index.html",
+  "description": "Animert toppgrafikk: en logo faller eller popper inn, og et nettverk av noder med dine egne symboler vokser ut fra den — enten et tett nett med glød eller et enkelt nettverk — når leseren scroller dit. Nettverket fortsetter å bevege seg i loop. Genererer embed for Labrador.",
+  "category": "annet",
+  "minStudioVersion": "0.7.0"
+}

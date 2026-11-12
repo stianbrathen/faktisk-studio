@@ -3,3 +3,12 @@ dist/
 .DS_Store
 *.log
 .env
+
+# Lokale rester som ikke hører hjemme i git
+.kontokart-backup-*/
+.medieslider-backup-*/
+_to_delete/
+/electron
+/faktisk-studio@*
+/....
+*.backup.js

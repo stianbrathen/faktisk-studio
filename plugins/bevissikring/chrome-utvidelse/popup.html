@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="no">
+<head><meta charset="utf-8"><link rel="stylesheet" href="style.css"></head>
+<body>
+<div class="wrap">
+  <h1><span class="dot" id="dot"></span><span id="title">Faktisk Bevissikring</span></h1>
+  <div class="muted" id="conn">Kobler til …</div>
+  <label>Sak
+    <input id="caseInput" list="cases" placeholder="Hvilken sak hører dette til?" autocomplete="off">
+    <datalist id="cases"></datalist>
+  </label>
+  <label>Notat (valgfritt)
+    <textarea id="note" rows="2" placeholder="Hvorfor sikres dette?"></textarea>
+  </label>
+  <button id="allBtn" type="button" class="big">Sikre alt jeg ser</button>
+  <div class="opts">
+    <label class="chk"><input type="checkbox" id="optScroll" checked> Rull gjennom hele siden</label>
+    <label class="chk"><input type="checkbox" id="optExpand" checked> Åpne flere kommentarer og svar</label>
+    <label class="chk"><input type="checkbox" id="optImages" checked> Bilder på siden</label>
+    <label class="chk"><input type="checkbox" id="optVideo" checked> Video <span class="muted" id="videoHint"></span></label>
+  </div>
+  <div class="perm" id="permBox" hidden>
+    Utvidelsen trenger tilgang til nettsteder for å hente bilder og video med innloggingen din.
+    <button id="permBtn" type="button" class="light">Gi tilgang</button>
+  </div>
+  <div class="prog" id="prog" hidden><div class="bar"><span id="bar"></span></div><div class="msg" id="progMsg"></div></div>
+  <div class="msg" id="msg"></div>
+  <div class="row">
+    <button id="videoBtn" type="button" class="light">Bare video</button>
+  </div>
+  <div class="muted">Siste jobber i Studio</div>
+  <ul class="jobs" id="jobs"><li class="muted">Ingen ennå</li></ul>
+  <div class="muted"><a href="#" id="optLink">Innstillinger</a> · Ikke bytt fane mens siden sikres.</div>
+</div>
+<script src="common.js"></script>
+<script src="popup.js"></script>
+</body>
+</html>

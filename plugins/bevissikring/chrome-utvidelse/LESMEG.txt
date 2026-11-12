@@ -1,0 +1,36 @@
+Faktisk Bevissikring for Chrome (0.2)
+=====================================
+
+Installere (én gang):
+1. Åpne chrome://extensions i Chrome.
+2. Slå på «Utviklermodus» øverst til høyre.
+3. Trykk «Last inn upakket» og velg denne mappa.
+4. Lim inn koble-koden fra Bevissikring i Faktisk Studio (vises nederst i sidepanelet).
+5. Trykk «Gi tilgang til nettsteder» i innstillingene, så bilder og video kan hentes
+   med innloggingen din.
+
+Ny versjon: hent utvidelsen på nytt i Studio («Hent utvidelsen…») og trykk ↻ på
+chrome://extensions.
+
+Bruk:
+- Gå til siden, åpne det du vil ha med (kommentarer, «Se mer»), klikk på utvidelsen
+  og trykk «Sikre alt jeg ser». Eller høyreklikk på siden: «Sikre alt jeg ser (Faktisk)».
+- Utvidelsen ruller gjennom siden og tar skjermbilder underveis, åpner flere
+  kommentarer og svar, og tar med tekst, nettarkiv (MHTML), HTML, bilder og video.
+- Ikke bytt fane mens siden sikres.
+
+Med Faktisk Studio i gang:
+  Alt går rett inn i saken i Bevissikring, med sjekksum og tidsstempel. Video
+  lastes ned av Studio (yt-dlp) med innloggingen fra Chrome for akkurat det
+  nettstedet. Studio varsler når sikringen er ferdig.
+
+Uten Studio:
+  Sikringen lagres i Nedlastinger/Bevissikring/<sak>/ med manifest, sjekksummer
+  og tidsstempel. Strømmet video (YouTube, TikTok, Facebook, Instagram) krever
+  Studio — vanlige videofiler lagres likevel.
+
+Personvern:
+- Utvidelsen snakker bare med Studio på denne maskinen (127.0.0.1:47361).
+- Tidsstempel: bare sjekksummen sendes til DigiCert/Sectigo, aldri innholdet.
+- Innloggingen (cookies) for nettstedet sendes bare til Studio på denne maskinen
+  når video skal lastes ned, og lagres ikke.

@@ -1,9 +1,9 @@
 {
   "id": "verifisering",
   "name": "Verifisering",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "entry": "index.html",
-  "description": "Hjelp til å vurdere om en video eller et bilde er ekte: leser Content Credentials (C2PA), IPTC/XMP, EXIF, JPEG-spor og videoens metadata, og lager enkeltbilder, kantbilder, forskjellskart og parallakse du vurderer selv. Lyd og leppesynk, sol og skygge, tekst over tid og bildesøk. Lagrer en rapport. Alt lokalt — ingen samlet ekte/falsk-dom.",
+  "description": "Hjelp til å vurdere om en video eller et bilde er ekte: leser Content Credentials (C2PA), IPTC/XMP, EXIF, JPEG-spor og videoens metadata, og lager enkeltbilder, kantbilder, forskjellskart og parallakse du vurderer selv. Lyd og leppesynk, sol og skygge, tekst over tid og bildesøk. For tekst: rester fra KI-chat, usynlige tegn, lenker og metadata i Word/PDF — ingen KI-score. Lagrer en rapport. Alt lokalt — ingen samlet ekte/falsk-dom.",
   "category": "kilder",
   "minStudioVersion": "0.7.13"
 }

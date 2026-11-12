@@ -7,6 +7,8 @@
 const PLUGIN_ID = 'video-hoydepunkter';
 
 // Vis app-versjon + plugin-versjon i topp-bar (dynamisk fra manifest)
+// Plugin-versjonen skrives også inn i embed-koden, så gamle embeds i artikler kan spores.
+let PLUGIN_VERSION = '';
 (async () => {
   try {
     const [appV, plugins] = await Promise.all([
@@ -14,6 +16,7 @@ const PLUGIN_ID = 'video-hoydepunkter';
       window.faktisk.pluginStatus(),
     ]);
     const me = (plugins || []).find(p => p.id === PLUGIN_ID);
+    if (me && me.version) PLUGIN_VERSION = me.version;
     const el = document.getElementById('appVersion');
     if (el && appV) {
       el.textContent = me ? 'v' + appV + ' · plugin v' + me.version : 'v' + appV;
@@ -371,7 +374,7 @@ function buildEmbedSnippet() {
   ).join('\n      ');
 
   return `<!-- ============================================
-     FAKTISK · VIDEOHØYDEPUNKTER
+     FAKTISK · VIDEOHØYDEPUNKTER${PLUGIN_VERSION ? ' · v' + PLUGIN_VERSION : ''}
      Tidslinje med klikkbare høydepunkter
      ============================================ -->
 <div class="fhl-container">
@@ -495,8 +498,10 @@ function buildEmbedSnippet() {
   function init(cb){
     if(inited){ cb(); return; }
     inited = true;
-    v.src = v.dataset.src;
     v.addEventListener('loadedmetadata', function(){ cb(); }, {once:true});
+    v.src = v.dataset.src;
+    // Nyere Safari henter ikke videoen av seg selv når src settes fra skript
+    try { v.load(); } catch(e) {}
     v.addEventListener('playing', hideCover, {once:true});
     setTimeout(hideCover, 3000);
   }

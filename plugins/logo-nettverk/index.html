@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https:; font-src 'self' data:;">
+<title>Logo-nettverk · Faktisk Studio</title>
+<link rel="stylesheet" href="shared/style.css">
+<link rel="stylesheet" href="style.css">
+<script src="shared/embed-tokens.js"></script>
+</head>
+<body>
+<div class="studio">
+
+  <header class="topbar">
+    <div class="faktisk-logo" role="img" aria-label="Faktisk Studio"></div>
+    <span class="topbar__version" id="appVersion" title="Versjoner"></span>
+    <div class="topbar__title" role="img" aria-label="Labrador"></div>
+    <div class="topbar__actions">
+      <button class="btn-primary" id="backBtn">Malside</button>
+      <button class="btn-icon" id="newProjectBtn" title="Nytt prosjekt (tøm gjeldende)" aria-label="Nytt prosjekt">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+          <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+        </svg>
+      </button>
+      <button class="btn-icon" id="fullscreenBtn" title="Fullskjerm" aria-label="Fullskjerm">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+          <path d="M5 5h5v2H7v3H5V5zm9 0h5v5h-2V7h-3V5zM5 14h2v3h3v2H5v-5zm12 0h2v5h-5v-2h3v-3z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="plugin-page">
+
+    <aside class="plugin-sidebar">
+      <div class="plugin-sidebar__head">
+        <h2 class="plugin-sidebar__title">Logo-nettverk</h2>
+        <button id="openLabradorBtn" class="link-btn" type="button">Åpne Labrador ↗</button>
+      </div>
+
+      <select id="styleSelect" class="project-select" title="Stil">
+        <option value="mesh" selected>Stil: tett nett (mange noder, glød)</option>
+        <option value="simple">Stil: enkelt nettverk (færre, større noder)</option>
+      </select>
+
+      <!-- Logo -->
+      <div class="cb-people">
+        <span class="url-section__label">Logo i midten</span>
+        <input type="text" id="logoUrl" class="hk-row__img" placeholder="Logo-URL fra Labrador (PNG/SVG uten bakgrunn)" spellcheck="false">
+        <div class="ftb-labrow">
+          <button class="ftb-labbtn" type="button" id="logoFilesBtn">Mine filer ▾</button>
+          <button class="ftb-labbtn" type="button" id="logoUploadBtn">Last opp…</button>
+        </div>
+        <div class="ftb-labpanel" id="logoPanel" style="display:none;"></div>
+        <label class="cb-range"><span>Størrelse</span>
+          <input type="range" id="logoSize" min="0.1" max="0.5" step="0.01" value="0.3"><output id="logoSizeOut"></output></label>
+      </div>
+
+      <!-- Symboler -->
+      <div class="tb-section">
+        <div class="tb-section__header">
+          <span class="url-section__label">Symboler i nodene</span>
+          <button id="addSymBtn" class="btn-mini" type="button">+ Symbol</button>
+        </div>
+        <div id="symList" class="cb-list"></div>
+        <p class="hk-hint">Ett symbol gjentas i alle nodene. Flere symboler fordeles på nodene.
+          Uten symboler blir nodene enkle prikker. PNG med gjennomsiktig bakgrunn fungerer best
+          (Labrador tar ikke imot SVG-opplasting).</p>
+        <select id="symMode" class="project-select ln-simple-only">
+          <option value="mix" selected>Fordeling: blandet</option>
+          <option value="layer">Fordeling: ett symbol per lag</option>
+          <option value="cycle">Fordeling: i rekkefølge rundt</option>
+        </select>
+        <select id="nodeStyle" class="project-select ln-simple-only">
+          <option value="disc" selected>Noder: symbol i farget sirkel</option>
+          <option value="bare">Noder: bare symbolet</option>
+          <option value="ring">Noder: symbol i ring</option>
+        </select>
+        <label class="cb-range"><span>Nodestørrelse</span>
+          <input type="range" id="symSize" min="0.03" max="0.12" step="0.005" value="0.065"><output id="symSizeOut"></output></label>
+      </div>
+
+      <!-- Nettverk -->
+      <div class="ftb-opts">
+        <span class="url-section__label">Nettverk</span>
+        <label class="cb-range"><span>Noder</span>
+          <input type="range" id="nodeCount" min="4" max="48" step="1" value="18"><output id="nodeCountOut"></output></label>
+        <label class="cb-range ln-simple-only"><span>Lag</span>
+          <input type="range" id="layers" min="1" max="3" step="1" value="2"><output id="layersOut"></output></label>
+        <label class="cb-range ln-simple-only"><span>Spredning</span>
+          <input type="range" id="spread" min="0.5" max="1" step="0.01" value="0.9"><output id="spreadOut"></output></label>
+        <label class="cb-range ln-simple-only"><span>Tetthet</span>
+          <input type="range" id="density" min="0" max="1" step="0.05" value="0.35"><output id="densityOut"></output></label>
+        <div class="cb-grid2">
+          <button id="reseedBtn" class="btn-mini btn-mini--light" type="button" title="Samme innstillinger, ny plassering">⟳ Ny variant</button>
+          <select id="lineShape" class="project-select ln-simple-only">
+            <option value="curve" selected>Linjer: buede</option>
+            <option value="straight">Linjer: rette</option>
+          </select>
+        </div>
+
+        <span class="url-section__label" style="margin-top:6px;">Farger</span>
+        <select id="bgPreset" class="project-select">
+          <option value="transparent">Bakgrunn: gjennomsiktig</option>
+          <option value="#FFFFFF">Bakgrunn: hvit</option>
+          <option value="#F2F4F8">Bakgrunn: lys grå</option>
+          <option value="#07153A" selected>Bakgrunn: mørk blå</option>
+          <option value="#000000">Bakgrunn: svart</option>
+          <option value="custom">Bakgrunn: egen farge…</option>
+        </select>
+        <div class="cb-colors">
+          <label title="Egen bakgrunnsfarge"><input type="color" id="bgColor" value="#07153A"><span>Bakgrunn</span></label>
+          <label title="Farge på linjene / farge 1"><input type="color" id="lineColor" value="#5B86FF"><span class="ln-simple-only">Linjer</span><span class="ln-mesh-only">Farge 1</span></label>
+          <label title="Farge 2 i det tette nettet" class="ln-mesh-only"><input type="color" id="color2" value="#FF5A4E"><span>Farge 2</span></label>
+          <label title="Pulser og glød" class="ln-simple-only"><input type="color" id="accentColor" value="#FFFFFF"><span>Puls</span></label>
+          <label title="Sirkel bak symbolene" class="ln-simple-only"><input type="color" id="nodeColor" value="#1B2B55"><span>Noder</span></label>
+        </div>
+
+        <label class="cb-range ln-mesh-only"><span>Andel farge 2</span>
+          <input type="range" id="mix" min="0" max="1" step="0.05" value="0.4"><output id="mixOut"></output></label>
+
+        <span class="url-section__label" style="margin-top:6px;">Animasjon</span>
+        <select id="triggerSelect" class="project-select">
+          <option value="early">Starter så snart boksen dukker opp</option>
+          <option value="middle" selected>Starter når boksen er et stykke opp på skjermen</option>
+          <option value="full">Starter når hele boksen er synlig</option>
+          <option value="static">Står ferdig fra start (bare bevegelsen)</option>
+        </select>
+        <label class="cb-range"><span>Intro-tempo</span>
+          <input type="range" id="speed" min="0.5" max="2" step="0.05" value="1"><output id="speedOut"></output></label>
+        <select id="motion" class="project-select">
+          <option value="0">Etter intro: står stille</option>
+          <option value="1" selected>Etter intro: rolig bevegelse</option>
+          <option value="2">Etter intro: livlig bevegelse</option>
+        </select>
+        <label class="ks-check"><input type="checkbox" id="optPackets" checked><span>Pulser som vandrer langs linjene</span></label>
+        <label class="ks-check"><input type="checkbox" id="optBreath" checked><span>Logoen «puster» (glød og ringer)</span></label>
+
+        <span class="url-section__label" style="margin-top:6px;">Størrelse</span>
+        <select id="aspect" class="project-select">
+          <option value="16/9" selected>Format: 16:9 (stående 4:5 på mobil)</option>
+          <option value="3/2">Format: 3:2 (stående 4:5 på mobil)</option>
+          <option value="1/1">Format: kvadrat</option>
+          <option value="21/9">Format: bredt 21:9 (stående 1:1 på mobil)</option>
+        </select>
+        <select id="widthSelect" class="project-select">
+          <option value="full" selected>Bredde: fyll embed-boksen</option>
+          <option value="640">Bredde: maks 640 px</option>
+          <option value="480">Bredde: maks 480 px</option>
+        </select>
+        <label class="ks-check"><input type="checkbox" id="optRound" checked><span>Avrundede hjørner</span></label>
+        <label class="cb-range"><span>Luft over</span>
+          <input type="range" id="padTop" min="-24" max="64" step="2" value="12"><output id="padTopOut"></output></label>
+        <label class="cb-range"><span>Luft under</span>
+          <input type="range" id="padBot" min="-24" max="64" step="2" value="12"><output id="padBotOut"></output></label>
+      </div>
+
+      <div class="caption-section">
+        <label class="url-section__label" for="altText">Beskrivelse for skjermlesere</label>
+        <input type="text" id="altText" class="caption-input caption-input--single" value="Illustrasjon: et nettverk som sprer seg ut fra en logo">
+        <label class="url-section__label" for="captionText" style="margin-top:6px;">Bildetekst (valgfri)</label>
+        <textarea id="captionText" class="caption-input" rows="2" placeholder="F.eks. Illustrasjon: Faktisk.no" spellcheck="true"></textarea>
+      </div>
+
+      <div class="plugin-sidebar__spacer"></div>
+
+      <div class="project-row">
+        <select id="projectSelect" class="project-select">
+          <option value="">Velg lagret prosjekt…</option>
+        </select>
+        <button id="saveProjectBtn" class="btn-mini">Lagre…</button>
+      </div>
+
+      <button id="copyEmbedBtn" class="btn-mini btn-mini--block">Kopier embed</button>
+    </aside>
+
+    <section class="plugin-canvas">
+      <div class="cb-toolbar">
+        <button id="playBtn" class="btn-mini" type="button">▶ Spill av introen</button>
+        <div class="cb-seg cb-seg--dark" role="group" aria-label="Forhåndsvis bredde">
+          <button type="button" class="cb-seg__btn" data-pw="380">Mobil</button>
+          <button type="button" class="cb-seg__btn is-active" data-pw="680">Spalte</button>
+          <button type="button" class="cb-seg__btn" data-pw="1100">Full</button>
+        </div>
+        <span class="cb-toolbar__hint" id="playHint">Forhåndsvisningen viser nettverket ferdig bygd, med løpende bevegelse.</span>
+      </div>
+      <div class="slider-stage ftb-stage" id="stage">
+        <div class="cb-article" id="articleHost">
+          <p class="cb-article__fake">Brødtekst i artikkelen …</p>
+          <div id="previewHost"></div>
+          <p class="cb-article__fake">… artikkelen fortsetter.</p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+</div>
+
+<script src="shared/dialog.js"></script>
+<script>window.PLUGIN_ID = 'logo-nettverk';</script>
+<script src="shared/new-project.js"></script>
+<script src="shared/labrador-status.js"></script>
+<script src="mesh-engine.js"></script>
+<script src="main.js"></script>
+</body>
+</html>

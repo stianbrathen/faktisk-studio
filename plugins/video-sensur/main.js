@@ -27,6 +27,7 @@ const PLUGIN_ID = 'video-sensur';
 const els = {
   url:           document.getElementById('videoUrl'),
   loadBtn:       document.getElementById('loadVideoBtn'),
+  localBtn:      document.getElementById('localFileBtn'),
   video:         document.getElementById('videoEl'),
   empty:         document.getElementById('canvasEmpty'),
   canvasArea:    document.getElementById('canvasArea'),
@@ -170,6 +171,22 @@ function setStatus(msg, isError) {
   els.status.style.color = isError ? '#FFB4B4' : '#fff';
 }
 
+// Lokal fil: absolutt sti på Macen (eller file://-URL). Brukes direkte av ffmpeg i
+// hovedprosessen (inputPath) — ingen opplasting, ingen nedlasting, ingen 100 MB-grense.
+function localPathOf(s) {
+  if (!s) return '';
+  if (/^file:\/\//i.test(s)) { try { return decodeURIComponent(new URL(s).pathname); } catch (e) { return ''; } }
+  return s.charAt(0) === '/' ? s : '';
+}
+function fileUrlOf(p) {
+  return 'file://' + encodeURI(p).replace(/#/g, '%23').replace(/\?/g, '%3F');
+}
+// Kilde til ffmpeg-kallene: lokal sti eller URL
+function sourceOpts() {
+  const lp = localPathOf(state.url);
+  return lp ? { inputPath: lp } : { url: state.url };
+}
+
 function isValidUrl(s) {
   try {
     const u = new URL(s);
@@ -193,11 +210,12 @@ const r100 = x => Math.round(x * 100) / 100;   // centisekund — for keyframe-t
 
 async function loadVideo() {
   const url = els.url.value.trim();
-  if (!url) { setStatus('Lim inn en URL først.', true); return; }
-  if (!isValidUrl(url)) { setStatus('Ugyldig URL.', true); return; }
+  if (!url) { setStatus('Lim inn en URL eller velg en fil først.', true); return; }
+  const local = localPathOf(url);
+  if (!local && !isValidUrl(url)) { setStatus('Ugyldig URL.', true); return; }
 
   setStatus('Laster…');
-  els.video.src = url;
+  els.video.src = local ? fileUrlOf(local) : url;
   await new Promise((resolve, reject) => {
     const onMeta = () => { cleanup(); resolve(); };
     const onErr = () => { cleanup(); reject(new Error('Kunne ikke laste videoen.')); };
@@ -948,7 +966,7 @@ async function trackMask(i) {
 
   try {
     const base = {
-      url: state.url,
+      ...sourceOpts(),
       from: t0, to,
       x: pos.x, y: pos.y, w: size.w, h: size.h,
       videoW: els.video.videoWidth, videoH: els.video.videoHeight,
@@ -1045,7 +1063,7 @@ els.exportBtn.addEventListener('click', async () => {
 
   try {
     const res = await window.faktisk.censorExport({
-      url: state.url,
+      ...sourceOpts(),
       savePath,
       trimStart: state.trimStart,
       trimEnd: state.trimEnd,
@@ -1179,6 +1197,21 @@ labEls.uploadBtn.addEventListener('click', async () => {
 // ── Navigasjon ───────────────────────────────────────────────────────────
 
 els.loadBtn.addEventListener('click', loadVideo);
+// Velg video rett fra Macen (stor fil, ingen opplasting)
+els.localBtn.addEventListener('click', async () => {
+  const res = await window.faktisk.openFileDialog({
+    title: 'Velg video',
+    filters: [{ name: 'Video', extensions: ['mp4', 'mov', 'm4v', 'mpg', 'mpeg', 'webm'] }],
+  });
+  if (!res || res.canceled || !res.path) return;
+  labEls.panel.style.display = 'none';
+  els.url.value = res.path;
+  await loadVideo();
+  if (state.loaded && state.url === res.path) {
+    setStatus('Bruker «' + res.path.split('/').pop() + '» fra Macen — ingen opplasting.');
+  }
+  scheduleSaveState();
+});
 els.url.addEventListener('keydown', e => {
   if (e.key === 'Enter') loadVideo();
 });

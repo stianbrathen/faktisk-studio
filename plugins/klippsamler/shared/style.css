@@ -1,0 +1,302 @@
+/* ============================================
+   FAKTISK STUDIO — designsystem
+   Henter farger og radii fra Figma-skissen
+   ============================================ */
+
+:root {
+  --faktisk-blue: #0050FC;
+  --faktisk-blue-hover: #0040D9;
+  --bg-page: #9D9D9D;
+  --bg-topbar: #707070;
+  --bg-placeholder: #7B7B7B;
+  --bg-letterbox: #878787;
+  --bg-input: #D9D9D9;
+  --text-on-blue: #FFFFFF;
+  --text-topbar-title: #414141;
+  --text-placeholder: #8B8B8B;
+  --text-input: #313131;
+
+  --radius-container: 30px;
+  --radius-card: 15px;
+  --radius-button: 11px;
+  --radius-button-sm: 7px;
+  --radius-input: 6px;
+
+  --font-bold: "Haas Grot Text 75 Bold", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-regular: "Haas Grot Text 55 Roman", "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--bg-page);
+  font-family: var(--font-regular);
+  color: #fff;
+  user-select: none;
+  -webkit-user-select: none;
+  overflow: hidden;
+}
+
+button {
+  font-family: inherit;
+  border: 0;
+  cursor: pointer;
+  background: none;
+  color: inherit;
+  padding: 0;
+}
+
+/* ============================================
+   Hovedcontainer
+   ============================================ */
+.studio {
+  background: var(--bg-page);
+  border-radius: var(--radius-container);
+  padding: 41px 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ============================================
+   Topp-bar
+   ============================================ */
+.topbar {
+  background: var(--bg-topbar);
+  border-radius: var(--radius-card);
+  padding: 22px 27px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-shrink: 0;
+}
+
+/* Diskret versjonsindikator ved siden av logo */
+.topbar__version {
+  font-family: var(--font-bold);
+  font-size: 11px;
+  font-weight: bold;
+  color: #fff;
+  opacity: 0.5;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  margin-left: -12px;   /* trekk tett inn mot logo */
+}
+
+/* Labrador-logo i toppen — hvit via CSS-mask */
+.topbar__title {
+  flex: 1;
+  height: 28px;
+  margin: 0;
+  background: #fff;
+  -webkit-mask: url('labrador-logo.svg') no-repeat center / contain;
+  mask: url('labrador-logo.svg') no-repeat center / contain;
+}
+
+.topbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.btn-primary {
+  background: var(--faktisk-blue);
+  color: #fff;
+  font-family: var(--font-bold);
+  font-weight: bold;
+  font-size: 15px;
+  height: 52px;
+  padding: 0 22px;
+  border-radius: var(--radius-button);
+  min-width: 129px;
+  transition: background 0.15s;
+}
+.btn-primary:hover { background: var(--faktisk-blue-hover); }
+
+.btn-icon {
+  background: var(--faktisk-blue);
+  color: #fff;
+  font-family: var(--font-bold);
+  font-size: 30px;
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius-button);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: background 0.15s;
+}
+.btn-icon:hover { background: var(--faktisk-blue-hover); }
+
+/* Sekundærknapp i topp-bar (Mine prosjekter) */
+.btn-secondary-tb {
+  background: rgba(0,0,0,0.18);
+  color: #fff;
+  font-family: var(--font-bold);
+  font-weight: bold;
+  font-size: 15px;
+  height: 52px;
+  padding: 0 22px;
+  border-radius: var(--radius-button);
+  transition: background 0.15s;
+}
+.btn-secondary-tb:hover { background: rgba(0,0,0,0.28); }
+
+.projects-modal {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+  max-height: 50vh;
+  overflow: auto;
+  padding: 4px;
+}
+
+.projects-modal__empty {
+  text-align: center;
+  padding: 30px;
+  color: #666;
+  font-size: 14px;
+}
+
+/* Plugin-marked */
+.market-body {
+  max-height: 60vh;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px;
+}
+.market-empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: #666;
+  font-size: 14px;
+}
+.market-row {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding: 14px 16px;
+  background: #f5f5f5;
+  border-radius: 10px;
+}
+.market-row__info { flex: 1; min-width: 0; }
+.market-row__name {
+  font-family: var(--font-bold);
+  font-size: 15px;
+  font-weight: bold;
+  color: #212121;
+}
+.market-row__desc {
+  font-size: 13px;
+  color: #444;
+  margin-top: 2px;
+  line-height: 1.35;
+}
+.market-row__meta {
+  font-size: 12px;
+  color: #666;
+  margin-top: 4px;
+}
+.market-row__changelog {
+  font-size: 12px;
+  color: #555;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid #e0e0e0;
+  font-style: italic;
+}
+.market-row__action { flex-shrink: 0; }
+
+/* ============================================
+   Plugin-grid (Malside)
+   ============================================ */
+.malside {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 22px;
+  overflow: auto;
+  padding: 4px;
+}
+
+.malside__column {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+/* Plugin-kort — installert (blå). Fast høyde så installerte og placeholders får samme størrelse. */
+.plugin-card {
+  background: var(--faktisk-blue);
+  border-radius: var(--radius-card);
+  padding: 0 35px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  height: 90px;
+  transition: background 0.15s, transform 0.1s;
+}
+.plugin-card:hover { background: var(--faktisk-blue-hover); }
+.plugin-card:active { transform: scale(0.98); }
+
+.plugin-card__title {
+  font-family: var(--font-bold);
+  font-size: 22px;
+  font-weight: bold;
+  color: #fff;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.plugin-card--placeholder {
+  background: var(--bg-placeholder);
+  display: flex;
+  justify-content: space-between;
+  cursor: default;
+}
+.plugin-card--placeholder:hover { background: var(--bg-placeholder); }
+.plugin-card--placeholder:active { transform: none; }
+
+.plugin-card--placeholder .plugin-card__title {
+  color: var(--text-placeholder);
+}
+
+.plugin-card__add {
+  background: var(--faktisk-blue);
+  color: #fff;
+  font-family: var(--font-bold);
+  font-size: 30px;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-button-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.plugin-card__add:hover { background: var(--faktisk-blue-hover); }
+
+/* ============================================
+   Faktisk Studio-logo (CSS mask)
+   ============================================ */
+.faktisk-logo {
+  width: 178px;
+  height: 26px;
+  background: #fff;
+  -webkit-mask: url('logo.svg') no-repeat center / contain;
+  mask: url('logo.svg') no-repeat center / contain;
+  flex-shrink: 0;
+}

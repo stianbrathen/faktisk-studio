@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https:; font-src 'self' data:;">
+<title>Metodeboks · Faktisk Studio</title>
+<link rel="stylesheet" href="shared/style.css">
+<link rel="stylesheet" href="style.css">
+<script src="shared/embed-tokens.js"></script>
+</head>
+<body>
+<div class="studio">
+
+  <header class="topbar">
+    <div class="faktisk-logo" role="img" aria-label="Faktisk Studio"></div>
+    <span class="topbar__version" id="appVersion" title="Versjoner"></span>
+    <div class="topbar__title" role="img" aria-label="Labrador"></div>
+    <div class="topbar__actions">
+      <button class="btn-primary" id="backBtn">Malside</button>
+      <button class="btn-icon" id="newProjectBtn" title="Nytt prosjekt (tøm gjeldende)" aria-label="Nytt prosjekt">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+      </button>
+      <button class="btn-icon" id="fullscreenBtn" title="Fullskjerm" aria-label="Fullskjerm">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M5 5h5v2H7v3H5V5zm9 0h5v5h-2V7h-3V5zM5 14h2v3h3v2H5v-5zm12 0h2v5h-5v-2h3v-3z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="plugin-page">
+    <aside class="plugin-sidebar">
+      <div class="plugin-sidebar__head">
+        <h2 class="plugin-sidebar__title">Metodeboks</h2>
+        <button id="openLabradorBtn" class="link-btn" type="button">Åpne Labrador ↗</button>
+      </div>
+      <div class="ftb-fields">
+        <input type="text" id="kicker" class="caption-input caption-input--single" placeholder="Stikktittel – f.eks. METODE">
+        <input type="text" id="tittel" class="caption-input caption-input--single" placeholder="Tittel">
+        <input type="text" id="under" class="caption-input caption-input--single" placeholder="Undertittel (valgfri)">
+      </div>
+
+      <div class="tb-section kk-sec">
+        <div class="tb-section__header">
+          <span class="url-section__label">Punkter</span>
+          <button id="addPtBtn" class="btn-mini" type="button">+ Punkt</button>
+        </div>
+        <div id="ptList" class="tb-list kk-list"></div>
+        <button id="demoBtn" class="link-btn kk-demo" type="button">Last inn metodeboksen fra Facebook-nettverket</button>
+      </div>
+
+      <div class="caption-section">
+        <label class="url-section__label" for="kilde">Kilde (valgfri)</label>
+        <textarea id="kilde" class="caption-input" rows="2" placeholder="Kilde: …"></textarea>
+      </div>
+
+      <div class="ftb-opts">
+        <label class="url-section__label" for="boks">Boks</label>
+        <select id="boks" class="project-select">
+          <option value="hvit">Hvit med grå ramme (som Tabell)</option>
+          <option value="blaa">Lyseblå uten ramme (som kartene)</option>
+        </select>
+        <label class="ks-check" style="margin-top:6px"><input type="checkbox" id="klode"><span>Klode-illustrasjon under tittelen</span></label>
+        <div id="klodeOpts" class="kk-ex" hidden>
+          <input type="text" id="fra" class="caption-input caption-input--single" placeholder="Fra-land, f.eks. Pakistan (20), Spania (6)">
+          <input type="text" id="til" class="caption-input caption-input--single" placeholder="Til-land, f.eks. Norge, Danmark">
+          <select id="retning" class="project-select">
+            <option value="fra">Buer fra → til (tall = hvor ofte)</option>
+            <option value="nett">Nettverk mellom alle landene (ingen retning)</option>
+          </select>
+          <div id="missingWarn" class="kk-warn" hidden></div>
+        </div>
+      </div>
+
+      <div class="project-row">
+        <select id="projectSelect" class="project-select"><option value="">Velg lagret prosjekt…</option></select>
+        <button id="saveProjectBtn" class="btn-mini">Lagre…</button>
+      </div>
+      <button id="copyEmbedBtn" class="btn-mini btn-mini--block" disabled>Kopier embed</button>
+    </aside>
+
+    <section class="plugin-canvas">
+      <div class="slider-stage ftb-stage kk-stage" id="stage">
+        <div class="ftb-previewhost kk-previewhost" id="previewHost">
+          <p class="ftb-empty">Skriv en tittel eller legg til punkter – forhåndsvisningen dukker opp her.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script src="shared/dialog.js"></script>
+<script>window.PLUGIN_ID = 'metodeboks';</script>
+<script src="shared/new-project.js"></script>
+<script src="shared/labrador-status.js"></script>
+<script src="dots.js"></script>
+<script src="countries.js"></script>
+<script src="klode-runtime.js"></script>
+<script src="snippet.js"></script>
+<script src="main.js"></script>
+</body>
+</html>

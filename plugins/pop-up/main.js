@@ -26,6 +26,7 @@ const els = {
   imageList:     document.getElementById('imageList'),
   galleryHint:   document.getElementById('galleryHint'),
   logoSelect:    document.getElementById('logoSelect'),
+  frameSelect:   document.getElementById('frameSelect'),
   photographer:  document.getElementById('photographerText'),
   status:        document.getElementById('status'),
   emptyState:    document.getElementById('emptyState'),
@@ -43,6 +44,7 @@ const state = {
   images: [{ url: '', caption: '' }],   // alltid minst én rad i single-modus
   credit: '',
   logo: 'none',                          // 'none' | 'x' (Twitter)
+  frame: 'frame',                        // 'frame' | 'none' (ingen ramme/bakgrunn, for utklipte PNG-er)
 };
 
 const MAX_GALLERY = 6;
@@ -287,6 +289,7 @@ function buildEmbedSnippet() {
   if (validImages.length === 0) return '';
 
   const id = 'fpu-' + Math.random().toString(36).slice(2, 8);
+  const noFrame = state.frame === 'none';
   const isGallery = state.mode === 'gallery' && validImages.length > 1;
   const credit = state.credit.trim();
   const creditHtml = credit ? `<span class="fpu-${id}-credit">Foto: ${escapeHtml(credit)}</span>` : '';
@@ -366,13 +369,13 @@ function buildEmbedSnippet() {
     display: block;
     width: 100%;
     padding: 0;
-    background: #fff;
-    border: 5px solid #D9D9D9;
+    background: ${noFrame ? 'transparent' : '#fff'};
+    border: ${noFrame ? '0' : '5px solid #D9D9D9'};
     border-radius: 12px;
     overflow: hidden;
     cursor: zoom-in;
     transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    box-shadow: ${noFrame ? 'none' : '0 1px 4px rgba(0,0,0,0.05)'};
     /* Sikkerhetsnett: ekstremt høye vertikalbilder kappes svakt på desktop slik at de
        ikke fyller hele kolonnen. Pop-up-en viser uansett hele bildet i full størrelse. */
     max-height: 80vh;
@@ -430,7 +433,7 @@ function buildEmbedSnippet() {
   }
   .fpu-${id}-thumb:hover {
     transform: translateY(-2px);
-    box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+    box-shadow: ${noFrame ? 'none' : '0 6px 18px rgba(0,0,0,0.12)'};
     border-color: #BFBFBF;
   }
   .fpu-${id}-thumb img {
@@ -686,6 +689,15 @@ els.photographer.addEventListener('input', () => {
   scheduleSaveState();
 });
 
+// ---------- Ramme-velger ----------
+if (els.frameSelect) {
+  els.frameSelect.addEventListener('change', () => {
+    state.frame = els.frameSelect.value === 'none' ? 'none' : 'frame';
+    renderPreview();
+    scheduleSaveState();
+  });
+}
+
 // ---------- Logo-velger ----------
 if (els.logoSelect) {
   els.logoSelect.addEventListener('change', () => {
@@ -711,6 +723,7 @@ function serializeState() {
     images: state.images.map(img => ({ url: img.url, caption: img.caption })),
     credit: state.credit,
     logo: state.logo,
+    frame: state.frame,
   };
 }
 async function applyState(saved) {
@@ -738,6 +751,8 @@ async function applyState(saved) {
       state.logo = saved.logo;
       if (els.logoSelect) els.logoSelect.value = saved.logo;
     }
+    state.frame = saved.frame === 'none' ? 'none' : 'frame';
+    if (els.frameSelect) els.frameSelect.value = state.frame;
     renderImageList();
     renderPreview();
     updateExportButtons();

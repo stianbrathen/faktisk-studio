@@ -1,0 +1,9 @@
+{
+  "id": "utklipp-boks",
+  "name": "Utklipp i boks",
+  "version": "0.1.2",
+  "entry": "index.html",
+  "description": "Et utklippet bilde (PNG uten bakgrunn, f.eks. en hånd med et ID-kort) i en boks med avrundede hjørner og farge, bilde eller video bak. Utklippet glir opp fra bunnen når leseren scroller dit, og blir stående. Genererer embed for Labrador.",
+  "category": "annet",
+  "minStudioVersion": "0.7.0"
+}

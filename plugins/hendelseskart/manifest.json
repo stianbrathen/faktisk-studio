@@ -1,0 +1,9 @@
+{
+  "id": "hendelseskart",
+  "name": "Hendelseskart",
+  "version": "0.1.1",
+  "entry": "index.html",
+  "description": "Marker hendelser på et kart eller bilde med nummererte, klikkbare punkter. Hvert punkt åpner en popup i Faktisk-stil med tittel, tekst og valgfritt bilde. Genererer embed for Labrador.",
+  "category": "image",
+  "minStudioVersion": "0.6.3"
+}

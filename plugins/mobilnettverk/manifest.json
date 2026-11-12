@@ -1,0 +1,9 @@
+{
+  "id": "mobilnettverk",
+  "name": "Mobilnettverk",
+  "version": "0.1.6",
+  "entry": "index.html",
+  "description": "Vis skjermbilder på mobiltelefoner i et glødende nettverk. Telefonene svever rolig, og leseren kan trykke på en mobil for å se skjermbildet stort. Genererer embed for Labrador.",
+  "category": "annet",
+  "minStudioVersion": "0.7.0"
+}

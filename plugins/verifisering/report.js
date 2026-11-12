@@ -43,12 +43,17 @@ ${c2}
 ${shots ? `<h2>Bilder fra analysen</h2>${shots}` : ''}
 ${r.metaTable && Object.keys(r.metaTable).length ? `<h2>All metadata som ble lest</h2><table>${rows(r.metaTable)}</table>` : ''}
 <h2>Hva verktøyet ikke har sjekket</h2>
-<ul>
+${r.kind === 'text' ? `<ul>
+<li><b>Ingen AI-score.</b> Språket i teksten er ikke vurdert. Statistiske AI-detektorer gir mange feilalarmer, særlig på korte, redigerte og ikke-engelske tekster, og bommer på AI-tekst som er skrevet om.</li>
+<li><b>Usynlige vannmerker i tekst</b> (f.eks. SynthID Text i Gemini) kan bare kontrolleres av leverandøren selv. Det fantes ingen offentlig sjekk for tekst da denne versjonen ble laget (nov. 2026), og omskriving eller oversettelse svekker merket.</li>
+<li>At verktøyet ikke fant AI-rester, betyr ikke at et menneske skrev teksten. Kilder og sitater i teksten må sjekkes for seg — AI kan finne opp kilder som ikke finnes.</li>
+<li>Den beste kilden er fortsatt den som skrev teksten: utkast, versjonshistorikk og notater.</li>
+</ul>` : `<ul>
 <li><b>Signaturen i Content Credentials er ikke kontrollert.</b> Kontroller på <code>contentcredentials.org/verify</code> (fila lastes opp dit).</li>
 <li><b>Usynlige vannmerker</b> som SynthID (Google, OpenAI-bilder fra mai 2026, NVIDIA m.fl.) kan bare leses av leverandørens egen tjeneste, f.eks. <code>synthid.com</code>. «Ikke funnet» der betyr bare at akkurat de verktøyene ikke laget fila.</li>
 <li>Parallakse, leppesynk, tekstlesing og solberegning står under funn bare hvis de ble kjørt. God synk og dybde i bakgrunnen betyr ikke at videoen er ekte; manglende dybde betyr ikke at den er falsk.</li>
 <li>Den beste kilden er fortsatt originalfila fra den som tok opptaket, og kontroll av sted og tid mot uavhengige kilder.</li>
-</ul>
+</ul>`}
 </body></html>`;
   }
 

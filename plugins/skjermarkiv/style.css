@@ -814,3 +814,10 @@ mark { background: #FFE14D; color: #111; border-radius: 2px; padding: 0 1px; }
 .sa-tx--t:hover { background: rgba(0,80,252,0.25); }
 
 .sa-group::first-letter { text-transform: uppercase; }
+
+/* Rulling (05.11.2026): rammen får fast høyde, så sidepanel og forhåndsvisning ruller hver for seg
+   i stedet for å vokse forbi vinduet og bli klippet. */
+.plugin-page { min-height: 0; grid-template-rows: minmax(0, 1fr); }
+.plugin-sidebar { min-height: 0; max-height: 100%; }
+.plugin-canvas { min-height: 0; max-height: 100%; }
+.ftb-stage { min-height: 0; max-height: 100%; overflow-y: auto; }

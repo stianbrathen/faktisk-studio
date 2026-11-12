@@ -1009,3 +1009,10 @@ textarea.tb-row__input { min-height: 36px; }
   80%  { transform: scale(2.6); opacity: 0;    }
   100% { transform: scale(2.6); opacity: 0;    }
 }
+
+/* Rulling (05.11.2026): rammen får fast høyde, så sidepanel og forhåndsvisning ruller hver for seg
+   i stedet for å vokse forbi vinduet og bli klippet. */
+.plugin-page { min-height: 0; grid-template-rows: minmax(0, 1fr); }
+.plugin-sidebar { min-height: 0; max-height: 100%; }
+.plugin-canvas { min-height: 0; max-height: 100%; }
+.ftb-stage { min-height: 0; max-height: 100%; overflow-y: auto; }

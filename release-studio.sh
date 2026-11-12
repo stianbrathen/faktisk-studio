@@ -120,6 +120,18 @@ echo "✓ Build-artifakter OK:"
 ls -lh "$EXPECTED_DMG" "$EXPECTED_ZIP" "$EXPECTED_YML" | awk '{print "  " $9 " (" $5 ")"}'
 echo ""
 
+# Kopi med versjonsløst navn, slik at
+#   …/releases/latest/download/Faktisk-Studio-arm64.dmg
+# alltid peker på nyeste utgave. Uten den må nedlastingslenker på nettsider
+# oppdateres manuelt ved hver release — og gir 404 i mellomtiden.
+# Auto-updateren bruker de versjonerte filene via latest-mac.yml og
+# påvirkes ikke av denne kopien.
+STABLE_DMG="dist/Faktisk-Studio-arm64.dmg"
+cp "$EXPECTED_DMG" "$STABLE_DMG"
+echo "✓ Laget versjonsløs kopi for permanent nedlastingslenke:"
+echo "  $STABLE_DMG"
+echo ""
+
 # Publiser
 echo "→ Publiserer v$VERSION til GitHub Releases..."
 gh release create "v$VERSION" \
@@ -128,7 +140,8 @@ gh release create "v$VERSION" \
   --notes "$NOTES" \
   "$EXPECTED_DMG" \
   "$EXPECTED_ZIP" \
-  "$EXPECTED_YML"
+  "$EXPECTED_YML" \
+  "$STABLE_DMG"
 
 echo ""
 echo "→ Verifiserer release..."
@@ -137,3 +150,6 @@ gh release view "v$VERSION" --repo stianbrathen/faktiskorg-studio-plugins | head
 echo ""
 echo "✅ Ferdig. Faktisk Studio v$VERSION er publisert."
 echo "   Auto-updater vil tilby oppdateringen ved neste Studio-restart."
+echo ""
+echo "   Permanent nedlastingslenke (peker alltid på nyeste versjon):"
+echo "   https://github.com/stianbrathen/faktiskorg-studio-plugins/releases/latest/download/Faktisk-Studio-arm64.dmg"

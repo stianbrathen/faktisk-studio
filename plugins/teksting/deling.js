@@ -128,6 +128,17 @@
   // alternativ, og komma/punktum foretrekkes som linjeskift.
   const LINE_BREAK_WEIGHT = 6; // én bruddpris-enhet ≈ 6 «slakk²»
 
+  // Bredde på et ord. Standard: antall tegn. Gir budsjettet en measure
+  // (f.eks. målt med canvas i ekte skrift, omregnet til «tegn-enheter»),
+  // brukes den — maxChars er da en bredde i de samme enhetene.
+  let W = s => s.length;
+  let SP = 1;
+  function withMeasure(budget, fn) {
+    const pw = W, ps = SP;
+    if (budget && typeof budget.measure === 'function') { W = budget.measure; SP = budget.measure(' '); }
+    try { return fn(); } finally { W = pw; SP = ps; }
+  }
+
   // words: ordstrenger. bc(k) = bruddpris etter words[k] (standard: regnes ut).
   // Returnerer { lines, penalty } der penalty er summen av positive
   // bruddpriser ved linjeskiftene (brukes når boksene velges), eller null.
@@ -135,8 +146,8 @@
     const n = words.length;
     const bcAt = bc || (q => breakCost(words, q));
     const len = new Array(n + 1).fill(0);
-    for (let i = 0; i < n; i++) len[i + 1] = len[i] + words[i].length;
-    const lineLen = (p, i) => len[i] - len[p] + (i - p - 1); // ord p..i-1
+    for (let i = 0; i < n; i++) len[i + 1] = len[i] + W(words[i]);
+    const lineLen = (p, i) => len[i] - len[p] + (i - p - 1) * SP; // ord p..i-1
     if (k === 1) return lineLen(0, n) <= maxChars ? { lines: [words.join(' ')], penalty: 0 } : null;
     if (k > n) return null;
     const INF = Infinity;
@@ -171,13 +182,52 @@
     return { lines, penalty };
   }
 
+  // Linjeskift du har satt selv (Shift+Enter → «\n») respekteres: hver del
+  // balanseres for seg. Får delene ikke plass på maxLines linjer, brukes den
+  // automatiske delingen (malen har bare tre linjer — ingen ord skal falle
+  // ut), og manualIgnored settes så advarselen kan vise det.
   function balanceLines(text, budget) {
+    return withMeasure(budget, () => balanceLinesInner(text, budget));
+  }
+  function balanceLinesInner(text, budget) {
     const { maxChars, maxLines } = budget;
-    const words = String(text || '').trim().split(/\s+/).filter(Boolean);
+    const parts = String(text || '').split(/\n/)
+      .map(p => p.trim().split(/\s+/).filter(Boolean))
+      .filter(p => p.length);
+    if (parts.length > 1) {
+      const lines = [];
+      let ok = true;
+      const hard = budget.hardChars || maxChars;
+      for (const p of parts) {
+        let got = null;
+        for (let k = 1; k <= p.length && !got; k++) got = balanceIntoK(p, k, maxChars);
+        for (let k = 1; k <= p.length && !got && hard > maxChars; k++) got = balanceIntoK(p, k, hard);
+        if (!got) { ok = false; break; }
+        lines.push(...got.lines);
+      }
+      if (ok && lines.length <= maxLines) return { lines, tooLong: false, maxLines, manual: true };
+      const auto = balanceAuto(parts.flat(), maxChars, maxLines, budget.hardChars);
+      auto.manualIgnored = true;
+      return auto;
+    }
+    return balanceAuto(parts[0] || [], maxChars, maxLines, budget.hardChars);
+  }
+
+  // hardChars (valgfri): myk grense. Først prøves maxChars på 1..maxLines
+  // linjer; går det ikke, tillates litt bredere linjer (opp til hardChars)
+  // før teksten regnes som for lang.
+  function balanceAuto(words, maxChars, maxLines, hardChars) {
     if (!words.length) return { lines: [], tooLong: false, maxLines };
     for (let k = 1; k <= maxLines; k++) {
       const best = balanceIntoK(words, k, maxChars);
       if (best) return { lines: best.lines, tooLong: false, maxLines };
+    }
+    if (hardChars > maxChars) {
+      for (let k = 1; k <= maxLines; k++) {
+        const best = balanceIntoK(words, k, hardChars);
+        if (best) return { lines: best.lines, tooLong: false, maxLines, overSoft: true };
+      }
+      maxChars = hardChars;
     }
     // For langt: utvid tegnbudsjettet til ALLE ord får plass på maks antall
     // linjer. Boksene blir for brede (advarsel vises), men ingen ord forsvinner.
@@ -193,10 +243,10 @@
   function fits(words, i, j, maxChars, maxLines) {
     let lines = 1, cur = 0;
     for (let k = i; k <= j; k++) {
-      const L = words[k].w.length;
+      const L = W(words[k].w);
       if (L > maxChars) return false;
       if (cur === 0) cur = L;
-      else if (cur + 1 + L <= maxChars) cur += 1 + L;
+      else if (cur + SP + L <= maxChars) cur += SP + L;
       else { lines++; cur = L; if (lines > maxLines) return false; }
     }
     return true;
@@ -225,6 +275,9 @@
   };
 
   function segmentWords(words, budget, opts) {
+    return withMeasure(budget, () => segmentWordsInner(words, budget, opts));
+  }
+  function segmentWordsInner(words, budget, opts) {
     const o = Object.assign({}, SEG, opts || {});
     const { maxChars, maxLines } = budget;
     const n = words.length;

@@ -1,0 +1,9 @@
+{
+  "id": "kontokart",
+  "name": "Kontokart",
+  "version": "0.2.2",
+  "entry": "index.html",
+  "description": "Kartlegging av kontoer: legg inn kontoer med adminland (eller lim inn / importer fra regneark) og velg visning – tabell med snurrende klode, verdenskart med buer fra adminland til gruppene innholdet er rettet mot, eller nettverksklode som dreier og zoomer når man trykker på kontoer og land. Eksempelkontoer kan fremheves. Genererer embed for Labrador.",
+  "category": "annet",
+  "minStudioVersion": "0.7.0"
+}

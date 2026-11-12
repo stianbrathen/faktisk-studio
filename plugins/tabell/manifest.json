@@ -1,0 +1,9 @@
+{
+  "id": "tabell",
+  "name": "Tabell",
+  "version": "0.2.4",
+  "entry": "index.html",
+  "description": "Lag en tabell i Faktisk-stil med valgfrie illustrasjonsbilder, søyler og automatisk utregnede andeler eller ferdige prosenter, og valgfri detaljlinje per rad. Avrundet boks med ramme, tittel, undertittel og kildelinje. Genererer embed for Labrador.",
+  "category": "annet",
+  "minStudioVersion": "0.7.0"
+}

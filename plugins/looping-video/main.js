@@ -7,6 +7,8 @@ const MIN_DURATION = 1;
 // Vis app-versjon + plugin-versjon ved siden av logoen. Plugin-versjon
 // hentes dynamisk fra installert manifest (via pluginStatus) så vi slipper
 // å bumpe en hardkodet konstant manuelt hver release.
+// Plugin-versjonen skrives også inn i embed-koden, så gamle embeds i artikler kan spores.
+let PLUGIN_VERSION = '';
 (async () => {
   try {
     const [appV, plugins] = await Promise.all([
@@ -14,6 +16,7 @@ const MIN_DURATION = 1;
       window.faktisk.pluginStatus(),
     ]);
     const me = (plugins || []).find(p => p.id === PLUGIN_ID);
+    if (me && me.version) PLUGIN_VERSION = me.version;
     const el = document.getElementById('appVersion');
     if (el && appV) {
       el.textContent = me
@@ -25,6 +28,10 @@ const MIN_DURATION = 1;
 
 const els = {
   url:           document.getElementById('videoUrl'),
+  bgMode:        document.getElementById('bgMode'),
+  sizeH:         document.getElementById('sizeH'),
+  sizeW:         document.getElementById('sizeW'),
+  sizeAlign:     document.getElementById('sizeAlign'),
   loadBtn:       document.getElementById('loadVideoBtn'),
   video:         document.getElementById('videoEl'),
   empty:         document.getElementById('canvasEmpty'),
@@ -240,10 +247,15 @@ function escapeHtml(s) {
 function buildEmbedSnippet() {
   const ts = state.trimStart.toFixed(2);
   const te = state.trimEnd.toFixed(2);
+  // Trimmet = starter etter 0 eller slutter før klippets slutt (ellers native loop)
+  const trimmed = state.trimStart > 0.05 || (state.duration > 0 && state.trimEnd < state.duration - 0.1);
   const baseUrl = escapeHtml(state.url.split('#')[0]);
   const id = 'fvl-' + Math.random().toString(36).slice(2, 8);
   // Poster: Labrador-URL når tilgjengelig (liten embed), ellers base64
   const poster = state.posterUrl ? encodeURI(state.posterUrl) : state.thumbnailDataUrl;
+  // «Ingen bakgrunn»: ingen mørk flate og ingen stillbilde BAK videoen (det ville synes gjennom
+  // gjennomsiktige partier). Stillbildet brukes fortsatt som dekke til videoen spiller.
+  const noBg = els.bgMode && els.bgMode.value === 'none';
   const caption = (els.captionText.value || '').trim();
   const photographer = (els.photographer.value || '').trim();
   const hasCaption = caption || photographer;
@@ -280,6 +292,15 @@ function buildEmbedSnippet() {
   const vw = els.video.videoWidth || 16;
   const vh = els.video.videoHeight || 9;
   const aspect = (vw / vh).toFixed(4);
+  // Størrelse i artikkelen: maks bredde og maks høyde (andel av skjermhøyden). Stående video får
+  // som standard maks 75 % av skjermhøyden, så den ikke blir enorm på desktop – og litt mindre på mobil.
+  let mh = els.sizeH ? els.sizeH.value : 'auto';
+  if (mh === 'auto') mh = vw / vh < 1 ? '75' : '';
+  const wSel = els.sizeW ? els.sizeW.value : 'full';
+  const maxW = wSel === 'full' ? '100%' : (parseInt(wSel, 10) || 680) + 'px';
+  const narrowed = wSel !== 'full' || !!mh;
+  const frameW = mh ? `min(${maxW}, calc(${parseInt(mh, 10)}vh * ${aspect}))` : maxW;
+  const frameAlign = els.sizeAlign && els.sizeAlign.value === 'left' ? '0 auto 0 0' : '0 auto';
 
   // Base-CSS med design-tokens fra shared/embed-tokens.js.
   // Alle --fk-* CSS-variabler + font/color-arv fra rot-scope.
@@ -288,13 +309,16 @@ function buildEmbedSnippet() {
     : "";
 
   return `<!-- ============================================
-     FAKTISK · LOOPING VIDEO
+     FAKTISK · LOOPING VIDEO${PLUGIN_VERSION ? ' · v' + PLUGIN_VERSION : ''}
      Endre teksten i feltene merket med ▶
      ============================================ -->
 ${open}
   <!-- ▶ VIDEO — bytt ut URL-en under for å bruke et annet klipp -->
   <style>${baseCss}
     .fvl-container { container-type: inline-size; }
+    /* iOS sin egen spill-knapp skjules – plakaten og vår egen knapp brukes når autoplay er blokkert */
+    #${id}::-webkit-media-controls-start-playback-button { display: none !important; -webkit-appearance: none; }
+    #${id}::-webkit-media-controls { display: none !important; }
     @container (min-width: 1080px) {
       .fvl-container > .caption.fvl-caption {
         padding-left: calc(50cqw - var(--lab_page_width, 68rem) / 2 + 0.7rem) !important;
@@ -308,76 +332,88 @@ ${open}
       }
     }
   </style>
-  <div class="fvl-container">
-    <div style="position:relative;width:100%;aspect-ratio:${aspect};border-radius:8px;overflow:hidden;${poster ? `background-image:url('${poster}');background-size:cover;background-position:center;` : 'background:#1a1a1a;'}">
-      <video id="${id}" data-src="${baseUrl}#t=${ts},${te}" muted autoplay loop playsinline webkit-playsinline disablepictureinpicture preload="auto" aria-label="Looping videoklipp" style="width:100%;height:100%;display:block;object-fit:cover;${poster ? `background-image:url('${poster}');background-size:cover;background-position:center;` : ''}"></video>
+  <div class="fvl-container">${narrowed ? `
+   <div class="fvl-frame" style="max-width:${frameW};margin:${frameAlign};">` : ''}
+    <div style="position:relative;width:100%;aspect-ratio:${aspect};border-radius:8px;overflow:hidden;${noBg ? '' : poster ? `background-image:url('${poster}');background-size:cover;background-position:center;` : 'background:#1a1a1a;'}">
+      <video id="${id}" data-src="${baseUrl}" muted autoplay loop playsinline webkit-playsinline disablepictureinpicture preload="auto" aria-label="Looping videoklipp" style="width:100%;height:100%;display:block;object-fit:cover;${poster && !noBg ? `background-image:url('${poster}');background-size:cover;background-position:center;` : ''}"></video>
       <div id="${id}-cover" style="${coverStyle}"></div>
-    </div>${innerCaption}
+    </div>${narrowed ? innerCaption + `
+   </div>` : innerCaption}
   </div>
 ${close}
 <script>
 (function(){
-  var v=document.getElementById('${id}'); if(!v) return;
-  var S=${ts}, E=${te}, loaded=false, inView=false;
-  function actuallyLoad(){
+  // Looping-video ${PLUGIN_VERSION ? 'v' + PLUGIN_VERSION : ''} — robust autoplay (okt. 2026):
+  // - ikke vent på window.load (kan ta lang tid eller aldri skje på tunge sider)
+  // - src UTEN media-fragment (#t=): Safari pauser ved fragmentets sluttpunkt i stedet for å loope
+  // - load() + play() eksplisitt; nyere Safari henter ikke video av seg selv når src settes fra skript
+  // - brukeraktivering via touchend/click (touchstart gir ikke aktivering i iOS)
+  // - spill-knapp bare når videoen er KLAR men står stille (blokkert); aldri mens den lastes
+  var v=document.getElementById('${id}'); if(!v || v.__fvl) return; v.__fvl=1;
+  var cover=document.getElementById('${id}-cover');
+  var S=${ts}, E=${te}, TRIM=${trimmed ? 'true' : 'false'};
+  var loaded=false, played=false, btn=null, timer=null;
+  v.muted=true; v.defaultMuted=true; v.playsInline=true; v.loop=true;
+  v.setAttribute('muted',''); v.setAttribute('playsinline','');
+  function play(){ var p=v.play(); if(p && p.catch) p.catch(function(){}); }
+  function load(){
     if(loaded) return; loaded=true;
-    v.src=v.dataset.src;
+    v.src=(v.getAttribute('data-src')||'').split('#')[0];
+    try { v.load(); } catch(e) {}
+    play();
+    // Sikkerhetsnett: har ingenting skjedd etter 20 s (nettleser som ikke laster), vis spill-knapp.
+    // Ellers vises knappen KUN når videoen er klar men står stille (= blokkert autoplay), se canplay.
+    timer=setTimeout(function(){ if(!played && v.readyState < 2) showButton(); }, 20000);
   }
-  function tryLoad(){
-    if(loaded || !inView) return;
-    if(document.readyState !== 'complete'){
-      window.addEventListener('load', tryLoad, {once:true});
-      return;
-    }
-    actuallyLoad();
+  function showButton(){
+    if(btn || (played && !v.paused)) return;
+    btn=document.createElement('button');
+    btn.type='button';
+    btn.setAttribute('aria-label','Spill av video');
+    btn.style.cssText='position:absolute;left:50%;top:50%;width:64px;height:64px;margin:-32px 0 0 -32px;padding:0;border:0;border-radius:50%;background:#0050fc;cursor:pointer;z-index:2;box-shadow:0 2px 10px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;';
+    btn.innerHTML='<svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path fill="#fff" d="M8 5.5v13a1 1 0 0 0 1.5.86l10.6-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg>';
+    btn.addEventListener('click', function(){ load(); v.muted=true; play(); });
+    (v.parentNode || v).appendChild(btn);
   }
-  function tryPlay(){
-    var p = v.play();
-    if(p && p.catch) p.catch(function(){
-      var unlock = function(){
-        v.play().catch(function(){});
-        document.removeEventListener('touchstart', unlock);
-        document.removeEventListener('click', unlock);
-      };
-      document.addEventListener('touchstart', unlock, {once:true, passive:true});
-      document.addEventListener('click', unlock, {once:true});
-    });
-  }
-  v.addEventListener('loadedmetadata',function(){ v.currentTime=S; });
-  // Fade ut cover-overlay når video spiller en frame (playing-event).
-  // Cover-overlay er ALLTID synlig fra page-load — så ingen kan se frame 0
-  // selv om browser rendrer raskere enn JS rekker å sette opacity.
   function hideCover(){
-    var cover = document.getElementById('${id}-cover');
-    if(cover){
-      cover.style.opacity = '0';
-      setTimeout(function(){ if(cover) cover.style.display = 'none'; }, 250);
-    }
+    if(!cover) return;
+    cover.style.opacity='0';
+    setTimeout(function(){ if(cover) cover.style.display='none'; }, 250);
   }
-  var shownTimer = setTimeout(hideCover, 2000);
+  v.addEventListener('loadedmetadata', function(){ if(S > 0.01){ try { v.currentTime=S; } catch(e) {} } });
   v.addEventListener('playing', function(){
-    clearTimeout(shownTimer);
-    hideCover();
-  }, {once:true});
-  v.addEventListener('canplay', tryPlay);
-  // Manuell loop via requestAnimationFrame (jevnere enn timeupdate som bare
-  // fyrer hver ~250 ms — kan miste seek-vinduet og forårsake flash).
-  // Mer lead-time gjør at Safari får tid til å seke og rendre frame før
-  // den når slutten — eliminerer flash av første frame ved loop.
-  function loopTick(){
-    if(!v.paused && v.currentTime>=E-0.15){ v.currentTime=S; }
-    requestAnimationFrame(loopTick);
+    played=true; hideCover();   // timeren får stå: den sjekker selv om videoen faktisk går
+    if(btn){ btn.parentNode && btn.parentNode.removeChild(btn); btn=null; }
+    document.removeEventListener('touchend', unlock); document.removeEventListener('click', unlock);
+  });
+  // Klar til å spille: prøv å starte. Står den fortsatt stille 2 s etter at den var klar,
+  // er autoplay blokkert (f.eks. strømsparing) — da vises spill-knappen. Mens videoen
+  // fortsatt lastes vises bare plakaten, aldri knappen.
+  var readyCheck=null;
+  v.addEventListener('canplay', function(){
+    if(played && !v.paused) return;
+    play();
+    clearTimeout(readyCheck);
+    readyCheck=setTimeout(function(){ if(v.paused && !(played && v.currentTime > 0.1)) showButton(); }, 2000);
+  });
+  // Trimmet klipp: hopp tilbake til start litt før sluttpunktet. Helt klipp: native loop.
+  if(TRIM){
+    (function tick(){
+      if(!v.paused && v.currentTime >= E - 0.15){ v.currentTime=S; }
+      requestAnimationFrame(tick);
+    })();
   }
-  v.addEventListener('canplay', function(){ requestAnimationFrame(loopTick); }, {once:true});
-  v.addEventListener('ended',function(){ v.currentTime=S; tryPlay(); });
+  v.addEventListener('ended', function(){ v.currentTime=S; play(); });
+  // Første ekte brukeraktivering starter videoen hvis autoplay er blokkert
+  function unlock(){ if(played) return; if(loaded) play(); else load(); }
+  document.addEventListener('touchend', unlock, {passive:true});
+  document.addEventListener('click', unlock);
   if('IntersectionObserver' in window){
     var io=new IntersectionObserver(function(es){
-      es.forEach(function(e){ if(e.isIntersecting){ inView=true; tryLoad(); } });
-    },{threshold:0.1});
+      for(var i=0;i<es.length;i++){ if(es[i].isIntersecting){ io.disconnect(); load(); return; } }
+    }, {rootMargin:'100% 0px'});
     io.observe(v);
-  } else {
-    inView=true; tryLoad();
-  }
+  } else { load(); }
 })();
 </script>
 `;
@@ -526,6 +562,10 @@ function serializeState() {
     trimEnd: state.trimEnd,
     captionText: els.captionText.value,
     photographer: els.photographer.value,
+    bgMode: els.bgMode.value,
+    sizeH: els.sizeH.value,
+    sizeW: els.sizeW.value,
+    sizeAlign: els.sizeAlign.value,
     loaded: state.loaded,
   };
 }
@@ -536,6 +576,10 @@ async function applyState(saved) {
   try {
     els.captionText.value = saved.captionText || '';
     els.photographer.value = saved.photographer || '';
+    els.bgMode.value = saved.bgMode === 'none' ? 'none' : 'dark';
+    if (saved.sizeH != null) els.sizeH.value = saved.sizeH;
+    if (saved.sizeW != null) els.sizeW.value = saved.sizeW;
+    if (saved.sizeAlign != null) els.sizeAlign.value = saved.sizeAlign;
     if (saved.url) {
       els.url.value = saved.url;
       await loadVideo();
@@ -569,6 +613,10 @@ function scheduleSaveState() {
   els.url.addEventListener(ev, scheduleSaveState);
   els.captionText.addEventListener(ev, scheduleSaveState);
   els.photographer.addEventListener(ev, scheduleSaveState);
+  els.bgMode.addEventListener(ev, scheduleSaveState);
+  els.sizeH.addEventListener(ev, scheduleSaveState);
+  els.sizeW.addEventListener(ev, scheduleSaveState);
+  els.sizeAlign.addEventListener(ev, scheduleSaveState);
 });
 
 async function refreshProjectList() {

@@ -392,6 +392,7 @@
   gap: 6px;
 }
 .seg__editor {
+  white-space: pre-wrap; /* Shift+Enter-linjeskift synes */
   font-size: 13.5px;
   line-height: 1.45;
   color: #fff;
@@ -576,3 +577,5 @@
   color: #FFD978;
 }
 .tl-seg.is-flag { box-shadow: inset 0 -3px 0 #FFC83D; }
+
+.fcp-opts__check { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #fff; opacity: .85; cursor: pointer; }

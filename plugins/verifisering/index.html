@@ -34,16 +34,22 @@
         <h2 class="plugin-sidebar__title">Verifisering</h2>
       </div>
       <p class="vf-desc">
-        Slipp inn en video eller et bilde. Studio leser merking og metadata og lager
-        hjelpebilder du selv vurderer. Alt skjer på maskinen din — fila sendes ikke noe sted.
+        Slipp inn en video, et bilde eller en tekst (.txt, .docx, .pdf, .html). Studio leser merking,
+        metadata og spor og lager hjelpebilder du selv vurderer. Alt skjer på maskinen din — fila sendes ikke noe sted.
       </p>
 
       <div class="vf-block">
         <label class="vf-drop" id="dropZone">
-          <input type="file" id="fileInput" accept="video/*,image/*,.heic,.heif,.avif,.mov,.mp4,.m4v" hidden>
+          <input type="file" id="fileInput" accept="video/*,image/*,.heic,.heif,.avif,.mov,.mp4,.m4v,.txt,.md,.html,.htm,.docx,.pdf,.rtf,.srt,.vtt,text/*" hidden>
           <span class="vf-drop__big">Dra en fil hit</span>
           <span class="vf-drop__small">eller klikk for å velge</span>
         </label>
+      </div>
+
+      <div class="vf-block" id="pasteBlock">
+        <span class="url-section__label">Eller lim inn tekst</span>
+        <textarea id="pasteInput" class="caption-input vf-note" rows="3" placeholder="Lim inn en tekst for å se etter rester fra en AI-chat, usynlige tegn og lenker…"></textarea>
+        <button id="pasteBtn" class="btn-mini btn-mini--block btn-mini--light" type="button">Sjekk teksten</button>
       </div>
 
       <div class="vf-block" id="fileBox" style="display:none;">
@@ -88,12 +94,13 @@
     <section class="plugin-canvas vf-canvas">
       <div class="vf-empty" id="emptyState">
         <h3>Ingen fil valgt</h3>
-        <p>Verktøyet viser hva fila selv sier om opprinnelsen (Content Credentials, IPTC/XMP, EXIF, videoens metadata) og lager bilder som gjør det lettere å se om noe er klippet inn. Det gir <b>ingen</b> samlet dom om ekte eller falsk.</p>
+        <p>Verktøyet viser hva fila selv sier om opprinnelsen (Content Credentials, IPTC/XMP, EXIF, videoens metadata) og lager bilder som gjør det lettere å se om noe er klippet inn. For tekst ser det etter konkrete spor: rester fra en AI-chat, usynlige tegn, lenker og dokumentmetadata. Det gir <b>ingen</b> samlet dom om ekte eller falsk.</p>
       </div>
 
       <div class="vf-main" id="mainArea" style="display:none;">
         <div class="vf-tabs" id="tabs">
           <button type="button" data-tab="funn" class="is-on">Funn</button>
+          <button type="button" data-tab="tekstspor" id="tekstsporTab" style="display:none;">Tekst</button>
           <button type="button" data-tab="bilder">Bilder</button>
           <button type="button" data-tab="lyd" id="lydTab">Lyd og leppesynk</button>
           <button type="button" data-tab="tid">Sted og tid</button>
@@ -104,6 +111,12 @@
         <div class="vf-panel" id="panel-funn">
           <div class="vf-banner">Ingen samlet vurdering: hvert funn står for seg. At noe <i>ikke</i> er funnet, betyr ikke at fila er ekte.</div>
           <div id="findingList" class="vf-findings"></div>
+        </div>
+
+        <div class="vf-panel" id="panel-tekstspor" style="display:none;">
+          <div class="vf-banner">Ingen AI-score. AI-detektorer som vurderer språket gir mange feilalarmer, særlig på korte og ikke-engelske tekster. Her markeres bare konkrete spor: <mark class="vf-tm vf-tm--ai">rester fra en AI-chat</mark>, <mark class="vf-tm vf-tm--svak">typiske chatfraser (svake spor)</mark>, <mark class="vf-tm vf-tm--mal">plassholdere og Markdown</mark> og <span class="vf-inv">200B</span> usynlige tegn (grå: harde mellomrom). Hold musa over et merke for å se hva det er.</div>
+          <div class="vf-tstats" id="textStats"></div>
+          <div class="vf-text" id="textView"></div>
         </div>
 
         <div class="vf-panel" id="panel-bilder" style="display:none;">
@@ -208,6 +221,7 @@
 <script src="c2pa-lite.js"></script>
 <script src="media-meta.js"></script>
 <script src="findings.js"></script>
+<script src="tekst.js"></script>
 <script src="visual.js"></script>
 <script src="report.js"></script>
 <script>window.PLUGIN_ID = 'verifisering';</script>

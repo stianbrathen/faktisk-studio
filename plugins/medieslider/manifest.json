@@ -1,0 +1,9 @@
+{
+  "id": "medieslider",
+  "name": "Medieslider",
+  "version": "0.1.4",
+  "entry": "index.html",
+  "description": "Slider med egne bilder og videoer til artikler – f.eks. en serie utklipp, skjermbilder av innlegg eller klipp. Hvert element kan ha bildetekst, kilde, dato og inntil to lenker (f.eks. arkivert innlegg og der bildet først ble publisert), med egen tekst. Åpnes stort over hele skjermen med dempet bakgrunn, stort over siden, eller vises bare i slideren. Filene ligger i Labrador. Genererer embed for Labrador.",
+  "category": "image",
+  "minStudioVersion": "0.7.0"
+}

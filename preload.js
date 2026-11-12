@@ -1,5 +1,5 @@
 // Faktisk Studio — preload bridge
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('faktisk', {
   listPlugins: () => ipcRenderer.invoke('list-plugins'),
@@ -36,6 +36,14 @@ contextBridge.exposeInMainWorld('faktisk', {
     return () => ipcRenderer.removeListener('video-export-progress', listener);
   },
   revealInFinder: (filePath) => ipcRenderer.invoke('reveal-in-finder', filePath),
+  // Video av en HTML-embed (Chatbobler): MP4, ProRes 4444 eller HEVC med alfa
+  domVideoExport: (opts) => ipcRenderer.invoke('dom-video-export', opts),
+  domVideoExportCancel: () => ipcRenderer.invoke('dom-video-export-cancel'),
+  onDomVideoProgress: (cb) => {
+    const listener = (_e, msg) => cb(msg);
+    ipcRenderer.on('dom-video-export-progress', listener);
+    return () => ipcRenderer.removeListener('dom-video-export-progress', listener);
+  },
   censorExport: (opts) => ipcRenderer.invoke('censor-export', opts),
   censorTrack: (opts) => ipcRenderer.invoke('censor-track', opts),
   onCensorTrackProgress: (cb) => {
@@ -121,6 +129,103 @@ contextBridge.exposeInMainWorld('faktisk', {
   skjermarkivArchiveLoad: (opts) => ipcRenderer.invoke('skjermarkiv-archive-load', opts),
   skjermarkivArchiveDelete: (opts) => ipcRenderer.invoke('skjermarkiv-archive-delete', opts),
   skjermarkivReadJson: (opts) => ipcRenderer.invoke('skjermarkiv-read-json', opts),
+
+  // Bevissikring: sikre nettsider og SoMe-innlegg (src/bevis-main.js)
+  bevisDefaultRoot: () => ipcRenderer.invoke('bevis-default-root'),
+  bevisOpen: (opts) => ipcRenderer.invoke('bevis-open', opts),
+  bevisWindowState: () => ipcRenderer.invoke('bevis-window-state'),
+  bevisFocus: () => ipcRenderer.invoke('bevis-focus'),
+  bevisCapture: (opts) => ipcRenderer.invoke('bevis-capture', opts),
+  bevisCaptureRegion: (opts) => ipcRenderer.invoke('bevis-capture-region', opts),
+  bevisList: (opts) => ipcRenderer.invoke('bevis-list', opts),
+  bevisVerify: (opts) => ipcRenderer.invoke('bevis-verify', opts),
+  bevisOpenPath: (opts) => ipcRenderer.invoke('bevis-open-path', opts),
+  bevisToolStatus: () => ipcRenderer.invoke('bevis-tool-status'),
+  bevisUpdateTools: () => ipcRenderer.invoke('bevis-update-tools'),
+  bevisLogout: () => ipcRenderer.invoke('bevis-logout'),
+  bevisDownload: (opts) => ipcRenderer.invoke('bevis-download', opts),
+  bevisLinkStatus: () => ipcRenderer.invoke('bevis-link-status'),
+  bevisSettingsGet: () => ipcRenderer.invoke('bevis-settings-get'),
+  bevisView: (opts) => ipcRenderer.invoke('bevis-view', opts),
+  bevisDelete: (opts) => ipcRenderer.invoke('bevis-delete', opts),
+  bevisImport: (opts) => ipcRenderer.invoke('bevis-import', opts),
+  bevisIndexBuild: (opts) => ipcRenderer.invoke('bevis-index-build', opts),
+  bevisIndexSpeech: (opts) => ipcRenderer.invoke('bevis-index-speech', opts),
+  bevisIndexStatus: (opts) => ipcRenderer.invoke('bevis-index-status', opts),
+  bevisSearch: (opts) => ipcRenderer.invoke('bevis-search', opts),
+  // Sti til en fil som er sluppet inn i vinduet (File.path finnes ikke lenger)
+  bevisPathForFile: (file) => { try { return webUtils.getPathForFile(file); } catch (e) { return ''; } },
+  bevisSettingsSet: (opts) => ipcRenderer.invoke('bevis-settings-set', opts),
+  bevisPathInfo: (opts) => ipcRenderer.invoke('bevis-path-info', opts),
+  bevisVaultCreate: (opts) => ipcRenderer.invoke('bevis-vault-create', opts),
+  bevisVaultOpen: (opts) => ipcRenderer.invoke('bevis-vault-open', opts),
+  bevisVaultClose: () => ipcRenderer.invoke('bevis-vault-close'),
+  bevisStamp: (opts) => ipcRenderer.invoke('bevis-stamp', opts),
+  bevisStories: (opts) => ipcRenderer.invoke('bevis-stories', opts),
+  bevisWatchList: () => ipcRenderer.invoke('bevis-watch-list'),
+  bevisWatchAdd: (opts) => ipcRenderer.invoke('bevis-watch-add', opts),
+  bevisWatchRemove: (opts) => ipcRenderer.invoke('bevis-watch-remove', opts),
+  bevisWatchCheck: (opts) => ipcRenderer.invoke('bevis-watch-check', opts),
+  onBevisWatchChanged: (cb) => {
+    const h = (e, d) => cb(d);
+    ipcRenderer.on('bevis-watch-changed', h);
+    return () => ipcRenderer.removeListener('bevis-watch-changed', h);
+  },
+  bevisProfileScan: (opts) => ipcRenderer.invoke('bevis-profile-scan', opts),
+  bevisProfileStop: () => ipcRenderer.invoke('bevis-profile-stop'),
+  bevisProfileSave: (opts) => ipcRenderer.invoke('bevis-profile-save', opts),
+  bevisProfileLists: (opts) => ipcRenderer.invoke('bevis-profile-lists', opts),
+  bevisProfileResult: (opts) => ipcRenderer.invoke('bevis-profile-result', opts),
+  bevisProfileUrls: (opts) => ipcRenderer.invoke('bevis-profile-urls', opts),
+  bevisExpand: (opts) => ipcRenderer.invoke('bevis-expand', opts),
+  onBevisProfileProgress: (cb) => {
+    const listener = (_e, msg) => cb(msg);
+    ipcRenderer.on('bevis-profile-progress', listener);
+    return () => ipcRenderer.removeListener('bevis-profile-progress', listener);
+  },
+  bevisLinkConfig: (opts) => ipcRenderer.invoke('bevis-link-config', opts),
+  bevisLinkNewToken: () => ipcRenderer.invoke('bevis-link-new-token'),
+  bevisLinkExtension: () => ipcRenderer.invoke('bevis-link-extension'),
+  onBevisJobs: (cb) => {
+    const listener = (_e, msg) => cb(msg);
+    ipcRenderer.on('bevis-jobs', listener);
+    return () => ipcRenderer.removeListener('bevis-jobs', listener);
+  },
+  onBevisLibraryChanged: (cb) => {
+    const listener = (_e, msg) => cb(msg);
+    ipcRenderer.on('bevis-library-changed', listener);
+    return () => ipcRenderer.removeListener('bevis-library-changed', listener);
+  },
+  onBevisLinkChanged: (cb) => {
+    const listener = (_e, msg) => cb(msg);
+    ipcRenderer.on('bevis-link-changed', listener);
+    return () => ipcRenderer.removeListener('bevis-link-changed', listener);
+  },
+  bevisPlanCreate: (opts) => ipcRenderer.invoke('bevis-plan-create', opts),
+  bevisPlanList: (opts) => ipcRenderer.invoke('bevis-plan-list', opts),
+  bevisPlanResult: (opts) => ipcRenderer.invoke('bevis-plan-result', opts),
+  bevisYoutubeList: (opts) => ipcRenderer.invoke('bevis-youtube-list', opts),
+  bevisYoutubeDate: (opts) => ipcRenderer.invoke('bevis-youtube-date', opts),
+  bevisParseAccount: (opts) => ipcRenderer.invoke('bevis-parse-account', opts),
+  onBevisProgress: (cb) => {
+    const listener = (_e, msg) => cb(msg);
+    ipcRenderer.on('bevis-progress', listener);
+    return () => ipcRenderer.removeListener('bevis-progress', listener);
+  },
+  onBevisWindow: (cb) => {
+    const listener = (_e, msg) => cb(msg);
+    ipcRenderer.on('bevis-window', listener);
+    return () => ipcRenderer.removeListener('bevis-window', listener);
+  },
+
+  // TikTok-henting for Videoslider (Studio 0.7.13) — se src/tiktok-main.js
+  tiktokList: (opts) => ipcRenderer.invoke('tiktok-list', opts),
+  tiktokImport: (opts) => ipcRenderer.invoke('tiktok-import', opts),
+  onTiktokProgress: (cb) => {
+    const listener = (_e, msg) => cb(msg);
+    ipcRenderer.on('tiktok-progress', listener);
+    return () => ipcRenderer.removeListener('tiktok-progress', listener);
+  },
 
   // Auto-updater (electron-updater)
   updaterGetState: () => ipcRenderer.invoke('updater-get-state'),

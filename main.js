@@ -180,8 +180,17 @@ ipcMain.handle('go-home', async () => {
 });
 
 ipcMain.handle('copy-to-clipboard', async (e, text) => {
-  clipboard.writeText(text);
-  return { ok: true };
+  // Embed-kode: bilder som Studio har komprimert får AVIF + srcset (se
+  // upgradeEmbedImages). Feiler oppslaget, kopieres teksten uendret.
+  let out = text, upgraded = 0;
+  try {
+    const r = await upgradeEmbedImages(String(text == null ? '' : text));
+    out = r.text; upgraded = r.count;
+  } catch (err) {
+    console.warn('[copy-to-clipboard] Kunne ikke oppgradere bilder:', err && err.message);
+  }
+  clipboard.writeText(out);
+  return { ok: true, upgradedImages: upgraded };
 });
 
 ipcMain.handle('toggle-fullscreen', async () => {
@@ -414,15 +423,119 @@ ipcMain.handle('labrador-connect', async () => {
 });
 
 ipcMain.handle('labrador-list-files', async () => {
-  try { return await labradorListFiles(); }
+  try {
+    const list = await labradorListFiles();
+    if (list && list.loggedIn) list.files = groupImageVariants(list.files);
+    return list;
+  }
   catch (err) { return { ok: false, loggedIn: false, error: err.message }; }
 });
+
+// ---------- Komprimerte bildevarianter ----------
+// Studio laster opp hvert bilde som <navn>-<hash6>-<bredde>.(avif|jpg|webp|png).
+// I fillistene til plugins vises bare den største JPG/WebP/PNG-en per bilde;
+// de andre variantene ligger på oppføringen som `variants`.
+const IMG_VARIANT_RE = /^(.*-[0-9a-f]{6})-(\d+)\.(avif|jpe?g|webp|png)$/i;
+
+function variantGroups(files) {
+  const groups = new Map();
+  files.forEach(f => {
+    const m = IMG_VARIANT_RE.exec(f.name || '');
+    if (!m) return;
+    const stem = m[1].toLowerCase(), ext = m[3].toLowerCase();
+    if (!groups.has(stem)) groups.set(stem, { avif: [], fallback: [] });
+    const g = groups.get(stem), v = { w: +m[2], url: f.url, id: f.id };
+    const arr = ext === 'avif' ? g.avif : g.fallback;
+    if (!arr.some(x => x.w === v.w)) arr.push(v);
+  });
+  groups.forEach(g => { g.avif.sort((a, b) => a.w - b.w); g.fallback.sort((a, b) => a.w - b.w); });
+  return groups;
+}
+
+function groupImageVariants(files) {
+  const groups = variantGroups(files);
+  return files.filter(f => {
+    const m = IMG_VARIANT_RE.exec(f.name || '');
+    if (!m) return true;
+    const g = groups.get(m[1].toLowerCase());
+    if (!g.fallback.length) return true;                 // bare AVIF: vis som den er
+    const top = g.fallback[g.fallback.length - 1];
+    if (f.url !== top.url) return false;                  // skjul AVIF og mindre størrelser
+    f.variants = {
+      avif: g.avif.map(v => ({ w: v.w, url: v.url })),
+      fallback: g.fallback.map(v => ({ w: v.w, url: v.url })),
+    };
+    return true;
+  });
+}
+
+let variantIndexCache = null;
+async function labradorVariantIndex(force) {
+  if (!force && variantIndexCache && Date.now() - variantIndexCache.t < 60000) return variantIndexCache;
+  const list = await labradorListFiles();
+  if (!list.loggedIn) return null;
+  const norm = u => { u = String(u || '').trim(); try { u = decodeURI(u); } catch (e) {} return u.replace(/^https?:\/\//i, '').toLowerCase(); };
+  const groups = variantGroups(list.files), byUrl = new Map();
+  list.files.forEach(f => {
+    const m = IMG_VARIANT_RE.exec(f.name || '');
+    if (m) byUrl.set(norm(f.url), { group: groups.get(m[1].toLowerCase()), ext: m[3].toLowerCase() });
+  });
+  variantIndexCache = { t: Date.now(), byUrl, norm };
+  return variantIndexCache;
+}
+
+// Bytter <img src="…-hash-bredde.jpg"> i embed-kode til
+// <picture style="display:contents"><source type="image/avif" srcset=…><img srcset=…></picture>.
+// display:contents gjør at <picture> ikke påvirker layout. Rører ikke
+// <img> som allerede har srcset, eller noe inne i <script>.
+// Plugins kan styre `sizes` med data-fk-sizes på <img>.
+async function upgradeEmbedImages(text) {
+  if (!/<img\b/i.test(text) || !/\/files\//i.test(text)) return { text, count: 0 };
+  const withTimeout = (p, ms) => Promise.race([p, new Promise(res => setTimeout(() => res(null), ms))]);
+  let idx = await withTimeout(labradorVariantIndex(false), 5000);
+  if (!idx) return { text, count: 0 };
+  const unesc = s => s.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+  const escA = s => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+  const srcOf = tag => { const m = /\ssrc\s*=\s*(["'])(.*?)\1/i.exec(tag); return m ? unesc(m[2]) : null; };
+  const candidates = [];
+  text.replace(/<img\b[^>]*>/gi, t => { const u = srcOf(t); if (u && IMG_VARIANT_RE.test(u.split('/').pop().split('?')[0])) candidates.push(u); return t; });
+  if (!candidates.length) return { text, count: 0 };
+  // Nylig opplastet og ikke i hurtigbufferen ennå: hent lista på nytt én gang
+  if (candidates.some(u => !idx.byUrl.has(idx.norm(u)))) idx = (await withTimeout(labradorVariantIndex(true), 5000)) || idx;
+
+  let count = 0;
+  const parts = text.split(/(<script\b[\s\S]*?<\/script>)/i);
+  for (let i = 0; i < parts.length; i += 2) {
+    parts[i] = parts[i].replace(/<img\b[^>]*>/gi, tag => {
+      if (/\ssrcset\s*=/i.test(tag)) return tag;
+      const src = srcOf(tag);
+      const hit = src && idx.byUrl.get(idx.norm(src));
+      if (!hit || !hit.group || !hit.group.fallback.length) return tag;
+      const g = hit.group;
+      const sm = /\sdata-fk-sizes\s*=\s*(["'])(.*?)\1/i.exec(tag);
+      const sizes = sm ? unesc(sm[2]) : '(max-width: 1100px) 100vw, 1100px';
+      const set = arr => arr.map(v => escA(String(v.url).replace(/ /g, '%20')) + ' ' + v.w + 'w').join(', ');
+      let img = tag;
+      // Valgt AVIF direkte: la <img> peke på JPG/WebP så eldre nettlesere også får bilde
+      if (hit.ext === 'avif') {
+        const top = g.fallback[g.fallback.length - 1];
+        img = img.replace(/(\ssrc\s*=\s*)(["'])(.*?)\2/i, (m0, a) => a + '"' + escA(String(top.url).replace(/ /g, '%20')) + '"');
+      }
+      img = img.replace(/\s*\/?>$/, ' srcset="' + set(g.fallback) + '" sizes="' + escA(sizes) + '">');
+      count++;
+      return g.avif.length
+        ? '<picture style="display:contents"><source type="image/avif" srcset="' + set(g.avif) + '" sizes="' + escA(sizes) + '">' + img + '</picture>'
+        : img;
+    });
+  }
+  return { text: parts.join(''), count };
+}
 
 // Filvelger + opplasting i én operasjon. Returnerer URL-en til den nye fila
 // ved å slå opp i list-files etterpå (upload-responsen er ikke dokumentert).
 ipcMain.handle('labrador-upload', async (e, opts) => {
   const filters = (opts && opts.filters) || [
-    { name: 'Medier', extensions: ['png', 'gif', 'jpg', 'jpeg', 'avif', 'heic', 'mp4', 'mpg', 'pdf'] },
+    { name: 'Medier', extensions: ['png', 'gif', 'jpg', 'jpeg', 'webp', 'avif', 'heic', 'mp4', 'mpg', 'pdf'] },
   ];
   const pick = await dialog.showOpenDialog(mainWindow, {
     title: 'Velg fil som skal lastes opp til Labrador',
@@ -445,6 +558,26 @@ ipcMain.handle('labrador-upload', async (e, opts) => {
     return { ok: false, error: 'Fila er over 100 MB (Labradors grense).' };
   }
 
+  // Bilder komprimeres før opplasting: AVIF + JPG/WebP i 1200 og 2400 px,
+  // med kvalitet valgt per bilde (se src/image-optimize.js). Plugins kan be
+  // om originalen med { optimize: false } (Alt-klikk på «Last opp…»).
+  // Feiler noe (f.eks. HEIC som sharp ikke leser), lastes originalen opp.
+  if (!opts || opts.optimize !== false) {
+    const optim = require('./src/image-optimize');
+    if (optim.OPTIMIZABLE.test(fileName)) {
+      const totalMB = (stat.size / 1048576).toFixed(1);
+      const note = (label, percent) => {
+        try { mainWindow && mainWindow.webContents.send('labrador-upload-progress', { percent, label, sentMB: '0.0', totalMB }); } catch (e) {}
+      };
+      try {
+        const r = await optim.optimizeImage(filePath, fileName, note);
+        if (r) return await labradorUploadOptimized(r, note);
+      } catch (err) {
+        console.warn('[labrador-upload] Bildeoptimalisering feilet, laster opp originalen:', err && err.message);
+      }
+    }
+  }
+
   // Labrador ser på Content-Type, ikke bare filendelsen. Med
   // application/octet-stream for alt ble .mov stille forkastet — serveren
   // svarte 200, men fila dukket aldri opp i lista.
@@ -456,6 +589,7 @@ ipcMain.handle('labrador-upload', async (e, opts) => {
     '.mpeg': 'video/mpeg',
     '.webm': 'video/webm',
     '.png': 'image/png',
+    '.webp': 'image/webp',
     '.jpg': 'image/jpeg',
     '.jpeg': 'image/jpeg',
     '.gif': 'image/gif',
@@ -558,9 +692,8 @@ function labradorSafeName(name) {
     .trim();
 }
 
-// Enkel buffer-opplasting (små filer, ingen fremdrift). Returnerer URL
-// ved å slå opp i list-files etterpå.
-async function labradorUploadBuffer(fileName, buffer, contentType) {
+// Sender én fil til Labrador uten å slå opp URL-en etterpå.
+async function labradorPostBuffer(fileName, buffer, contentType) {
   const boundary = '----FaktiskStudio' + Math.random().toString(36).slice(2);
   const head = Buffer.from(
     '--' + boundary + '\r\n'
@@ -577,15 +710,113 @@ async function labradorUploadBuffer(fileName, buffer, contentType) {
     },
     body,
   });
-  if (res.status === 301 || res.status === 302) return { ok: false, loggedIn: false };
+  if (res.status === 301 || res.status === 302) return { ok: false, loggedIn: false, status: res.status };
   if (res.status < 200 || res.status >= 300) {
-    return { ok: false, error: 'HTTP ' + res.status };
+    return { ok: false, error: 'HTTP ' + res.status, status: res.status, body: res.body };
   }
+  return { ok: true, status: res.status, body: res.body };
+}
+
+// Enkel buffer-opplasting (små filer, ingen fremdrift). Returnerer URL
+// ved å slå opp i list-files etterpå.
+async function labradorUploadBuffer(fileName, buffer, contentType) {
+  const posted = await labradorPostBuffer(fileName, buffer, contentType);
+  if (!posted.ok) return posted;
   const list = await labradorListFiles();
   const hit = list.loggedIn && list.files.find(f => f.name === fileName);
   return hit
     ? { ok: true, url: hit.url, id: hit.id }
     : { ok: true, url: null };
+}
+
+// Laster opp de komprimerte variantene fra optimizeImage. Filnavnene har en
+// kort hash av originalen, så samme bilde lastet opp på nytt gjenbruker
+// filene som allerede ligger i Labrador i stedet for å lage duplikater.
+async function labradorUploadOptimized(r, note) {
+  variantIndexCache = null;
+  const list0 = await labradorListFiles();
+  if (!list0.loggedIn) {
+    return { ok: false, loggedIn: false,
+      error: 'Ikke innlogget i Labrador. Åpne «Mine filer ▾» og trykk «Koble til Labrador…» først.' };
+  }
+  // Labrador kan endre filnavn litt (store/små bokstaver, tegn), så vi
+  // sammenligner på en normalisert form – og faller tilbake på rekkefølgen
+  // til filene som er nye siden før opplastingen.
+  const norm = n => String(n || '').toLowerCase().normalize('NFC').replace(/[^a-z0-9æøå.]/g, '');
+  const maxId0 = list0.files.reduce((m, f) => Math.max(m, Number(f.id) || 0), 0);
+  const have = new Map(list0.files.map(f => [norm(f.name), f]));
+  const todo = r.files.filter(f => !have.has(norm(f.name)));
+  const replies = [];
+  for (let i = 0; i < todo.length; i++) {
+    const f = todo[i];
+    note('Laster opp ' + (i + 1) + ' av ' + todo.length + ' (' + Math.round(f.buffer.length / 1024) + ' KB)…',
+      90 + Math.round(i / todo.length * 10));
+    const res = await labradorPostBuffer(f.name, f.buffer, f.mime);
+    replies.push(f.name + ' → ' + (res.status || '') + ' ' + String(res.body || '').slice(0, 160));
+    if (!res.ok) {
+      return res.loggedIn === false
+        ? { ok: false, loggedIn: false, error: 'Ikke innlogget i Labrador.' }
+        : { ok: false, error: 'Opplasting av ' + f.name + ' feilet (' + (res.error || 'ukjent feil') + ')' };
+    }
+  }
+
+  // Slå opp URL-ene. Labrador bruker av og til litt tid før nye filer
+  // vises i lista, så vi prøver noen ganger.
+  const findAll = list => {
+    const byName = new Map(list.files.map(f => [norm(f.name), f]));
+    const fresh = list.files.filter(f => (Number(f.id) || 0) > maxId0)
+      .sort((a, b) => Number(a.id) - Number(b.id));
+    const urls = new Map();
+    r.files.forEach(f => {
+      const hit = byName.get(norm(f.name)) || have.get(norm(f.name));
+      if (hit) urls.set(f.name, hit.url);
+    });
+    // Ingen navnetreff, men like mange nye filer som vi sendte: bruk rekkefølgen
+    const missing = todo.filter(f => !urls.has(f.name));
+    if (missing.length && fresh.length === todo.length) {
+      todo.forEach((f, i) => { if (!urls.has(f.name)) urls.set(f.name, fresh[i].url); });
+    }
+    return { urls, fresh };
+  };
+  let list = list0, found = findAll(list0);
+  for (let attempt = 0; todo.length && attempt < 6; attempt++) {
+    if (attempt) { note('Venter på at Labrador viser filene…', 99); await new Promise(res => setTimeout(res, 1500)); }
+    list = await labradorListFiles();
+    if (!list.loggedIn) break;
+    found = findAll(list);
+    if (r.files.every(f => found.urls.has(f.name))) break;
+  }
+
+  const pick = kind => r.files.filter(f => f.kind === kind).map(f => ({
+    w: f.w, h: f.h, bytes: f.buffer.length, url: found.urls.get(f.name) || null,
+  })).filter(v => v.url);
+  const avif = pick('avif'), fallback = pick('fallback');
+  const top = fallback[fallback.length - 1];
+  if (!top) {
+    const newest = (list.files || []).slice(0, 8).map(f => f.id + ': ' + f.name);
+    console.warn('[labrador-upload] Komprimerte filer ikke funnet i lista.',
+      '\n  sendt:', todo.map(f => f.name + ' (' + f.mime + ')').join(', '),
+      '\n  svar:', replies.join('\n         '),
+      '\n  nyeste i lista:', newest.join(' | '));
+    return { ok: false,
+      error: 'Labrador svarte OK, men de komprimerte filene dukket ikke opp i lista.\n\n'
+        + 'Sendt: ' + todo.map(f => f.name).join(', ') + '\n\n'
+        + 'Svar fra Labrador: ' + (replies[0] || '–') + '\n\n'
+        + 'Nyeste filer i Labrador: ' + (newest.join(' | ') || '–') + '\n\n'
+        + 'Alt-klikk «Last opp…» for å laste opp originalen i mellomtiden.' };
+  }
+  note('Ferdig', 100);
+  const topAvif = avif[avif.length - 1];
+  return {
+    ok: true, optimized: true,
+    name: r.files.filter(f => f.kind === 'fallback').pop().name,
+    url: top.url,
+    variants: { avif, fallback, fallbackType: r.fallbackMime, width: r.width, height: r.height },
+    stats: {
+      origBytes: r.origBytes, fallbackBytes: top.bytes, avifBytes: topAvif ? topAvif.bytes : null,
+      quality: r.quality, reused: r.files.length - todo.length,
+    },
+  };
 }
 
 // Laster opp generert innhold (dataURL fra canvas) direkte til Labrador —
@@ -1170,6 +1401,31 @@ function writeTempPng(dataUrl, name) {
   return file;
 }
 
+// ============================================================
+//  Video-eksport av HTML-embeds (Chatbobler m.fl.) — se src/dom-video-export.js
+// ============================================================
+let domVideoCancelled = false, domVideoBusy = false;
+ipcMain.handle('dom-video-export', async (e, opts) => {
+  if (!opts || !opts.html || !opts.savePath) return { ok: false, error: 'Mangler embed-kode eller filnavn' };
+  if (domVideoBusy) return { ok: false, error: 'En video-eksport kjører allerede' };
+  const hasFfmpeg = await checkFfmpeg();
+  if (!hasFfmpeg) return { ok: false, error: 'Klarte ikke finne ffmpeg. Prøv å starte appen på nytt.' };
+  const { exportDomVideo } = require('./src/dom-video-export');
+  domVideoCancelled = false; domVideoBusy = true;
+  const sender = e.sender;
+  try {
+    return await exportDomVideo(opts, {
+      BrowserWindow,
+      ffmpegPath: findFfmpeg(),
+      onProgress: msg => { try { if (!sender.isDestroyed()) sender.send('dom-video-export-progress', msg); } catch (err) {} },
+      isCancelled: () => domVideoCancelled,
+    });
+  } finally {
+    domVideoBusy = false;
+  }
+});
+ipcMain.handle('dom-video-export-cancel', async () => { domVideoCancelled = true; return { ok: true }; });
+
 ipcMain.handle('keynote-export', async (e, opts) => {
   const {
     url, inputPath, savePath,
@@ -1252,7 +1508,9 @@ ipcMain.handle('keynote-export', async (e, opts) => {
   const bitrateKbps = Math.round((outWidth * outHeight * fps * 0.2) / 1000);
 
   const videoArgs = useProres
-    ? ['-c:v', 'prores_ks', '-profile:v', '4444', '-pix_fmt', 'yuva444p10le']
+    // Apples ProRes-koder: alfakanalen blir gjenkjent av Final Cut (prores_ks ble ikke det)
+    ? ['-c:v', 'prores_videotoolbox', '-profile:v', '4444', '-allow_sw', '1', '-pix_fmt', 'bgra',
+       '-color_primaries', 'bt709', '-color_trc', 'bt709', '-colorspace', 'bt709']
     : [
         '-c:v', 'hevc_videotoolbox',
         '-alpha_quality', '1.0',
@@ -1695,39 +1953,9 @@ async function ensureWhisperCli(sendProgress) {
   return dest;
 }
 
-// Hent lydsporet som 16 kHz mono WAV (formatet whisper-cli forventer)
-function extractAudioWav(inputPath) {
-  return new Promise((resolve, reject) => {
-    const outFile = path.join(app.getPath('temp'), 'faktisk-transkriber-' + Date.now() + '.wav');
-    const ff = spawn(findFfmpeg(), [
-      '-i', inputPath,
-      '-vn',
-      '-ac', '1',
-      '-ar', '16000',
-      // Adaptiv nivånormalisering: løfter lav/fjern tale (f.eks. stemme
-      // som bare ligger i én kanal — mono-miksen halverer den — eller
-      // med musikk over) så Whisper hører den. Uten dette druknet hele
-      // setninger i test mot andre transkriberingstjenester.
-      '-af', 'dynaudnorm=f=150:g=15',
-      '-c:a', 'pcm_s16le',
-      '-y',
-      outFile,
-    ]);
-    let stderr = '';
-    ff.stderr.on('data', c => { stderr += c.toString(); });
-    ff.on('error', err => reject(new Error('ffmpeg-prosessfeil: ' + err.message)));
-    ff.on('close', code => {
-      if (code !== 0) {
-        return reject(new Error(
-          stderr.includes('does not contain any stream')
-          || stderr.includes('Output file does not contain')
-            ? 'Videoen har ikke noe lydspor.'
-            : 'Klarte ikke hente ut lyden: ' + stderr.split('\n').slice(-3).join(' | ')));
-      }
-      resolve(outFile);
-    });
-  });
-}
+// Transkriberingsflyten (lyd → segmenter, pass 1 + hull-pass) ligger i
+// src/transcribe-pipeline.js — testbar fra Terminal: node scripts/test-transcribe.js
+const transcribePipeline = require('./src/transcribe-pipeline.js');
 
 ipcMain.handle('transcribe-reset-model', async (e, modelId) => {
   try {
@@ -1762,130 +1990,6 @@ ipcMain.handle('transcribe-status', async () => {
   return { ok: true, models };
 });
 
-// Varighet av 16 kHz mono s16-WAV rett fra filstørrelsen (ffprobe følger
-// ikke med ffmpeg-static): 32 000 byte per sekund + 44 byte header.
-function wavDurationSec(file) {
-  try { return Math.max(0, (fs.statSync(file).size - 44) / 32000); } catch (e) { return 0; }
-}
-
-// Klipp ut et tidsrom av en WAV uten re-koding.
-function extractWavSlice(wav, startSec, durSec, outFile) {
-  return new Promise((resolve, reject) => {
-    const ff = spawn(findFfmpeg(), [
-      '-ss', String(startSec.toFixed(3)),
-      '-t', String(durSec.toFixed(3)),
-      // pcm_s16le i stedet for «-c copy»: copy + -ss ga en tom WAV
-      // (130 byte) med enkelte ffmpeg-versjoner — da feilet hull-passet stille
-      '-i', wav, '-c:a', 'pcm_s16le', '-y', outFile,
-    ]);
-    ff.on('error', err => reject(new Error('ffmpeg-prosessfeil: ' + err.message)));
-    ff.on('close', code => code === 0 ? resolve(outFile)
-      : reject(new Error('Klarte ikke klippe ut lydutsnitt (kode ' + code + ')')));
-  });
-}
-
-// Ord med tider fra whisper-tokens (-ojf). Et token som starter med
-// mellomrom begynner et nytt ord; spesialtokens ([_BEG_], [_TT_123]) hoppes
-// over. Brukes av teksting-pluginen til å dele opp tekstboksene på ordnivå.
-//
-// OBS (whisper.cpp v1.9.2, lest i kildekoden): med --vad er segmentenes
-// tider kartlagt tilbake til originalopptaket, men TOKEN-tidene i JSON-en
-// er ikke — de ligger på den komprimerte tidslinjen der stillhet er klippet
-// bort. Vi forankrer derfor ordene til segmentets (riktige) start/slutt:
-// ren forskyvning når lengdene stemmer, ellers lineær skalering.
-function wordsFromWhisperTokens(tokens, segFrom, segTo) {
-  const raw = [];
-  let cur = null;
-  for (const t of tokens || []) {
-    const txt = String(t.text || '');
-    if (!txt || /^\s*\[_/.test(txt) || /^\s*<\|/.test(txt)) continue;
-    const from = t.offsets && t.offsets.from != null ? t.offsets.from / 1000 : null;
-    const to = t.offsets && t.offsets.to != null ? t.offsets.to / 1000 : null;
-    if (/^\s/.test(txt) || !cur) {
-      const w = txt.trim();
-      if (!w) continue;
-      cur = { w, start: from, end: to };
-      raw.push(cur);
-    } else {
-      cur.w += txt;
-      if (to != null) cur.end = to;
-      if (cur.start == null) cur.start = from;
-    }
-  }
-  const words = raw.filter(w => w.w.trim() && w.start != null && w.end != null);
-  if (!words.length || words.length !== raw.length) return null;
-  const r0 = words[0].start, r1 = Math.max(r0 + 0.01, words[words.length - 1].end);
-  const span = Math.max(0.01, segTo - segFrom);
-  const exact = Math.abs((r1 - r0) - span) < 0.15;
-  const map = t => exact ? segFrom + (t - r0) : segFrom + (t - r0) * span / (r1 - r0);
-  let prev = segFrom;
-  return words.map(w => {
-    const start = Math.max(prev, Math.min(segTo, map(w.start)));
-    const end = Math.max(start, Math.min(segTo, map(w.end)));
-    prev = start;
-    return { w: w.w, start: Math.round(start * 1000) / 1000, end: Math.round(end * 1000) / 1000 };
-  });
-}
-
-// Én whisper-kjøring → segmenter. vadThreshold styrer hvor forsiktig
-// taledeteksjonen er (lavere = mer inkluderende). Med -ojf får hvert
-// segment også ordene med tider (seg.words) når de lar seg lese.
-function runWhisperPass(cli, wav, commonArgs, outPrefix, vadThreshold, onPercent) {
-  // vadThreshold null = uten taledeteksjon (se hull-passet)
-  const vadArgs = vadThreshold == null ? []
-    : ['--vad', '--vad-model', aiModelPath('vad'), '--vad-threshold', vadThreshold];
-  const args = commonArgs.concat(['-f', wav], vadArgs, [
-    '-ojf',
-    '-of', outPrefix,
-    '--print-progress',
-  ]);
-  return new Promise((resolve, reject) => {
-    const wp = spawn(cli, args);
-    let stderr = '';
-    wp.stderr.on('data', c => {
-      const text = c.toString();
-      stderr += text;
-      const m = text.match(/progress\s*=\s*(\d+)%/);
-      if (m && onPercent) onPercent(parseInt(m[1], 10));
-    });
-    // KRITISK: stdout MÅ dreneres. whisper-cli skriver transkribert tekst
-    // fortløpende dit, og uten en leser fylles rørbufferen (64 KB) —
-    // da blokkerer whisper-cli på write og henger for alltid.
-    wp.stdout.on('data', () => {});
-    wp.on('error', err => reject(new Error('whisper-prosessfeil: ' + err.message)));
-    wp.on('close', code => {
-      if (code !== 0) {
-        return reject(new Error('whisper-cli feilet (kode ' + code + '): '
-          + stderr.split('\n').slice(-4).join(' | ')));
-      }
-      try {
-        const jsonPath = outPrefix + '.json';
-        const parsed = JSON.parse(fs.readFileSync(jsonPath, 'utf-8'));
-        fs.unlinkSync(jsonPath);
-        resolve((parsed.transcription || []).map(t => {
-          const seg = {
-            start: (t.offsets && t.offsets.from != null) ? t.offsets.from / 1000 : 0,
-            end: (t.offsets && t.offsets.to != null) ? t.offsets.to / 1000 : 0,
-            // Spesialtokens som «<|nocaptions|>» kan lekke inn i teksten
-            text: (t.text || '').replace(/<\|[^|>]*\|>/g, ' ').replace(/\s+/g, ' ').trim(),
-          };
-          // «<|nocaptions|>» = whisper ga opp her (sett over tale med musikk
-          // under). Merkes, så hull-passet prøver tidsrommet på nytt.
-          if (/<\|nocaptions\|>/.test(t.text || '')) seg.nocap = true;
-          // Ordtider er en bonus — feiler de, brukes segmentet som før
-          try {
-            const words = wordsFromWhisperTokens(t.tokens, seg.start, seg.end);
-            if (words && words.length) seg.words = words;
-          } catch (e) {}
-          return seg;
-        }).filter(s => s.text || s.nocap));
-      } catch (err) {
-        reject(new Error('Klarte ikke lese transkriberingsresultatet: ' + err.message));
-      }
-    });
-  });
-}
-
 async function ensureTranscribeModel(id, send) {
   if (aiModelReady(id)) return;
   send({ phase: 'downloading-model', percent: 0, file: AI_MODELS[id].file });
@@ -1897,146 +2001,6 @@ async function ensureTranscribeModel(id, send) {
   fs.mkdirSync(path.dirname(aiModelPath(id)), { recursive: true });
   fs.writeFileSync(aiModelPath(id), buf);
   send({ phase: 'downloading-model', percent: 100 });
-}
-
-// ---------- Hull-passet: planlegging og filtrering (rene funksjoner) ----------
-const normWs = t => String(t).toLowerCase().replace(/[^a-zæøåäöüé0-9 ]/g, '').replace(/\s+/g, ' ').trim();
-
-// «Tynt» segment: noen få ord strukket over lang tid. Typisk når whisper
-// mister tråden i et vindu — den skriver et par ord og hopper over flere
-// setninger (sett i podkasttest 11.10.2026: «av det. finnes ikke.» over
-// 26 s). Normal tale er 10–16 tegn/s; under 4 over minst 2,5 s er mistenkelig.
-function isThinSegment(seg) {
-  if (seg.nocap) return true;
-  const dur = seg.end - seg.start;
-  if (dur < 2.5) return false;
-  const chars = normWs(seg.text).replace(/ /g, '').length;
-  return chars / dur < 4;
-}
-
-// Finn tidsrom som skal dekodes på nytt: tomme hull ≥ gapMin, og tynne
-// segmenter (de tas ut og legges i g.replaced — legges tilbake hvis
-// ny dekoding ikke gir mer tekst). Segmenter som ender i «...» rett før
-// et hull er skadde rester og tas med i hullet på samme måte.
-function planGaps(segments, totalDur, gapMin) {
-  const keep = [], gaps = [];
-  const sorted = segments.slice().sort((a, b) => a.start - b.start);
-  let cursor = 0, pending = [];
-  for (let i = 0; i <= sorted.length; i++) {
-    const seg = sorted[i];
-    if (seg && isThinSegment(seg)) { pending.push(seg); continue; }
-    const gapEnd = seg ? seg.start : totalDur;
-    if (gapEnd - cursor >= gapMin || pending.length) {
-      let gapStart = pending.length ? Math.min(cursor, pending[0].start) : cursor;
-      const replaced = pending.slice();
-      const prev = keep[keep.length - 1];
-      if (prev && /(\.\.\.|…)$/.test(prev.text) && gapStart - prev.end < 0.5) {
-        gapStart = prev.start;
-        replaced.unshift(keep.pop());
-      }
-      if (gapEnd - gapStart >= 0.5) {
-        // Nabotekst: de tre segmentene før og de to etter (gjentakelser fra
-        // polstringen kan strekke seg over mer enn ett segment)
-        const after = sorted.slice(i, i + 4).filter(x => !isThinSegment(x)).slice(0, 2);
-        gaps.push({
-          start: gapStart, end: gapEnd, replaced,
-          prevText: keep.slice(-3).map(x => x.text).join(' '),
-          nextText: after.map(x => x.text).join(' '),
-        });
-      } else keep.push(...replaced);
-    }
-    pending = [];
-    if (seg) { keep.push(seg); cursor = Math.max(cursor, seg.end); }
-  }
-  return { keep, gaps };
-}
-
-// Fjern ord i starten av `text` som bare gjentar slutten av `prev`
-// (minst 2 ord), og ord på slutten som gjentar starten av `next`.
-// Returnerer { text, dropStart, dropEnd } (antall ord fjernet).
-function trimRepeatedEdges(text, prev, next) {
-  const raw = String(text).trim().split(/\s+/);
-  const t = raw.map(normWs);
-  const p = normWs(prev).split(' ').filter(Boolean);
-  const nx = normWs(next).split(' ').filter(Boolean);
-  let dropStart = 0, dropEnd = 0;
-  for (let k = Math.min(t.length, p.length, 12); k >= 2; k--) {
-    if (t.slice(0, k).join(' ') === p.slice(p.length - k).join(' ')) { dropStart = k; break; }
-  }
-  for (let k = Math.min(t.length - dropStart, nx.length, 12); k >= 2; k--) {
-    if (t.slice(t.length - k).join(' ') === nx.slice(0, k).join(' ')) { dropEnd = k; break; }
-  }
-  return { text: raw.slice(dropStart, raw.length - dropEnd).join(' '), dropStart, dropEnd };
-}
-
-// Filtrer funn fra én hull-dekoding. Whisper gjentar gjerne nabotale:
-// 1) ord i funnet som ligger i polstringen FØR hullet (PAD) og som finnes i
-//    slutten av forrige segment, er gjentakelser — kuttes. Tilsvarende ord
-//    etter hullet som finnes i starten av neste. (Sett i podkasttest:
-//    «… bekrefter vi | et langt skriftlig intervju …» to ganger.)
-// 2) funn som (normalisert) finnes i nabo-teksten, eller i naboene
-//    KOMBINERT (prev + next limt sammen til ett «nytt» segment)
-// 3) funn inneholdt i et annet, lengre funn fra samme hull — behold det lengste
-function acceptGapFindings(g, found, s0, sliceEnd) {
-  const prevN = normWs(g.prevText), nextN = normWs(g.nextText);
-  const neighbors = prevN + ' ' + nextN;
-  const prevTail = new Set(prevN.split(' ').slice(-30));
-  const nextHead = new Set(nextN.split(' ').slice(0, 30));
-  const candidates = [];
-  for (const s of found) {
-    const start = s.start + s0;
-    const end = Math.min(s.end + s0, sliceEnd);
-    if (start >= g.end - 0.05) continue; // starter ikke i hullet
-    let toks = s.text.replace(/(\.\.\.|…)$/, '').trim().split(/\s+/).filter(Boolean);
-    let ws = Array.isArray(s.words) && s.words.length === toks.length
-      ? s.words.map(w => ({ w: w.w, start: w.start + s0, end: w.end + s0 })) : null;
-    if (ws) {
-      // Tidsbasert kutt av gjentakelser i kantene
-      // Ordene som ligger i polstringen før hullet: er de fleste av dem
-      // med i slutten av teksten før, er de en gjentakelse (whisper hører
-      // gjerne litt annerledes andre gang: «team fox» → «Team Fax»)
-      let a = 0, b = toks.length;
-      while (a < b && ws[a].start < g.start - 0.15) a++;
-      if (a && toks.slice(0, a).filter(t => prevTail.has(normWs(t))).length / a < 0.6) a = 0;
-      while (b > a && ws[b - 1].start > g.end + 0.1) b--;
-      const nTail = toks.length - b;
-      if (nTail && toks.slice(b).filter(t => nextHead.has(normWs(t))).length / nTail < 0.6) b = toks.length;
-      toks = toks.slice(a, b); ws = ws.slice(a, b);
-    } else {
-      const tr = trimRepeatedEdges(toks.join(' '), g.prevText, g.nextText);
-      toks = tr.text.split(/\s+/).filter(Boolean);
-    }
-    const text = toks.join(' ');
-    if (!text) continue;
-    const cStart = Math.max(g.start, ws && ws.length ? ws[0].start : start);
-    if (end - cStart <= 0.2) continue;
-    const n = normWs(text);
-    if (!n) continue;
-    if (prevN.includes(n) || nextN.includes(n) || neighbors.includes(n)) continue;
-    const c = { start: cStart, end, text, n };
-    if (ws && ws.length) {
-      c.words = ws.map(w => ({ w: w.w,
-        start: Math.round(Math.max(c.start, Math.min(end, w.start)) * 1000) / 1000,
-        end: Math.round(Math.max(c.start, Math.min(end, w.end)) * 1000) / 1000 }));
-    }
-    candidates.push(c);
-  }
-  candidates.sort((a, b) => b.n.length - a.n.length);
-  const accepted = [];
-  for (const c of candidates) {
-    if (accepted.some(a => a.n.includes(c.n))) continue;
-    accepted.push(c);
-  }
-  return accepted;
-}
-
-// Skal et segment vi tok ut (tynt/«...»-rest) legges tilbake? Ja, med
-// mindre den nye dekodingen dekker minst 60 % av ordene i det.
-function replacedStillNeeded(seg, accepted) {
-  const got = new Set(accepted.map(c => c.n).join(' ').split(' '));
-  const ws = normWs(String(seg.text).replace(/<\|[^|>]*\|>/g, ' ')).split(' ').filter(Boolean);
-  if (!ws.length) return false;
-  return ws.filter(w => got.has(w)).length / ws.length < 0.6;
 }
 
 ipcMain.handle('transcribe', async (e, opts) => {
@@ -2083,7 +2047,8 @@ ipcMain.handle('transcribe', async (e, opts) => {
   const outPrefix = path.join(app.getPath('temp'), 'faktisk-transkriber-' + Date.now());
   try {
     send({ phase: 'extracting-audio', percent: 0 });
-    wavFile = await extractAudioWav(input);
+    wavFile = outPrefix + '.wav';
+    await transcribePipeline.extractAudioWav(findFfmpeg(), input, wavFile);
     send({ phase: 'extracting-audio', percent: 100 });
 
     // Språk: 'no' (standard), 'auto' (autodeteksjon) eller ISO-kode.
@@ -2091,102 +2056,19 @@ ipcMain.handle('transcribe', async (e, opts) => {
     // engelsk, fra hvilket som helst språk.
     const lang = /^([a-z]{2,3}|auto)$/.test(String(opts.language || ''))
       ? opts.language : 'no';
-    const commonArgs = [
-      '-m', aiModelPath(modelId),
-      '-l', lang,
-      '-bs', '5',            // beam search: dropper færre setninger enn
-                             // grådig dekoding (standard), koster litt fart
-    ];
-    if (opts.translate === true) commonArgs.push('-tr');
-
-    // Manus-hint (fra teksting-pluginen): navn og fagord, så whisper staver
-    // dem riktig. Kun i hovedpasset — i hull-passet (VAD 0,1, nesten stille
-    // partier) kunne et hint ellers bli «gjentatt» som falsk tekst.
+    // Manus-hint (fra teksting-pluginen): navn og fagord, så whisper staver dem riktig
     const prompt = typeof opts.prompt === 'string'
       ? opts.prompt.replace(/[\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 400)
       : '';
-    const pass1Args = prompt ? commonArgs.concat(['--prompt', prompt]) : commonArgs;
 
-    // Pass 1: hele opptaket med VAD (deler ved talepauser i stedet for
-    // blinde 30-sekunders vinduer — uten VAD forsvant setninger som
-    // krysset vindusgrensa). Terskel 0.2 er empirisk: standard 0.5
-    // droppet telefonkvalitets-tale, 0.3 avviste fjern stemme under
-    // musikk som ikke-tale.
-    send({ phase: 'transcribing', percent: 0 });
-    let segments = await runWhisperPass(cli, wavFile, pass1Args, outPrefix,
-      '0.2', p => send({ phase: 'transcribing', percent: p }));
+    // Pass 1 + hull-pass: se src/transcribe-pipeline.js
+    const segments = await transcribePipeline.transcribeWav({
+      cli, ffmpeg: findFfmpeg(), wav: wavFile,
+      model: aiModelPath(modelId), vadModel: aiModelPath('vad'),
+      lang, translate: opts.translate === true, prompt,
+      tmpPrefix: outPrefix, send,
+    });
 
-    // Pass 2 — hull-pass. VAD/vindusgrenser kan fortsatt miste tale i
-    // overgangene (verifisert: setninger nær 30 s-grensa forsvant, mens
-    // NØYAKTIG samme lyd dekodet isolert ble perfekt). Derfor: finn hull
-    // i tidslinja, dekod dem isolert, og flett inn resultatet.
-    const totalDur = wavDurationSec(wavFile);
-    const GAP_MIN = 1.5;   // sekunder uten tekst før vi undersøker
-    const PAD = 2.5;       // kontekst FØR hullet. Whisper er følsom for
-                           // hvor utsnittet starter: med 0,25 s mistet den
-                           // ord midt i setningen («denne Facebook-gruppa»
-                           // → «gruppa»), med 2,5 s ble frasen ordrett.
-                           // Duplikatvernet under tar seg av at polstringen
-                           // overlapper nabotale.
-    const EXTEND = 2.5;    // dekod et stykke inn i neste segment, så
-                           // setninger som krysser hullkanten blir hele
-    if (totalDur > 0 && segments.length) {
-      const { keep, gaps } = planGaps(segments, totalDur, GAP_MIN);
-
-      const MAX_GAPS = 30; // sikkerhetstak for kjøretid
-      // Hull over taket: legg tilbake det vi tok ut, så ingenting forsvinner
-      for (const g of gaps.slice(MAX_GAPS)) keep.push(...g.replaced);
-      const gapsToCheck = gaps.slice(0, MAX_GAPS);
-      for (let i = 0; i < gapsToCheck.length; i++) {
-        const g = gapsToCheck[i];
-        send({ phase: 'transcribing-gaps',
-               percent: Math.round(i / gapsToCheck.length * 100) });
-        const s0 = Math.max(0, g.start - PAD);
-        const sliceEnd = Math.min(totalDur, g.end + EXTEND);
-        const sliceWav = outPrefix + '-gap' + i + '.wav';
-        let used = false;
-        try {
-          await extractWavSlice(wavFile, s0, sliceEnd - s0, sliceWav);
-          // Enda mer inkluderende VAD (0.1) i hullene: her VET vi at
-          // hovedpasset ikke fant noe — finnes det tale, vil vi ha den.
-          const found = await runWhisperPass(cli, sliceWav, commonArgs,
-            outPrefix + '-gap' + i, '0.1', null);
-          let accepted = acceptGapFindings(g, found, s0, sliceEnd);
-          // Taledeteksjonen kan selv være problemet: VAD klipper bort
-          // musikken mellom ordene, og det oppkuttede lydsporet ga
-          // «<|nocaptions|>» — mens SAMME utsnitt uten VAD ga alle
-          // setningene (verifisert, podkasttest 11.10.2026). Prøv uten VAD,
-          // men bare der hovedpasset faktisk fant noe (tynt/nocaptions-
-          // segment): i helt stille hull kan whisper uten VAD dikte tekst.
-          if (g.replaced.length && (!accepted.length
-              || g.replaced.some(r => replacedStillNeeded(r, accepted)))) {
-            const found2 = await runWhisperPass(cli, sliceWav, commonArgs,
-              outPrefix + '-gap' + i + 'b', null, null);
-            const accepted2 = acceptGapFindings(g, found2, s0, sliceEnd);
-            const len = a => a.reduce((n, c) => n + c.n.length, 0);
-            if (len(accepted2) > len(accepted)) accepted = accepted2;
-          }
-          for (const c of accepted) {
-            const seg = { start: c.start, end: c.end, text: c.text };
-            if (c.words) seg.words = c.words;
-            keep.push(seg);
-          }
-          // Det vi tok ut, legges tilbake med mindre ny dekoding dekket det
-          // — ingenting forsvinner i stillhet
-          for (const r of g.replaced) if (replacedStillNeeded(r, accepted)) keep.push(r);
-          used = true;
-        } catch (e) {
-          // Hull-passet er best effort — hovedresultatet står seg uansett
-          console.error('Hull-pass feilet for', g.start.toFixed(1), '–', g.end.toFixed(1), ':', e.message);
-        } finally {
-          if (!used) keep.push(...g.replaced);
-          try { fs.unlinkSync(sliceWav); } catch (e) {}
-        }
-      }
-      segments = keep.filter(x => x.text).sort((a, b) => a.start - b.start);
-    }
-
-    segments = segments.filter(x => x.text);
     send({ phase: 'done', percent: 100 });
     return {
       ok: true,
@@ -2737,3 +2619,17 @@ ipcMain.handle('app-version', async () => APP_VERSION);
 // Skjermarkiv (Studio 0.7.8): skann mappe, nøkkelbilder, tekstlesing med
 // Apple Vision og lagring av arkiver — se src/skjermarkiv-main.js
 require('./src/skjermarkiv-main.js').register(ipcMain, { app, findFfmpeg });
+
+// Bevissikring: sikringsvindu, skjermbilder, PDF/MHTML, yt-dlp og sjekksummer
+// — se src/bevis-main.js
+require('./src/bevis-main.js').register(ipcMain, { app, findFfmpeg });
+require('./src/bevis-sample.js').register(ipcMain, { app });
+require('./src/bevis-link.js').register(ipcMain);
+require('./src/bevis-profile.js').register(ipcMain, { app });
+require('./src/bevis-extra.js').register(ipcMain, { app });
+require('./src/bevis-view.js').register(ipcMain);
+require('./src/bevis-index.js').register(ipcMain, { app, findFfmpeg });
+
+// Videoslider (Studio 0.7.14): de siste videoene fra en TikTok-profil, og valgte
+// videoer lastet ned med yt-dlp (fra bevissikringen) og lagt i Labrador — se src/tiktok-main.js
+require('./src/tiktok-main.js').register(ipcMain, { app, findFfmpeg, labradorListFiles, labradorSafeName, labradorCookieHeader, labradorOrigin: LABRADOR_ORIGIN });

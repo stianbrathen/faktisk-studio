@@ -1,0 +1,9 @@
+{
+  "id": "videoslider",
+  "name": "Videoslider",
+  "version": "0.1.6",
+  "entry": "index.html",
+  "description": "Slider med stående videoer (f.eks. TikTok-videoene) til forsiden og artikler. Videoer og stillbilder ligger i Labrador. Et trykk åpner videoen stort med lyd, og leseren blar videre som på TikTok. Genererer embed for Labrador.",
+  "category": "video",
+  "minStudioVersion": "0.7.0"
+}

@@ -90,5 +90,61 @@
     }`;
   }
 
-  root.FaktiskEmbedBase = { TOKENS, getBaseCss };
+
+  /**
+   * Beskytter en embed mot stilarket på siden den limes inn i (faktisk.no / Labrador).
+   * Opt-in: kall på hele CSS-teksten til embedden før den legges i <style>.
+   *  - roten (.scope) nullstilles med all:initial og får Faktisk-font/farge/linjehøyde
+   *  - alle etterkommere nullstilles (margin, padding, border, font, listetegn …)
+   *  - alle regler prefikses med dobbel rotklasse (.scope.scope …) så de veier tyngre enn sidens regler
+   *  - font-weight bold/600/700 → 500 og normal/400 → 300 (faktisk.no laster bare Unica77 300 og 500)
+   * Sidens regler med !important kan ingen embed overstyre.
+   *
+   * @param {string} css   - embeddens CSS
+   * @param {string} scope - klassen på embeddens rot-element (uten punktum)
+   * @returns {string} beskyttet CSS
+   */
+  function isolate(css, scope) {
+    const R = '.' + scope, RR = R + R;
+    css = String(css || '')
+      .replace(/font-weight:\s*(bold|700|600|bolder)\b/g, 'font-weight: ' + TOKENS.fwBold)
+      .replace(/font-weight:\s*(normal|400)\b/g, 'font-weight: ' + TOKENS.fwNormal);
+    function fixSel(sel) {
+      return sel.split(',').map(s => s.trim()).filter(Boolean).map(s => {
+        if (s.startsWith(R) && !/[\w-]/.test(s.charAt(R.length) || ' ')) return RR + s.slice(R.length);
+        return RR + ' ' + s;
+      }).join(',');
+    }
+    function walk(src) {
+      let out = '', i = 0;
+      while (i < src.length) {
+        const j = src.indexOf('{', i);
+        if (j < 0) { out += src.slice(i); break; }
+        const head = src.slice(i, j), hs = head.trim();
+        if (hs.charAt(0) === '@') {
+          let depth = 1, k = j + 1;
+          while (k < src.length && depth) { if (src[k] === '{') depth++; else if (src[k] === '}') depth--; k++; }
+          const inner = src.slice(j + 1, k - 1);
+          out += head + '{' + (/^@(media|container|supports)/.test(hs) ? walk(inner) : inner) + '}';
+          i = k; continue;
+        }
+        const k = src.indexOf('}', j);
+        out += head.slice(0, head.length - head.trimStart().length) + fixSel(hs) + src.slice(j, k + 1);
+        i = k + 1;
+      }
+      return out;
+    }
+    const reset = `
+    ${RR} { all: initial; display: block; box-sizing: border-box; font-family: ${TOKENS.font}; font-weight: ${TOKENS.fwNormal};
+      line-height: ${TOKENS.lineHeight}; color: ${TOKENS.ink}; text-align: left; -webkit-font-smoothing: antialiased; }
+    ${RR} *, ${RR} *::before, ${RR} *::after { box-sizing: border-box; margin: 0; padding: 0; border: 0; background: none;
+      font: inherit; line-height: inherit; color: inherit; letter-spacing: normal; text-transform: none; text-indent: 0;
+      text-decoration: none; text-align: inherit; list-style: none; float: none; max-width: none; min-width: 0;
+      min-height: 0; box-shadow: none; outline: 0; quotes: none; vertical-align: baseline; }
+    ${RR} img, ${RR} svg, ${RR} canvas, ${RR} video { display: block; max-width: none; height: auto; }
+`;
+    return reset + walk(css);
+  }
+
+  root.FaktiskEmbedBase = { TOKENS, getBaseCss, isolate };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https:; font-src 'self' data:;">
+<title>Utklipp i boks · Faktisk Studio</title>
+<link rel="stylesheet" href="shared/style.css">
+<link rel="stylesheet" href="style.css">
+<script src="shared/embed-tokens.js"></script>
+</head>
+<body>
+<div class="studio">
+
+  <header class="topbar">
+    <div class="faktisk-logo" role="img" aria-label="Faktisk Studio"></div>
+    <span class="topbar__version" id="appVersion" title="Versjoner"></span>
+    <div class="topbar__title" role="img" aria-label="Labrador"></div>
+    <div class="topbar__actions">
+      <button class="btn-primary" id="backBtn">Malside</button>
+      <button class="btn-icon" id="newProjectBtn" title="Nytt prosjekt (tøm gjeldende)" aria-label="Nytt prosjekt">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+          <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+        </svg>
+      </button>
+      <button class="btn-icon" id="fullscreenBtn" title="Fullskjerm" aria-label="Fullskjerm">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+          <path d="M5 5h5v2H7v3H5V5zm9 0h5v5h-2V7h-3V5zM5 14h2v3h3v2H5v-5zm12 0h2v5h-5v-2h3v-3z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="plugin-page">
+
+    <aside class="plugin-sidebar">
+      <div class="plugin-sidebar__head">
+        <h2 class="plugin-sidebar__title">Utklipp i boks</h2>
+        <button id="openLabradorBtn" class="link-btn" type="button">Åpne Labrador ↗</button>
+      </div>
+
+      <!-- Utklipp -->
+      <div class="ftb-opts">
+        <span class="url-section__label">Utklipp (PNG uten bakgrunn)</span>
+        <div id="fgBox"></div>
+        <label class="cb-range"><span>Størrelse</span><input type="range" id="fgW" min="10" max="160" step="1" value="72"><output id="fgWOut"></output></label>
+        <label class="cb-range"><span>Vannrett</span><input type="range" id="fgX" min="-20" max="120" step="0.5" value="50"><output id="fgXOut"></output></label>
+        <label class="cb-range"><span>Fra bunnen</span><input type="range" id="fgBottom" min="-60" max="60" step="0.5" value="0"><output id="fgBottomOut"></output></label>
+        <label class="cb-range"><span>Vinkel</span><input type="range" id="fgRot" min="-30" max="30" step="0.5" value="0"><output id="fgRotOut"></output></label>
+        <label class="ks-check"><input type="checkbox" id="fgShadow"><span>Skygge under utklippet</span></label>
+        <p class="hk-hint">Dra utklippet i forhåndsvisningen for å flytte det. Negativ «Fra bunnen» lar det gå ut av boksen nederst.</p>
+      </div>
+
+      <!-- Animasjon -->
+      <div class="ftb-opts">
+        <span class="url-section__label">Når leseren scroller dit</span>
+        <div class="cb-grid2">
+          <select id="from" class="project-select">
+            <option value="bottom" selected>Glir opp fra bunnen</option>
+            <option value="left">Glir inn fra venstre</option>
+            <option value="right">Glir inn fra høyre</option>
+            <option value="zoom">Vokser fram</option>
+          </select>
+          <select id="ease" class="project-select">
+            <option value="smooth" selected>Myk stopp</option>
+            <option value="soft">Ekstra myk</option>
+            <option value="bounce">Med litt sprett</option>
+          </select>
+        </div>
+        <label class="cb-range"><span>Varighet</span><input type="range" id="dur" min="0.3" max="3" step="0.05" value="1.1"><output id="durOut"></output></label>
+        <label class="cb-range"><span>Venter før</span><input type="range" id="delay" min="0" max="2" step="0.05" value="0.15"><output id="delayOut"></output></label>
+        <p class="hk-hint">Utklippet blir stående når det har kommet opp.</p>
+      </div>
+
+      <!-- Boksen -->
+      <div class="ftb-opts">
+        <span class="url-section__label">Boksen</span>
+        <div class="cb-grid2">
+          <select id="aspect" class="project-select" title="Format">
+            <option value="1/1">Kvadrat 1:1</option>
+            <option value="4/5" selected>Stående 4:5</option>
+            <option value="3/4">Stående 3:4</option>
+            <option value="9/16">Stående 9:16</option>
+            <option value="3/2">Liggende 3:2</option>
+            <option value="16/9">Liggende 16:9</option>
+          </select>
+          <select id="mobileAspect" class="project-select" title="Format på mobil">
+            <option value="same" selected>Mobil: samme</option>
+            <option value="1/1">Mobil: kvadrat</option>
+            <option value="4/5">Mobil: 4:5</option>
+            <option value="3/4">Mobil: 3:4</option>
+          </select>
+        </div>
+        <label class="cb-range"><span>Avrunding</span><input type="range" id="radius" min="0" max="60" step="1" value="18"><output id="radiusOut"></output></label>
+        <select id="shadow" class="project-select">
+          <option value="none" selected>Ingen skygge</option>
+          <option value="soft">Myk skygge</option>
+          <option value="strong">Tydelig skygge</option>
+        </select>
+      </div>
+
+      <!-- Bakgrunn -->
+      <div class="ftb-opts">
+        <span class="url-section__label">Bakgrunn i boksen</span>
+        <div class="cb-grid2">
+          <select id="bgType" class="project-select">
+            <option value="color" selected>Farge</option>
+            <option value="image">Bilde</option>
+            <option value="video">Video (mp4)</option>
+          </select>
+          <label class="mn-color" title="Bakgrunnsfarge"><input type="color" id="bgColor" value="#0050fc"><span>Farge</span></label>
+        </div>
+        <div id="bgBox" class="ub-bgmedia"></div>
+        <label class="cb-range ub-bgmedia"><span>Mørkere</span><input type="range" id="bgDim" min="0" max="0.8" step="0.05" value="0"><output id="bgDimOut"></output></label>
+        <label class="cb-range ub-bgmedia"><span>Uskarphet</span><input type="range" id="bgBlur" min="0" max="30" step="1" value="0"><output id="bgBlurOut"></output></label>
+        <p class="hk-hint ub-bgmedia">Fargen vises mens bildet eller videoen lastes.</p>
+      </div>
+
+      <!-- Størrelse -->
+      <div class="ftb-opts">
+        <span class="url-section__label">Størrelse og plassering</span>
+        <label class="cb-range"><span>Bredde</span><input type="range" id="width" min="200" max="1100" step="10" value="520"><output id="widthOut"></output></label>
+        <select id="align" class="project-select">
+          <option value="center" selected>Midtstilt i artikkelen</option>
+          <option value="left">Venstre i artikkelen</option>
+        </select>
+      </div>
+
+      <div class="caption-section">
+        <label class="url-section__label" for="caption">Bildetekst (valgfri)</label>
+        <input type="text" id="caption" class="caption-input caption-input--single" placeholder="F.eks. Illustrasjon: Faktisk.no">
+        <label class="url-section__label" for="altText" style="margin-top:6px;">Beskrivelse for skjermlesere</label>
+        <input type="text" id="altText" class="caption-input caption-input--single" placeholder="F.eks. En hånd holder et ID-kort">
+      </div>
+
+      <div class="plugin-sidebar__spacer"></div>
+
+      <div class="project-row">
+        <select id="projectSelect" class="project-select">
+          <option value="">Velg lagret prosjekt…</option>
+        </select>
+        <button id="saveProjectBtn" class="btn-mini">Lagre…</button>
+      </div>
+
+      <button id="copyEmbedBtn" class="btn-mini btn-mini--block">Kopier embed</button>
+    </aside>
+
+    <section class="plugin-canvas">
+      <div class="cb-toolbar">
+        <button id="replayBtn" class="btn-mini" type="button">▶ Spill av på nytt</button>
+        <div class="cb-seg cb-seg--dark" role="group" aria-label="Forhåndsvis bredde">
+          <button type="button" class="cb-seg__btn" data-pw="380">Mobil</button>
+          <button type="button" class="cb-seg__btn is-active" data-pw="680">Spalte</button>
+          <button type="button" class="cb-seg__btn" data-pw="1100">Full</button>
+        </div>
+        <span class="cb-toolbar__hint">Dra utklippet for å flytte det.</span>
+      </div>
+      <div class="slider-stage ftb-stage" id="stage">
+        <div class="cb-article" id="articleHost">
+          <p class="cb-article__fake">Brødtekst i artikkelen …</p>
+          <div id="previewHost"></div>
+          <p class="cb-article__fake">… artikkelen fortsetter.</p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+</div>
+
+<script src="shared/dialog.js"></script>
+<script>window.PLUGIN_ID = 'utklipp-boks';</script>
+<script src="shared/new-project.js"></script>
+<script src="shared/labrador-status.js"></script>
+<script src="snippet.js"></script>
+<script src="main.js"></script>
+</body>
+</html>

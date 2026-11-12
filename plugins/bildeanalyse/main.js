@@ -1549,7 +1549,7 @@ ${open}
     }).join('')}
     </div>` : ''}
     <!-- ▶ FARGENØKKEL — klikk for lightbox -->
-    <div class="banl-legend">${activeGroups.map(g => {
+    <div class="banl-legend banl-legend-${id}">${activeGroups.map(g => {
       const imgsInGroup = new Set(state.marks.filter(m => m.groupId === g.id).map(m => m.imgIndex)).size;
       return `
       <button class="banl-legend__item" data-grp="${g.id}" type="button">
@@ -1621,7 +1621,9 @@ ${close}
     current.pos = (current.pos + dir + current.indices.length) % current.indices.length;
     render();
   }
-  document.querySelectorAll('.banl-legend__item').forEach(function(btn){
+  // Kun DENNE embeddens fargenøkkel — ellers åpner et klikk lysboksene til
+  // alle bildeanalyser i artikkelen (gruppe-id-ene g1, g2 … er like overalt)
+  document.querySelectorAll('.banl-legend-${id} .banl-legend__item').forEach(function(btn){
     btn.addEventListener('click', function(){ openGroup(btn.dataset.grp); });
   });
   lb.querySelector('.banl-lb-${id}__close').addEventListener('click', close);

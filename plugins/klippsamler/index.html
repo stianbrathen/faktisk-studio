@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob: https: file:; connect-src 'self' https:; font-src 'self' data:;">
+<title>Klippsamler · Faktisk Studio</title>
+<link rel="stylesheet" href="shared/style.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="studio">
+
+  <header class="topbar">
+    <div class="faktisk-logo" role="img" aria-label="Faktisk Studio"></div>
+    <span class="topbar__version" id="appVersion" title="Versjoner"></span>
+    <div class="topbar__title" role="img" aria-label="Labrador"></div>
+    <div class="topbar__actions">
+      <button class="btn-primary" id="backBtn">Malside</button>
+      <button class="btn-icon" id="newProjectBtn" title="Nytt prosjekt (tøm gjeldende)" aria-label="Nytt prosjekt">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+          <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+        </svg>
+      </button>
+      <button class="btn-icon" id="fullscreenBtn" title="Fullskjerm" aria-label="Fullskjerm">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+          <path d="M5 5h5v2H7v3H5V5zm9 0h5v5h-2V7h-3V5zM5 14h2v3h3v2H5v-5zm12 0h2v5h-5v-2h3v-3z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="plugin-page">
+
+    <aside class="plugin-sidebar">
+      <div class="plugin-sidebar__head">
+        <h2 class="plugin-sidebar__title">Klippsamler</h2>
+        <button id="openLabradorBtn" class="link-btn" type="button">Åpne Labrador ↗</button>
+      </div>
+
+      <p class="plugin-sidebar__desc">
+        Trim klippene, ordne rekkefølgen og eksporter som ett samlet klipp.
+      </p>
+
+      <button id="addLocalBtn" class="btn-mini btn-mini--block">+ Legg til klipp fra maskinen…</button>
+      <div class="url-row" style="margin-top:6px;">
+        <input type="text" id="videoUrl" class="url-row__input"
+               placeholder="…eller lim inn Labrador-URL"
+               spellcheck="false" autocomplete="off">
+        <button id="loadVideoBtn" class="btn-tiny">Legg til</button>
+      </div>
+
+      <div class="plugin-sidebar__status" id="status"></div>
+
+      <div class="tb-section" id="clipSection" style="display:none;">
+        <div class="tb-section__header">
+          <span class="url-section__label">Klipp (i rekkefølge)</span>
+          <span class="ks-total" id="totalDur"></span>
+        </div>
+        <div id="clipList" class="tb-list"></div>
+        <button id="playAllBtn" class="btn-mini btn-mini--block" type="button"
+                title="Spill gjennom alle klippene med trimming, i rekkefølge — slik eksporten blir">
+          ▶ Spill gjennom redigeringen
+        </button>
+      </div>
+
+      <!-- Trim for valgt klipp -->
+      <div class="ks-trim" id="trimBox" style="display:none;">
+        <span class="url-section__label">Trim valgt klipp</span>
+        <div class="ks-trim__row">
+          <button id="setInBtn" class="btn-tiny" title="Sett klippets startpunkt til der spillehodet står">Inn = spillehodet</button>
+          <button id="setOutBtn" class="btn-tiny" title="Sett klippets sluttpunkt til der spillehodet står">Ut = spillehodet</button>
+          <button id="resetTrimBtn" class="btn-tiny" title="Bruk hele klippet">Nullstill</button>
+        </div>
+        <div class="ks-trim__info" id="trimInfo"></div>
+      </div>
+
+      <div class="ks-opts">
+        <label class="url-section__label" for="formatSelect">Format</label>
+        <select id="formatSelect" class="project-select">
+          <option value="source">Som første klipp</option>
+          <option value="1920x1080">Bredt (1920×1080)</option>
+          <option value="1080x1920">Stående (1080×1920)</option>
+          <option value="1080x1080">Kvadratisk (1080×1080)</option>
+        </select>
+        <label class="ks-check">
+          <input type="checkbox" id="keepAudio" checked>
+          <span>Behold lyd</span>
+        </label>
+      </div>
+
+      <div class="plugin-sidebar__spacer"></div>
+
+      <div class="project-row">
+        <select id="projectSelect" class="project-select">
+          <option value="">Velg lagret prosjekt…</option>
+        </select>
+        <button id="saveProjectBtn" class="btn-mini">Lagre…</button>
+      </div>
+
+      <div class="export-section">
+        <button id="exportBtn" class="btn-primary" disabled>Eksporter samlet klipp</button>
+        <div class="export-progress" id="progress" style="display:none;">
+          <div class="export-progress__bar" id="progressBar"></div>
+        </div>
+        <p class="export-note" id="progressNote"></p>
+      </div>
+    </aside>
+
+    <section class="plugin-canvas">
+      <div class="slider-stage" id="stage">
+        <div class="slider-empty" id="emptyState">
+          <p>Legg til to eller flere klipp — fra maskinen eller Labrador.
+             Klikk et klipp i lista for å se og trimme det.</p>
+        </div>
+        <video id="videoEl" class="ks-video" controls playsinline style="display:none;"></video>
+      </div>
+    </section>
+
+  </main>
+
+</div>
+
+<script src="shared/dialog.js"></script>
+<script>window.PLUGIN_ID = 'klippsamler';</script>
+<script src="shared/new-project.js"></script>
+<script src="shared/labrador-status.js"></script>
+<script src="shared/labrador-files.js"></script>
+<script src="main.js"></script>
+</body>
+</html>

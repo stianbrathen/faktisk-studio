@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https:; font-src 'self' data:;">
+<title>Reaksjoner · Faktisk Studio</title>
+<link rel="stylesheet" href="shared/style.css">
+<link rel="stylesheet" href="style.css">
+<script src="shared/embed-tokens.js"></script>
+</head>
+<body>
+<div class="studio">
+
+  <header class="topbar">
+    <div class="faktisk-logo" role="img" aria-label="Faktisk Studio"></div>
+    <span class="topbar__version" id="appVersion" title="Versjoner"></span>
+    <div class="topbar__title" role="img" aria-label="Labrador"></div>
+    <div class="topbar__actions">
+      <button class="btn-primary" id="backBtn">Malside</button>
+      <button class="btn-icon" id="newProjectBtn" title="Nytt prosjekt (tøm gjeldende)" aria-label="Nytt prosjekt">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+          <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+        </svg>
+      </button>
+      <button class="btn-icon" id="fullscreenBtn" title="Fullskjerm" aria-label="Fullskjerm">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+          <path d="M5 5h5v2H7v3H5V5zm9 0h5v5h-2V7h-3V5zM5 14h2v3h3v2H5v-5zm12 0h2v5h-5v-2h3v-3z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="plugin-page">
+
+    <aside class="plugin-sidebar">
+      <div class="plugin-sidebar__head">
+        <h2 class="plugin-sidebar__title">Reaksjoner</h2>
+        <button id="openLabradorBtn" class="link-btn" type="button">Åpne Labrador ↗</button>
+      </div>
+
+      <div class="ftb-fields">
+        <input type="text" id="titleInput" class="caption-input caption-input--single"
+               placeholder="Tittel — f.eks. Reaksjoner på nettverkets innlegg" spellcheck="true">
+        <input type="text" id="subtitleInput" class="caption-input caption-input--single"
+               placeholder="Ingress (valgfri)" spellcheck="true">
+      </div>
+
+      <div class="tb-section" id="rowSection">
+        <div class="tb-section__header">
+          <span class="url-section__label">Innlegg</span>
+          <div class="tb-add-buttons">
+            <button id="importBtn" class="btn-mini btn-mini--light" type="button" title="Importer Excel (.xlsx), CSV eller TSV">Importer…</button>
+            <button id="sortRowsBtn" class="btn-mini" type="button" title="Sorter innleggene med flest reaksjoner øverst">Sorter ↓</button>
+            <button id="addRowBtn" class="btn-mini" type="button">+ Innlegg</button>
+          </div>
+        </div>
+        <div id="rowList" class="tb-list"></div>
+        <p class="hk-hint">Reaksjoner: skriv tallet slik Facebook viser det — «854», «2,4k» eller «2.4K».
+          Avrundede tall (med k) vises som «ca. 2 400». Lenke: arkivert kopi (archive.ph, megalodon.jp …)
+          eller selve innlegget — lenketeksten sier automatisk hvor den fører. Bilde: last opp
+          postbildet i Labrador.</p>
+      </div>
+
+      <div class="ftb-opts">
+        <span class="url-section__label">Visning</span>
+        <label class="ks-check"><input type="checkbox" id="optLike" checked><span>Like-symbol foran antallet</span></label>
+        <label class="ks-check"><input type="checkbox" id="optWord" checked><span>Ordet «reaksjoner» etter tallet</span></label>
+        <label class="ks-check"><input type="checkbox" id="optQuotes" checked><span>Sitattegn «» rundt teksten</span></label>
+        <label class="ks-check"><input type="checkbox" id="optAutoNote" checked><span>Automatisk merknad om avrunding og arkiver</span></label>
+        <label class="url-section__label" for="imgSizeSelect" style="margin-top:4px;">Bildestørrelse</label>
+        <select id="imgSizeSelect" class="project-select">
+          <option value="s">Liten</option>
+          <option value="m" selected>Medium</option>
+          <option value="l">Stor</option>
+        </select>
+        <label class="url-section__label" for="cropSelect" style="margin-top:4px;">Beskjæring av bildet</label>
+        <select id="cropSelect" class="project-select">
+          <option value="top" selected>Fra toppen (viser spørsmålet i bildet)</option>
+          <option value="center">Midten</option>
+        </select>
+      </div>
+
+      <div class="caption-section">
+        <label class="url-section__label" for="sourceText">Egen merknad / kilde (valgfri)</label>
+        <textarea id="sourceText" class="caption-input" rows="3"
+                  placeholder="Kilde: … (linjeskift gir egne linjer)"
+                  spellcheck="true"></textarea>
+      </div>
+
+      <div class="plugin-sidebar__spacer"></div>
+
+      <div class="project-row">
+        <select id="projectSelect" class="project-select">
+          <option value="">Velg lagret prosjekt…</option>
+        </select>
+        <button id="saveProjectBtn" class="btn-mini">Lagre…</button>
+      </div>
+
+      <button id="copyEmbedBtn" class="btn-mini btn-mini--block" disabled>
+        Kopier embed
+      </button>
+    </aside>
+
+    <section class="plugin-canvas">
+      <div class="slider-stage ftb-stage" id="stage">
+        <div class="ftb-previewhost" id="previewHost">
+          <p class="ftb-empty" id="emptyState">Legg til innlegg —
+            forhåndsvisningen dukker opp her.</p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+</div>
+
+<script src="shared/dialog.js"></script>
+<script>window.PLUGIN_ID = 'reaksjoner';</script>
+<script src="shared/new-project.js"></script>
+<script src="shared/labrador-status.js"></script>
+<script src="shared/fk-import.js"></script>
+<script src="main.js"></script>
+</body>
+</html>

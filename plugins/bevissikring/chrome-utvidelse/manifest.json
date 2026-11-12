@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "Faktisk Bevissikring",
+  "version": "0.2.0",
+  "description": "Sikre alt du ser på en side — skjermbilder mens den rulles, kommentarer, tekst, nettarkiv, bilder og video — med sjekksum og tidsstempel. Til Faktisk Studio, eller i Nedlastinger når Studio ikke kjører.",
+  "permissions": ["contextMenus", "activeTab", "pageCapture", "scripting", "storage", "downloads", "offscreen", "cookies"],
+  "host_permissions": ["http://127.0.0.1:47361/*", "http://timestamp.digicert.com/*", "http://timestamp.sectigo.com/*"],
+  "optional_host_permissions": ["<all_urls>"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_title": "Faktisk Bevissikring", "default_popup": "popup.html" },
+  "options_page": "options.html"
+}

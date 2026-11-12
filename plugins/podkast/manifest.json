@@ -1,0 +1,9 @@
+{
+  "id": "podkast",
+  "name": "Podkast",
+  "version": "0.2.6",
+  "entry": "index.html",
+  "description": "Spillerboks for videopodkast fra YouTube eller Mux, til forsiden og artikler. Forhåndsbilder i Labrador eller hos Mux, spilleren lastes først når leseren trykker play, og målehendelser for hver avspilling. Genererer embed for Labrador.",
+  "category": "video",
+  "minStudioVersion": "0.7.0"
+}

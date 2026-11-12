@@ -72,6 +72,40 @@
                spellcheck="false" autocomplete="off">
       </div>
 
+      <div class="caption-section">
+        <label class="url-section__label" for="bgMode">Bakgrunn bak videoen</label>
+        <select id="bgMode" class="project-select" title="«Ingen» passer for video med hvit bakgrunn eller gjennomsiktighet (HEVC-alfa i .mov vises gjennomsiktig i Safari)">
+          <option value="dark" selected>Mørk mens videoen laster (standard)</option>
+          <option value="none">Ingen – artikkelen synes bak</option>
+        </select>
+      </div>
+
+      <div class="caption-section">
+        <label class="url-section__label" for="sizeH">Størrelse i artikkelen</label>
+        <select id="sizeH" class="project-select" title="Aldri høyere enn denne andelen av skjermhøyden – gjelder både desktop og mobil">
+          <option value="auto" selected>Høyde: automatisk (stående video maks 75 % av skjermen)</option>
+          <option value="">Høyde: fri (fyller bredden)</option>
+          <option value="85">Høyde: maks 85 % av skjermen</option>
+          <option value="70">Høyde: maks 70 % av skjermen</option>
+          <option value="60">Høyde: maks 60 % av skjermen</option>
+          <option value="50">Høyde: maks 50 % av skjermen</option>
+          <option value="40">Høyde: maks 40 % av skjermen</option>
+        </select>
+        <select id="sizeW" class="project-select" title="Største bredde" style="margin-top:6px;">
+          <option value="full" selected>Bredde: fyll</option>
+          <option value="900">Bredde: maks 900 px</option>
+          <option value="680">Bredde: maks 680 px</option>
+          <option value="560">Bredde: maks 560 px</option>
+          <option value="480">Bredde: maks 480 px</option>
+          <option value="400">Bredde: maks 400 px</option>
+          <option value="320">Bredde: maks 320 px</option>
+        </select>
+        <select id="sizeAlign" class="project-select" style="margin-top:6px;">
+          <option value="center" selected>Midtstilt</option>
+          <option value="left">Venstre</option>
+        </select>
+      </div>
+
       <div class="plugin-sidebar__spacer"></div>
 
       <div class="project-row">

@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https:; font-src 'self' data:;">
+<title>Kontokart · Faktisk Studio</title>
+<link rel="stylesheet" href="shared/style.css">
+<link rel="stylesheet" href="style.css">
+<script src="shared/embed-tokens.js"></script>
+</head>
+<body>
+<div class="studio">
+
+  <header class="topbar">
+    <div class="faktisk-logo" role="img" aria-label="Faktisk Studio"></div>
+    <span class="topbar__version" id="appVersion" title="Versjoner"></span>
+    <div class="topbar__title" role="img" aria-label="Labrador"></div>
+    <div class="topbar__actions">
+      <button class="btn-primary" id="backBtn">Malside</button>
+      <button class="btn-icon" id="newProjectBtn" title="Nytt prosjekt (tøm gjeldende)" aria-label="Nytt prosjekt">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+      </button>
+      <button class="btn-icon" id="fullscreenBtn" title="Fullskjerm" aria-label="Fullskjerm">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M5 5h5v2H7v3H5V5zm9 0h5v5h-2V7h-3V5zM5 14h2v3h3v2H5v-5zm12 0h2v5h-5v-2h3v-3z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="plugin-page">
+    <aside class="plugin-sidebar">
+      <div class="plugin-sidebar__head">
+        <h2 class="plugin-sidebar__title">Kontokart</h2>
+        <button id="openLabradorBtn" class="link-btn" type="button">Åpne Labrador ↗</button>
+      </div>
+
+      <div class="kk-tabs" role="tablist">
+        <button class="kk-tab is-on" data-view="tabell" role="tab">Tabell med klode</button>
+        <button class="kk-tab" data-view="kart" role="tab">Verdenskart</button>
+        <button class="kk-tab" data-view="klode" role="tab">Nettverksklode</button>
+      </div>
+
+      <!-- Kontoer (felles for begge visninger) -->
+      <div class="tb-section kk-sec">
+        <div class="tb-section__header">
+          <span class="url-section__label">Kontoer <span id="accCount" class="kk-count"></span></span>
+          <div class="tb-add-buttons">
+            <button id="importBtn" class="btn-mini btn-mini--light" type="button">Importer fil…</button>
+            <button id="pasteBtn" class="btn-mini btn-mini--light" type="button">Lim inn…</button>
+            <button id="addAccBtn" class="btn-mini" type="button">+ Konto</button>
+          </div>
+        </div>
+        <div id="pastePanel" class="kk-paste" hidden>
+          <textarea id="pasteText" class="caption-input" rows="6" spellcheck="false" placeholder="Lim inn rader fra regneark eller tabell:&#10;Navn (Facebook-ID) ⇥ Adminland ved publisering ⇥ Adminland ved første analyse&#10;eller: Navn ⇥ ID ⇥ Land ⇥ Land"></textarea>
+          <div class="kk-paste__row">
+            <label class="ks-check"><input type="checkbox" id="pasteReplace" checked><span>Erstatt eksisterende kontoer</span></label>
+            <button id="pasteApply" class="btn-mini" type="button">Legg inn</button>
+          </div>
+        </div>
+        <div id="missingWarn" class="kk-warn" hidden></div>
+        <div id="accList" class="tb-list kk-list"></div>
+        <p class="hk-hint">Land skrives som i tabellen: «Pakistan (3), Spania, + 1 ukjent». Tallet i parentes er antall administratorer. «Ingen oppgitt» o.l. vises som tekst. Kryss av «Eksempel» for kontoer med en egen historie – de fremheves i kartet.</p>
+        <button id="demoBtn" class="link-btn kk-demo" type="button">Last inn Facebook-nettverket (nov. 2026)</button>
+      </div>
+
+      <!-- Mål-grupper -->
+      <div class="tb-section kk-sec kk-sec--small">
+        <div class="tb-section__header">
+          <span class="url-section__label">Grupper innholdet er rettet mot</span>
+          <button id="addTargetBtn" class="btn-mini" type="button">+ Gruppe</button>
+        </div>
+        <div id="targetList" class="kk-targets"></div>
+        <p class="hk-hint">Hovedgruppen (●) får rød prikk og stor pille i kartet; alle kontoer peker dit. De andre vises som «lignende aktivitet» og får buer bare fra kontoer der de er krysset av.</p>
+      </div>
+
+      <!-- Tabell-innstillinger -->
+      <div class="kk-view" data-for="tabell">
+        <div class="ftb-fields">
+          <input type="text" id="tittel" class="caption-input caption-input--single" placeholder="Tittel (valgfri)">
+          <textarea id="ingress" class="caption-input" rows="2" placeholder="Ingress (valgfri)"></textarea>
+        </div>
+        <div class="ftb-opts">
+          <label class="ks-check"><input type="checkbox" id="klode" checked><span>Snurrende klode øverst</span></label>
+          <input type="text" id="klodeNote" class="caption-input caption-input--single" placeholder="Tekst under kloden (valgfri)">
+          <div class="kk-two">
+            <input type="text" id="labelA" class="caption-input caption-input--single" placeholder="Kolonne 1: Ved publisering">
+            <input type="text" id="labelB" class="caption-input caption-input--single" placeholder="Kolonne 2: Første analyse">
+          </div>
+          <label class="url-section__label" for="visRader">Rader før «Vis alle»</label>
+          <input type="number" id="visRader" class="caption-input caption-input--single" min="1" max="99" value="8">
+          <label class="url-section__label" for="enhet">Kall kontoene (flertall)</label>
+          <input type="text" id="enhet" class="caption-input caption-input--single" placeholder="kontoer – f.eks. Facebook-sider">
+          <textarea id="tabellNote" class="caption-input" rows="2" placeholder="Note / kilde under tabellen (valgfri)"></textarea>
+        </div>
+      </div>
+
+      <!-- Kart-innstillinger -->
+      <div class="kk-view" data-for="kart klode" hidden>
+        <div class="ftb-fields">
+          <input type="text" id="kartHint" class="caption-input caption-input--single kk-only-kart" placeholder="Tekst over knappene: Trykk på en konto for å …">
+          <input type="text" id="klodeHint" class="caption-input caption-input--single kk-only-klode" placeholder="Tekst over knappene: Trykk på en konto eller et land på kloden · Dra for å snurre">
+          <input type="text" id="kartLegendAdmin" class="caption-input caption-input--single" placeholder="Forklaring adminland: Adminland (antall kontoer)">
+          <textarea id="kartKilde" class="caption-input" rows="3" placeholder="Kilde / forbehold nederst (valgfri)"></textarea>
+        </div>
+      </div>
+
+      <div class="project-row">
+        <select id="projectSelect" class="project-select"><option value="">Velg lagret prosjekt…</option></select>
+        <button id="saveProjectBtn" class="btn-mini">Lagre…</button>
+      </div>
+      <button id="copyEmbedBtn" class="btn-mini btn-mini--block" disabled>Kopier embed</button>
+    </aside>
+
+    <section class="plugin-canvas">
+      <div class="slider-stage ftb-stage kk-stage" id="stage">
+        <div class="ftb-previewhost kk-previewhost" id="previewHost">
+          <p class="ftb-empty">Legg inn kontoer – forhåndsvisningen dukker opp her.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script src="shared/dialog.js"></script>
+<script>window.PLUGIN_ID = 'kontokart';</script>
+<script src="shared/new-project.js"></script>
+<script src="shared/labrador-status.js"></script>
+<script src="shared/fk-import.js"></script>
+<script src="dots.js"></script>
+<script src="countries.js"></script>
+<script src="kart-runtime.js"></script>
+<script src="nettklode-runtime.js"></script>
+<script src="klode-css.js"></script>
+<script src="klode-runtime.js"></script>
+<script src="snippet.js"></script>
+<script src="main.js"></script>
+</body>
+</html>

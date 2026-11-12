@@ -1,4 +1,4 @@
-// Faktisk Studio · Verifisering 0.2
+// Faktisk Studio · Verifisering 0.3 (0.3: tekst — konkrete spor, ingen AI-score; se tekst.js)
 //
 // Leser det en video- eller bildefil selv sier om opprinnelsen (C2PA, IPTC/XMP,
 // EXIF, MP4/MOV-metadata) og lager hjelpebilder (enkeltbilder, kanter,
@@ -12,7 +12,7 @@
 // REGEL: verktøyet gir aldri en samlet «ekte/falsk»-konklusjon.
 
 const PLUGIN_ID = 'verifisering';
-const PLUGIN_VERSION = '0.2.0';
+const PLUGIN_VERSION = '0.3.0';
 const $ = id => document.getElementById(id);
 const F = window.faktisk || {};
 
@@ -65,7 +65,7 @@ async function openFile(file) {
   state.busy = true;
   try {
     if (state.url) URL.revokeObjectURL(state.url);
-    Object.assign(state, { file, url: URL.createObjectURL(file), sha256: '', c2pa: null, xmp: {}, exif: null, video: null, findings: [], frame: null, t: 0, n: 0, shots: [], imageBitmap: null, mode: 'bilde', shotsAuto: [], sunResult: null, audio: null, audioFindings: [], lsFinding: null, lsPlotUrl: '', extraFindings: [], tidFindings: [], parFinding: null, ocrFinding: null, jpeg: null, thumb: null, tl: null, par: null });
+    Object.assign(state, { file, url: URL.createObjectURL(file), sha256: '', c2pa: null, xmp: {}, exif: null, video: null, findings: [], frame: null, t: 0, n: 0, shots: [], imageBitmap: null, mode: 'bilde', shotsAuto: [], sunResult: null, audio: null, audioFindings: [], lsFinding: null, lsPlotUrl: '', extraFindings: [], tidFindings: [], parFinding: null, ocrFinding: null, jpeg: null, thumb: null, tl: null, par: null, textDoc: null, textRes: null, duration: 0 });
     $('ocrOut').innerHTML = ''; $('ocrNote').textContent = ''; $('sunOut').innerHTML = ''; $('tidNote').textContent = '';
     $('audioBox').innerHTML = ''; resetLipsyncUi();
     els.note.value = '';
@@ -74,11 +74,28 @@ async function openFile(file) {
     [els.fileBox, els.reportBox, els.moreBox, $('searchBox')].forEach(b => b.style.display = '');
     setStatus('Leser metadata…'); progress(0.1);
 
+    if (window.VfTekst && VfTekst.isTextFile(file)) {
+      state.kind = 'text'; state.c2pa = { format: 'tekst', store: null, xmp: '' }; state.xmp = {};
+      setTabs('text');
+      [$('searchBox'), els.moreBox].forEach(b => b.style.display = 'none');
+      setStatus('Leser teksten…');
+      state.textDoc = await VfTekst.read(file); progress(0.5);
+      setStatus('Leter etter spor…');
+      state.textRes = VfTekst.analyze(state.textDoc);
+      state.findings = state.textRes.findings;
+      renderFindings(); renderMeta(); renderTextView(); renderFileInfo();
+      progress(0.8); setStatus('Beregner sjekksum…');
+      await computeHash(); renderFileInfo();
+      setStatus('Ferdig. Se funn og fanen Tekst.');
+      return;
+    }
+
     const reader = fileReader(file);
     state.c2pa = await VfC2pa.read(reader);
     const ext = (file.name.split('.').pop() || '').toLowerCase();
     const isVideo = /^video\//.test(file.type) || (state.c2pa.format === 'bmff' && !['heic', 'heif', 'avif'].includes(ext));
     state.kind = isVideo ? 'video' : 'image';
+    setTabs('media');
     progress(0.3);
 
     if (isVideo) {
@@ -119,11 +136,12 @@ async function computeHash() {
 
 function fileFacts() {
   const f = state.file; const v = state.video && state.video.tracks.find(t => t.handler === 'vide');
-  const facts = { 'Filnavn': f.name, 'Størrelse': fmtBytes(f.size) + ' (' + f.size.toLocaleString('nb-NO') + ' byte)', 'Type': f.type || state.c2pa.format, 'Sist endret (din maskin)': fmtDate(new Date(f.lastModified)) };
+  const facts = { 'Filnavn': f.name, 'Størrelse': fmtBytes(f.size) + ' (' + f.size.toLocaleString('nb-NO') + ' byte)', 'Type': f.type || (state.c2pa && state.c2pa.format) || '', 'Sist endret (din maskin)': fmtDate(new Date(f.lastModified)) };
   if (state.sha256) facts['SHA-256'] = state.sha256; else facts['SHA-256'] = state.file.size > 1024 * 1048576 ? 'ikke beregnet (over 1 GB)' : '…';
   if (v) { facts['Oppløsning'] = Math.round(v.width) + '×' + Math.round(v.height); if (v.fps) facts['Bilder/s'] = VfFindings.fmtNum(v.fps); }
   if (state.duration) facts['Lengde'] = fmtT(state.duration);
   if (state.kind === 'image' && state.imageBitmap) facts['Oppløsning'] = state.imageBitmap.width + '×' + state.imageBitmap.height;
+  if (state.kind === 'text' && state.textRes) { facts['Format'] = state.textDoc.format; facts['Ord'] = state.textRes.stats.words.toLocaleString('nb-NO'); facts['Tegn'] = state.textRes.stats.chars.toLocaleString('nb-NO'); }
   return facts;
 }
 function renderFileInfo() {
@@ -176,6 +194,13 @@ function flatten(obj, prefix, out, depth) {
 }
 function metaSections() {
   const sec = [];
+  if (state.kind === 'text') {
+    const r = state.textRes; if (!r) return sec;
+    if (Object.values(r.meta).some(v => v !== '' && v != null)) sec.push(['Dokument (' + state.textDoc.format + ')', r.meta]);
+    sec.push(['Tekst', { 'Format': state.textDoc.format, 'Ord': r.stats.words, 'Tegn': r.stats.chars, 'Lenker': r.stats.links }]);
+    if (state.textDoc.zipNames) sec.push(['Filer i .docx-pakken', { 'Filer': state.textDoc.zipNames.join(', ') }]);
+    return sec;
+  }
   const a = state.c2pa.store && state.c2pa.store.active;
   if (a) {
     const d = { 'Verktøy (claim generator)': a.generator, 'Tittel': a.title, 'Format': a.format, 'Instans-ID': a.instanceID, 'Signeringsalgoritme': a.alg,
@@ -849,8 +874,41 @@ function parallaxFinding(list) {
 // ============================================================
 document.querySelectorAll('#tabs button').forEach(b => b.addEventListener('click', () => { if (typeof stopPlay === 'function') stopPlay();
   document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('is-on', x === b));
-  ['funn', 'bilder', 'lyd', 'tid', 'tekst', 'meta'].forEach(t => { $('panel-' + t).style.display = t === b.dataset.tab ? '' : 'none'; });
+  ['funn', 'tekstspor', 'bilder', 'lyd', 'tid', 'tekst', 'meta'].forEach(t => { $('panel-' + t).style.display = t === b.dataset.tab ? '' : 'none'; });
 }));
+
+// ============================================================
+//  Tekst
+// ============================================================
+function setTabs(kind) {
+  const show = { tekstspor: kind === 'text', bilder: kind !== 'text', tid: kind !== 'text', tekst: kind !== 'text', lyd: kind === 'video' };
+  document.querySelectorAll('#tabs button').forEach(b => { if (b.dataset.tab in show) b.style.display = show[b.dataset.tab] ? '' : 'none'; });
+  const on = document.querySelector('#tabs button.is-on');
+  if (!on || on.style.display === 'none') document.querySelector('#tabs button[data-tab=funn]').click();
+}
+function renderTextView() {
+  const d = state.textDoc, r = state.textRes; if (!d || !r) return;
+  const n = k => r.marks.filter(m => m.cls === k).length;
+  $('textStats').textContent = [r.stats.words.toLocaleString('nb-NO') + ' ord', r.stats.links + ' lenker', n('ai') ? n('ai') + ' AI-rester' : '', n('svak') ? n('svak') + ' typiske chatfraser' : '', n('mal') ? n('mal') + ' plassholdere/Markdown' : '', n('inv') ? n('inv') + ' usynlige/uvanlige tegn' : '', n('inv-svak') ? n('inv-svak') + ' harde mellomrom/myke bindestreker' : ''].filter(Boolean).join(' · ');
+  $('textView').innerHTML = d.text ? VfTekst.renderMarked(d.text, r.marks, esc) : '<p class="vf-muted vf-muted--dark">' + (d.textUnreadable ? 'Fikk ikke tak i teksten i PDF-en. Kopier den fra Forhåndsvisning og lim den inn i feltet til venstre.' : 'Ingen tekst å vise.') + '</p>';
+}
+// Innlimt tekst: tar vare på HTML-versjonen fra utklippstavlen (lenkene ligger der, ikke i ren tekst)
+let pasteHtml = '', pasteText = null;
+$('pasteInput').addEventListener('paste', e => {
+  const h = e.clipboardData && e.clipboardData.getData('text/html');
+  const t = e.clipboardData && e.clipboardData.getData('text/plain');
+  pasteHtml = !$('pasteInput').value && t ? (h || '') : ''; pasteText = null;
+  setTimeout(() => { pasteText = $('pasteInput').value; }, 0);
+});
+$('pasteBtn').addEventListener('click', () => {
+  const t = $('pasteInput').value;
+  if (!t.trim()) { setStatus('Lim inn en tekst først.', true); return; }
+  const d0 = new Date(); const pad = x => String(x).padStart(2, '0');
+  const stamp = d0.getFullYear() + '-' + pad(d0.getMonth() + 1) + '-' + pad(d0.getDate()) + '_' + pad(d0.getHours()) + pad(d0.getMinutes());
+  const useHtml = pasteHtml && pasteText === t;
+  const f = useHtml ? new File([pasteHtml], 'innlimt-tekst-' + stamp + '.html', { type: 'text/html' }) : new File([t], 'innlimt-tekst-' + stamp + '.txt', { type: 'text/plain' });
+  openFile(f);
+});
 
 // ============================================================
 //  Rapport
@@ -874,7 +932,7 @@ $('saveReportBtn').addEventListener('click', async () => {
   if (!state.file) return;
   const shots0 = (state.shotsAuto || []).concat(state.shots);
   const shots = state.lsPlotUrl ? shots0.concat([{ dataUrl: state.lsPlotUrl, label: 'Leppesynk — sammenheng mellom munn og tale', note: '', explain: 'Blå kurve: hvor godt munnens åpning følger lydstyrken i talen ved ulike forskyvninger. Grått felt: det tilfeldig forskjøvet lyd gir. En tydelig topp over det grå feltet nær 0 betyr at lyd og munn følger hverandre.' }]) : shots0;
-  const html = VfReport.build({ file: { name: state.file.name, facts: fileFacts() }, findings: allFindings(), c2paDetail: c2paDetail(), metaTable: metaTable(), shots, note: els.note.value.trim(), pluginVersion: PLUGIN_VERSION });
+  const html = VfReport.build({ file: { name: state.file.name, facts: fileFacts() }, findings: allFindings(), c2paDetail: c2paDetail(), metaTable: metaTable(), shots, note: els.note.value.trim(), pluginVersion: PLUGIN_VERSION, kind: state.kind });
   const base = state.file.name.replace(/\.[^.]+$/, '');
   const savePath = await F.saveDialog({ title: 'Lagre verifiseringsrapport', defaultPath: base + '.verifisering.html', filters: [{ name: 'HTML', extensions: ['html'] }] });
   if (!savePath) return;

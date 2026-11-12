@@ -162,6 +162,7 @@ async function openMyProjectsModal() {
       return `<div class="project-card" data-plugin="${escapeHtml(p.pluginId)}" data-file="${escapeHtml(p.fileId)}" data-name="${escapeHtml(p.name)}">
         <span class="project-card__name">${escapeHtml(p.name)}</span>
         <span class="project-card__meta">${escapeHtml(pluginLabel)} · ${escapeHtml(dateLabel)}</span>
+        <button class="project-card__export" title="Eksporter som fil — del med kolleger som har Faktisk Studio">⇪</button>
         <button class="project-card__delete" title="Slett">×</button>
       </div>`;
     }).join('') + '</div>';
@@ -174,6 +175,7 @@ async function openMyProjectsModal() {
     <p class="fd-message">Mine prosjekter</p>
     ${listHtml}
     <div class="fd-row">
+      <button class="fd-btn fd-btn-cancel" data-import>Importer prosjekt…</button>
       <button class="fd-btn fd-btn-cancel" data-close>Lukk</button>
     </div>
   </div>`;
@@ -183,14 +185,61 @@ async function openMyProjectsModal() {
   host.querySelector('[data-close]').onclick = close;
   host.onclick = e => { if (e.target === host) close(); };
 
+  // Importer prosjekt fra fil (delt av en kollega) — åpner pluginen med
+  // prosjektet etterpå, eller forklarer hvilken plugin som mangler.
+  const importBtn = host.querySelector('[data-import]');
+  if (importBtn) {
+    importBtn.onclick = async () => {
+      importBtn.disabled = true;
+      try {
+        const res = await window.faktisk.projectImport();
+        if (res.canceled) return;
+        if (!res.ok) {
+          close();
+          await window.faktiskDialog.alert('Kunne ikke importere: ' + (res.error || 'ukjent feil'));
+          openMyProjectsModal();
+          return;
+        }
+        const installed = await window.faktisk.pluginStatus();
+        const hasPlugin = (installed || []).some(p => p.id === res.pluginId);
+        close();
+        if (hasPlugin) {
+          openPluginWithProject(res.pluginId, res.fileId);
+        } else {
+          await window.faktiskDialog.alert('«' + res.name + '» er importert, men krever pluginen «'
+            + res.pluginId + '» — installer den via (+)-knappen, så ligger prosjektet klart i Mine prosjekter.');
+          openMyProjectsModal();
+        }
+      } finally {
+        importBtn.disabled = false;
+      }
+    };
+  }
+
   host.querySelectorAll('.project-card').forEach(card => {
     card.addEventListener('click', e => {
       if (e.target.classList.contains('project-card__delete')) return;
+      if (e.target.classList.contains('project-card__export')) return;
       const pluginId = card.dataset.plugin;
       const fileId = card.dataset.file;
       close();
       openPluginWithProject(pluginId, fileId);
     });
+    const exportBtn = card.querySelector('.project-card__export');
+    if (exportBtn) {
+      exportBtn.addEventListener('click', async e => {
+        e.stopPropagation();
+        const res = await window.faktisk.projectExport(card.dataset.plugin, card.dataset.file);
+        if (res.ok) {
+          close();
+          await window.faktiskDialog.alert('«' + card.dataset.name + '» er eksportert.\n\n'
+            + 'Send fila til en kollega — de importerer den via «Mine prosjekter → Importer prosjekt…» i sitt Faktisk Studio.');
+          openMyProjectsModal();
+        } else if (!res.canceled) {
+          window.faktiskDialog.alert('Kunne ikke eksportere: ' + (res.error || 'ukjent feil'));
+        }
+      });
+    }
     const delBtn = card.querySelector('.project-card__delete');
     if (delBtn) {
       delBtn.addEventListener('click', async e => {
@@ -298,7 +347,16 @@ async function openPluginMarketModal() {
     ? items.map(rowHtml).join('')
     : '<div class="market-empty">Registry-en er tom.</div>';
 
+  // «Installer alle»: nyinstallasjoner + oppdateringer i én operasjon —
+  // først og fremst for førstegangsoppsett på en ny maskin.
+  const pending = items.filter(it => it.status === 'install' || it.status === 'update');
+  const installAllBtn = pending.length >= 2
+    ? '<button class="fd-btn fd-btn-primary" data-install-all>Installer alle ('
+      + pending.length + ')</button>'
+    : '';
+
   renderModal(bodyHtml, `
+    ${installAllBtn}
     <button class="fd-btn fd-btn-cancel" data-refresh>Sjekk på nytt</button>
     <button class="fd-btn fd-btn-cancel" data-close>Lukk</button>
   `);
@@ -308,6 +366,37 @@ async function openPluginMarketModal() {
     close();
     openPluginMarketModal();
   };
+
+  const allBtn = host.querySelector('[data-install-all]');
+  if (allBtn) {
+    allBtn.onclick = async () => {
+      allBtn.disabled = true;
+      const failed = [];
+      for (let i = 0; i < pending.length; i++) {
+        const entry = (registry.plugins || []).find(p => p.id === pending[i].id);
+        if (!entry) continue;
+        allBtn.textContent = 'Installerer ' + (i + 1) + ' av ' + pending.length
+          + ' — ' + entry.name + '…';
+        try {
+          const res = await window.faktisk.pluginInstall(entry);
+          if (!res.ok) failed.push(entry.name + ' (' + (res.error || 'ukjent feil') + ')');
+        } catch (err) {
+          failed.push(entry.name + ' (' + err.message + ')');
+        }
+      }
+      close();
+      await renderHub();
+      if (failed.length) {
+        await window.faktiskDialog.alert(
+          (pending.length - failed.length) + ' plugins installert. Feilet:\n'
+          + failed.join('\n'));
+      } else {
+        await window.faktiskDialog.alert(
+          'Alle ' + pending.length + ' plugins er installert og klare.');
+      }
+      openPluginMarketModal();
+    };
+  }
 
   host.querySelectorAll('button[data-act="install"]').forEach(btn => {
     btn.onclick = async () => {
@@ -395,6 +484,47 @@ renderHub();
     const v = await window.faktisk.appVersion();
     const el = document.getElementById('appVersion');
     if (el && v) el.textContent = 'v' + v;
+  } catch (e) {}
+})();
+
+// Sjekk stille etter plugin-oppdateringer ved oppstart og vis badge på
+// (+)-knappen. Selve oppdateringen gjøres som før inne i plugin-markedet —
+// dette er bare varselet om at det finnes noe der.
+(async () => {
+  try {
+    const [reg, inst] = await Promise.all([
+      window.faktisk.registryFetch(false),
+      window.faktisk.pluginStatus(),
+    ]);
+    if (!reg || !reg.ok || !reg.registry) return;
+    const newer = (a, b) => {
+      const pa = String(a || '0').split('.').map(n => parseInt(n, 10) || 0);
+      const pb = String(b || '0').split('.').map(n => parseInt(n, 10) || 0);
+      for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+        if ((pa[i] || 0) > (pb[i] || 0)) return true;
+        if ((pa[i] || 0) < (pb[i] || 0)) return false;
+      }
+      return false;
+    };
+    const installedById = new Map((inst || []).map(p => [p.id, p]));
+    const updates = (reg.registry.plugins || []).filter(rp => {
+      const ip = installedById.get(rp.id);
+      return ip && newer(rp.version, ip.version);
+    });
+    if (!updates.length) return;
+
+    const btn = document.getElementById('addPluginBtn');
+    if (!btn) return;
+    btn.style.position = 'relative';
+    const badge = document.createElement('span');
+    badge.textContent = updates.length;
+    badge.style.cssText = 'position:absolute;top:-5px;right:-5px;background:#E4572E;'
+      + 'color:#fff;border-radius:9px;min-width:18px;height:18px;line-height:18px;'
+      + 'font-size:11px;font-weight:bold;text-align:center;padding:0 4px;'
+      + 'box-sizing:border-box;pointer-events:none;';
+    btn.appendChild(badge);
+    btn.title = 'Oppdateringer tilgjengelig: '
+      + updates.map(u => u.name + ' ' + u.version).join(', ');
   } catch (e) {}
 })();
 

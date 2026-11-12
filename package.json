@@ -1,7 +1,7 @@
 {
   "name": "faktisk-studio",
   "productName": "Faktisk Studio",
-  "version": "0.7.8",
+  "version": "0.7.13",
   "registryUrl": "https://raw.githubusercontent.com/stianbrathen/faktiskorg-studio-plugins/main/registry.json",
   "description": "Verktøy for å lage interaktive embeds og video-elementer for Labrador-artikler på faktisk.no",
   "main": "main.js",
@@ -18,7 +18,8 @@
   "dependencies": {
     "ffmpeg-static": "^5.3.0",
     "electron-updater": "^6.3.9",
-    "onnxruntime-node": "^1.27.0"
+    "onnxruntime-node": "^1.27.0",
+    "sharp": "^0.34.5"
   },
   "devDependencies": {
     "electron": "^33.4.11",
@@ -46,7 +47,9 @@
     ],
     "asarUnpack": [
       "node_modules/ffmpeg-static/**",
-      "node_modules/onnxruntime-node/**"
+      "node_modules/onnxruntime-node/**",
+      "node_modules/sharp/**",
+      "node_modules/@img/**"
     ],
     "afterPack": "scripts/after-pack.js",
     "mac": {
@@ -65,6 +68,14 @@
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
       "identity": null
-    }
+    },
+    "protocols": [
+      {
+        "name": "Faktisk Studio",
+        "schemes": [
+          "faktisk-studio"
+        ]
+      }
+    ]
   }
 }

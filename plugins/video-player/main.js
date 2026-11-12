@@ -3,6 +3,8 @@
 const PLUGIN_ID = 'video-player';
 
 // Vis app-versjon + plugin-versjon i topp-bar (dynamisk fra manifest)
+// Plugin-versjonen skrives også inn i embed-koden, så gamle embeds i artikler kan spores.
+let PLUGIN_VERSION = '';
 (async () => {
   try {
     const [appV, plugins] = await Promise.all([
@@ -10,6 +12,7 @@ const PLUGIN_ID = 'video-player';
       window.faktisk.pluginStatus(),
     ]);
     const me = (plugins || []).find(p => p.id === PLUGIN_ID);
+    if (me && me.version) PLUGIN_VERSION = me.version;
     const el = document.getElementById('appVersion');
     if (el && appV) {
       el.textContent = me ? 'v' + appV + ' · plugin v' + me.version : 'v' + appV;
@@ -318,7 +321,7 @@ function buildEmbedSnippet() {
     : "";
 
   return `<!-- ============================================
-     FAKTISK · VIDEOAVSPILLER
+     FAKTISK · VIDEOAVSPILLER${PLUGIN_VERSION ? ' · v' + PLUGIN_VERSION : ''}
      Endre teksten i feltene merket med ▶
      ============================================ -->
 ${open}

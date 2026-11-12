@@ -64,7 +64,12 @@
       <div class="plugin-sidebar__status" id="status"></div>
 
       <div class="caption-section">
-        <label class="url-section__label" for="logoSelect">Logo-merke (valgfri)</label>
+        <label class="url-section__label" for="frameSelect">Ramme rundt bildet</label>
+        <select id="frameSelect" class="project-select" title="«Ingen» passer for utklipte bilder (PNG med gjennomsiktighet) og grafikk som skal ligge rett på artikkelen">
+          <option value="frame" selected>Lys grå ramme (standard)</option>
+          <option value="none">Ingen ramme eller bakgrunn</option>
+        </select>
+        <label class="url-section__label" for="logoSelect" style="margin-top:6px;">Logo-merke (valgfri)</label>
         <select id="logoSelect" class="project-select">
           <option value="none">Ingen logo</option>
           <option value="x">X (Twitter)</option>

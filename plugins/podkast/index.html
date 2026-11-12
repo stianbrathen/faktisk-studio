@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https:; font-src 'self' data:;">
+<title>Podkast · Faktisk Studio</title>
+<link rel="stylesheet" href="shared/style.css">
+<link rel="stylesheet" href="style.css">
+<script src="shared/embed-tokens.js"></script>
+<script src="runtime.js"></script>
+</head>
+<body>
+<div class="studio">
+
+  <header class="topbar">
+    <div class="faktisk-logo" role="img" aria-label="Faktisk Studio"></div>
+    <span class="topbar__version" id="appVersion" title="Versjoner"></span>
+    <div class="topbar__title" role="img" aria-label="Labrador"></div>
+    <div class="topbar__actions">
+      <button class="btn-primary" id="backBtn">Malside</button>
+      <button class="btn-icon" id="newProjectBtn" title="Nytt prosjekt (tøm gjeldende)" aria-label="Nytt prosjekt">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+          <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+        </svg>
+      </button>
+      <button class="btn-icon" id="fullscreenBtn" title="Fullskjerm" aria-label="Fullskjerm">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+          <path d="M5 5h5v2H7v3H5V5zm9 0h5v5h-2V7h-3V5zM5 14h2v3h3v2H5v-5zm12 0h2v5h-5v-2h3v-3z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="plugin-page">
+
+    <aside class="plugin-sidebar">
+      <div class="plugin-sidebar__head">
+        <h2 class="plugin-sidebar__title">Podkast</h2>
+        <button id="openLabradorBtn" class="link-btn" type="button">Åpne Labrador ↗</button>
+      </div>
+
+      <div class="tb-section pod-import">
+        <button id="importToggle" class="ftb-labbtn" type="button" aria-expanded="false">Hent fra eksisterende embed ▾</button>
+        <div id="importPanel" class="pod-importpanel" style="display:none;">
+          <textarea id="importInput" class="caption-input pod-fetch" rows="3" spellcheck="false" style="width:100%;box-sizing:border-box;"
+                    placeholder="Lim inn hele embed-koden fra Markup-boksen i Labrador"></textarea>
+          <button id="importBtn" class="btn-mini btn-mini--block" type="button">Fyll ut fra embed</button>
+          <p class="hk-hint pod-status" id="importStatus" aria-live="polite"></p>
+          <p class="hk-hint">Alle felt fylles ut. Bytt deretter YouTube-lenke, varighet og tekst, og trykk «Kopier embed».</p>
+        </div>
+      </div>
+
+      <div class="ftb-fields">
+        <input type="text" id="kickerInput" class="caption-input caption-input--single" value="Videopodkast"
+               placeholder="Stikktittel (valgfri) — f.eks. VIDEOPODKAST" spellcheck="true">
+        <input type="text" id="titleInput" class="caption-input caption-input--single"
+               placeholder="Navnet på podkasten" spellcheck="true">
+        <input type="text" id="creditInput" class="caption-input caption-input--single"
+               placeholder="Linje under (valgfri) — f.eks. Fra Faktisk.no" spellcheck="true">
+      </div>
+
+      <div class="tb-section">
+        <span class="url-section__label">Om podkasten (valgfri)</span>
+        <textarea id="aboutInput" class="caption-input" rows="4" spellcheck="true"
+                  placeholder="Kort tekst om podkasten. Tom linje gir nytt avsnitt."></textarea>
+        <input type="text" id="coverInput" class="hk-row__img" spellcheck="false"
+               placeholder="Cover-URL fra Labrador (kvadratisk, ca. 440 px)">
+        <div class="ftb-labrow">
+          <button class="ftb-labbtn" type="button" id="coverFilesBtn">Mine filer ▾</button>
+          <button class="ftb-labbtn" type="button" id="coverUploadBtn">Last opp…</button>
+        </div>
+        <div class="ftb-labpanel" id="coverPanel" style="display:none;"></div>
+        <input type="text" id="coverBigInput" class="hk-row__img" spellcheck="false"
+               placeholder="Stort cover-URL (valgfri) — vises når leseren klikker på coveret">
+        <div class="ftb-labrow">
+          <button class="ftb-labbtn" type="button" id="coverBigFilesBtn">Mine filer ▾</button>
+          <button class="ftb-labbtn" type="button" id="coverBigUploadBtn">Last opp…</button>
+        </div>
+        <div class="ftb-labpanel" id="coverBigPanel" style="display:none;"></div>
+        <p class="hk-hint">Det lille coveret vises i boksen (440 × 440 px holder). Det store hentes bare når
+          leseren klikker på coveret. Uten stort cover brukes det lille.</p>
+      </div>
+
+      <div class="tb-section">
+        <span class="url-section__label">Løkke før avspilling (valgfri)</span>
+        <input type="text" id="loopBigInput" class="hk-row__img" spellcheck="false"
+               placeholder="Løkke-video, mp4 fra Labrador (ca. 720p, helst under 4 MB)">
+        <div class="ftb-labrow">
+          <button class="ftb-labbtn" type="button" id="loopBigFilesBtn">Mine filer ▾</button>
+          <button class="ftb-labbtn" type="button" id="loopBigUploadBtn">Last opp…</button>
+        </div>
+        <div class="ftb-labpanel" id="loopBigPanel" style="display:none;"></div>
+        <input type="text" id="loopSmallInput" class="hk-row__img" spellcheck="false"
+               placeholder="Liten utgave til mobil (valgfri, ca. 480p)">
+        <div class="ftb-labrow">
+          <button class="ftb-labbtn" type="button" id="loopSmallFilesBtn">Mine filer ▾</button>
+          <button class="ftb-labbtn" type="button" id="loopSmallUploadBtn">Last opp…</button>
+        </div>
+        <div class="ftb-labpanel" id="loopSmallPanel" style="display:none;"></div>
+        <p class="hk-hint">Stum video som går i løkke i stedet for forhåndsbildet til leseren trykker play. Den starter
+          når siden er ferdig lastet og boksen er på skjermen, og stopper når den er ute av syne. Med «redusert
+          bevegelse» eller datasparing vises bare forhåndsbildet. Play starter selve podkasten med lyd.</p>
+      </div>
+
+      <div class="tb-section">
+        <span class="url-section__label">Hent fra YouTube eller Mux</span>
+        <textarea id="fetchInput" class="caption-input pod-fetch" rows="2" spellcheck="false"
+                  placeholder="YouTube: lenke til spillelista eller episodene (én per linje). Mux: lenke, ID eller embed-koden"></textarea>
+        <button id="fetchBtn" class="btn-mini btn-mini--block" type="button">Hent episoder</button>
+        <p class="hk-hint pod-status" id="fetchStatus" aria-live="polite"></p>
+      </div>
+
+      <div class="tb-section">
+        <div class="tb-section__header">
+          <span class="url-section__label">Episoder (øverst vises først)</span>
+          <div class="tb-add-buttons">
+            <button id="addEpBtn" class="btn-mini" type="button">+ Episode</button>
+          </div>
+        </div>
+        <div id="epList" class="tb-list pod-list"></div>
+        <button id="allThumbsBtn" class="btn-mini btn-mini--light btn-mini--block" type="button">Alle bilder til Labrador</button>
+        <p class="hk-hint">Forhåndsbildene bør ligge i Labrador (eller hos Mux). Da hentes ingenting fra
+          YouTube før leseren trykker play.</p>
+      </div>
+
+      <div class="ftb-fields">
+        <span class="url-section__label">Lenker (vises når de er fylt ut)</span>
+        <input type="url" id="linkYoutube" class="caption-input caption-input--single" placeholder="YouTube-kanalen" spellcheck="false">
+        <input type="url" id="linkSpotify" class="caption-input caption-input--single" placeholder="Spotify" spellcheck="false">
+        <input type="url" id="linkApple" class="caption-input caption-input--single" placeholder="Apple Podcasts" spellcheck="false">
+        <input type="url" id="linkAll" class="caption-input caption-input--single" placeholder="«Alle episoder» – vises bare ved flere episoder" spellcheck="false">
+      </div>
+
+      <div class="ftb-opts">
+        <label class="url-section__label" for="visibleSelect">Episoder synlige i smal boks</label>
+        <select id="visibleSelect" class="project-select">
+          <option value="2">2</option>
+          <option value="3" selected>3</option>
+          <option value="4">4</option>
+          <option value="99">Alle</option>
+        </select>
+        <label class="url-section__label" for="previewWidthSelect" style="margin-top:4px;">Forhåndsvis som</label>
+        <select id="previewWidthSelect" class="project-select">
+          <option value="1048" selected>Full bredde på forsiden</option>
+          <option value="340">Én kolonne på forsiden</option>
+          <option value="390">Mobil</option>
+        </select>
+      </div>
+
+      <div class="plugin-sidebar__spacer"></div>
+
+      <div class="project-row">
+        <select id="projectSelect" class="project-select">
+          <option value="">Velg lagret prosjekt…</option>
+        </select>
+        <button id="saveProjectBtn" class="btn-mini">Lagre…</button>
+      </div>
+
+      <button id="copyEmbedBtn" class="btn-mini btn-mini--block" disabled>
+        Kopier embed
+      </button>
+    </aside>
+
+    <section class="plugin-canvas">
+      <div class="slider-stage ftb-stage" id="stage">
+        <div class="ftb-previewhost pod-previewhost" id="previewHost"></div>
+      </div>
+    </section>
+
+  </main>
+
+</div>
+
+<script src="shared/dialog.js"></script>
+<script>window.PLUGIN_ID = 'podkast';</script>
+<script src="shared/new-project.js"></script>
+<script src="shared/labrador-status.js"></script>
+<script src="main.js"></script>
+</body>
+</html>

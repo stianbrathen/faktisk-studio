@@ -1,0 +1,9 @@
+{
+  "id": "prikkeklode",
+  "name": "Prikkeklode",
+  "version": "0.1.4",
+  "entry": "index.html",
+  "description": "Roterbar klode av prikker med buer fra der kontoer styres fra til landene innholdet er rettet mot. Leseren trykker på en konto for å se skjermbilder og funn. Genererer embed for Labrador.",
+  "category": "annet",
+  "minStudioVersion": "0.7.0"
+}

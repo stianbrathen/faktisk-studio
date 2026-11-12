@@ -743,3 +743,15 @@ textarea.tb-row__input { min-height: 36px; }
 .vf-ocr__f pre { margin: 0; padding: 6px 8px; white-space: pre-wrap; font-family: inherit; max-height: 140px; overflow: auto; }
 .vf-ocr__f span { display: block; padding: 4px 8px 0; color: #6E6E6E; font-weight: bold; }
 mark.vf-morph { background: #FFD9B3; }
+
+/* Tekst (0.3) */
+.vf-tstats { color: #fff; font-size: 12px; margin: 8px 0; }
+.vf-text { white-space: pre-wrap; word-wrap: break-word; background: #fff; color: #212121; padding: 16px 18px; border-radius: 6px; font: 14px/1.6 -apple-system, system-ui, sans-serif; max-height: calc(100vh - 280px); overflow: auto; }
+mark.vf-tm { border-radius: 2px; padding: 0 1px; color: inherit; }
+mark.vf-tm--ai { background: #FFD666; }
+mark.vf-tm--mal { background: #CFE0FF; }
+.vf-inv { display: inline-block; font: bold 9px/12px ui-monospace, Menlo, monospace; background: #E5484D; color: #fff; border-radius: 3px; padding: 0 3px; margin: 0 1px; vertical-align: 1px; white-space: nowrap; }
+.vf-inv--svak { background: #C8C8C8; color: #212121; font-weight: normal; }
+.vf-banner mark.vf-tm, .vf-banner .vf-inv { font-size: inherit; }
+.vf-inv--skjult { background: #7A1FA2; font-weight: bold; }
+mark.vf-tm--svak { background: #FFF0B8; border-bottom: 1px dotted #B08900; }

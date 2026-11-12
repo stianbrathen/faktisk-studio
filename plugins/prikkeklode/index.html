@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https:; font-src 'self' data:;">
+<title>Prikkeklode · Faktisk Studio</title>
+<link rel="stylesheet" href="shared/style.css">
+<link rel="stylesheet" href="style.css">
+<script src="shared/embed-tokens.js"></script>
+</head>
+<body>
+<div class="studio">
+
+  <header class="topbar">
+    <div class="faktisk-logo" role="img" aria-label="Faktisk Studio"></div>
+    <span class="topbar__version" id="appVersion" title="Versjoner"></span>
+    <div class="topbar__title" role="img" aria-label="Labrador"></div>
+    <div class="topbar__actions">
+      <button class="btn-primary" id="backBtn">Malside</button>
+      <button class="btn-icon" id="newProjectBtn" title="Nytt prosjekt (tøm gjeldende)" aria-label="Nytt prosjekt">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+          <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+        </svg>
+      </button>
+      <button class="btn-icon" id="fullscreenBtn" title="Fullskjerm" aria-label="Fullskjerm">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+          <path d="M5 5h5v2H7v3H5V5zm9 0h5v5h-2V7h-3V5zM5 14h2v3h3v2H5v-5zm12 0h2v5h-5v-2h3v-3z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="plugin-page">
+
+    <aside class="plugin-sidebar">
+      <div class="plugin-sidebar__head">
+        <h2 class="plugin-sidebar__title">Prikkeklode</h2>
+        <button id="openLabradorBtn" class="link-btn" type="button">Åpne Labrador ↗</button>
+      </div>
+
+      <!-- Tekst -->
+      <div class="caption-section">
+        <label class="url-section__label" for="titleText">Tittel i grafikken</label>
+        <input type="text" id="titleText" class="caption-input caption-input--single" value="Hvor styres innleggene fra?">
+        <label class="url-section__label" for="subText" style="margin-top:6px;">Undertittel</label>
+        <textarea id="subText" class="caption-input" rows="2" spellcheck="true"></textarea>
+      </div>
+
+      <!-- Steder -->
+      <div class="tb-section">
+        <div class="tb-section__header">
+          <span class="url-section__label">Steder</span>
+          <span class="pk-addrow">
+            <button id="addSourceBtn" class="btn-mini" type="button" title="Land eller by der kontoene styres fra">+ Styres fra</button>
+            <button id="addTargetBtn" class="btn-mini btn-mini--light" type="button" title="Land innholdet er rettet mot">+ Rettet mot</button>
+          </span>
+        </div>
+        <div id="placeList" class="cb-list"></div>
+        <p class="hk-hint">«Styres fra» er der kontoene administreres fra (Facebooks sidetransparens). Hvert slikt sted har sin farge,
+          og buene får fargen til stedet de starter i. Velg land i lista, eller skriv inn egen breddegrad og lengdegrad.</p>
+      </div>
+
+      <!-- Kontoer -->
+      <div class="tb-section">
+        <div class="tb-section__header">
+          <span class="url-section__label">Kontoer og innlegg</span>
+          <button id="addItemBtn" class="btn-mini" type="button">+ Konto</button>
+        </div>
+        <div id="itemList" class="cb-list"></div>
+        <p class="hk-hint">Hver konto blir en bue med et klikkbart ikon. Skjermbildene lastes opp til Labrador og vises i kortet
+          leseren får opp. Du kan dra bilder fra Finder rett inn på en konto. «Funn» skrives én per linje.</p>
+      </div>
+
+      <!-- Visning -->
+      <div class="ftb-opts">
+        <span class="url-section__label">Startvisning</span>
+        <div class="cb-grid2">
+          <button id="fitBtn" class="btn-mini" type="button" title="Sentrer og zoom så alle stedene får plass">⤢ Tilpass til stedene</button>
+          <button id="useViewBtn" class="btn-mini btn-mini--light" type="button" title="Dra kloden i forhåndsvisningen dit du vil, og trykk her">⌖ Bruk visningen</button>
+        </div>
+        <div class="cb-grid2">
+          <label class="pk-num"><span>Lengdegrad</span><input type="number" id="homeLon" step="0.5" min="-180" max="180" value="20"></label>
+          <label class="pk-num"><span>Breddegrad</span><input type="number" id="homeLat" step="0.5" min="-55" max="75" value="45"></label>
+        </div>
+        <label class="cb-range" title="Over 1 zoomer inn mot regionen (kloden går utenfor rammen)"><span>Zoom</span>
+          <input type="range" id="zoom" min="0.8" max="3" step="0.05" value="1"><output id="zoomOut"></output></label>
+
+        <span class="url-section__label" style="margin-top:6px;">Utseende</span>
+        <select id="bg" class="project-select">
+          <option value="navy" selected>Mørk blå bakgrunn</option>
+          <option value="white">Hvit bakgrunn</option>
+          <option value="none">Ingen bakgrunn (artikkelen synes, lys stil)</option>
+        </select>
+        <label class="ks-check"><input type="checkbox" id="optPulses" checked><span>Lys som vandrer langs buene</span></label>
+        <label class="ks-check"><input type="checkbox" id="optMotion" checked><span>Kloden vugger rolig når ingen rører den</span></label>
+        <label class="ks-check"><input type="checkbox" id="optLabels" checked><span>Vis stedsnavn</span></label>
+        <label class="ks-check"><input type="checkbox" id="optList" checked><span>Liste over kontoene under kloden</span></label>
+        <select id="cardMode" class="project-select" title="Hvor kortet med skjermbildene åpnes når leseren trykker på en konto">
+          <option value="auto" selected>Innlegg: automatisk (inne i full bredde, spretter ut i spalten)</option>
+          <option value="inside">Innlegg: alltid inne i grafikken</option>
+          <option value="pop">Innlegg: spretter ut med skygge (siden dekkes ikke)</option>
+          <option value="page">Innlegg: over hele siden med mørk bakgrunn</option>
+        </select>
+        <select id="triggerSelect" class="project-select">
+          <option value="early">Starter så snart boksen dukker opp</option>
+          <option value="middle" selected>Starter når boksen er et stykke opp på skjermen</option>
+          <option value="full">Starter når hele boksen er synlig</option>
+          <option value="static">Står ferdig fra start</option>
+        </select>
+        <label class="url-section__label" for="factsTitle" style="margin-top:4px;">Overskrift over funnene i kortet</label>
+        <input type="text" id="factsTitle" class="hk-row__img" value="Dette fant Faktisk">
+        <label class="ks-check"><input type="checkbox" id="optHint" checked><span>Vis hint nederst i boksen</span></label>
+        <input type="text" id="hintText" class="hk-row__img" value="" placeholder="Tom = «Dra for å snu kloden · trykk på et ikon for å se innlegget»">
+
+        <span class="url-section__label" style="margin-top:6px;">Størrelse</span>
+        <select id="aspect" class="project-select">
+          <option value="16/10" selected>Format: 16:10 (stående 4:5 på mobil)</option>
+          <option value="16/9">Format: 16:9 (stående 4:5 på mobil)</option>
+          <option value="3/2">Format: 3:2 (stående 4:5 på mobil)</option>
+          <option value="4/3">Format: 4:3 (stående 4:5 på mobil)</option>
+          <option value="1/1">Format: kvadrat (stående 4:5 på mobil)</option>
+        </select>
+        <select id="widthSelect" class="project-select">
+          <option value="full" selected>Bredde: fyll embed-boksen</option>
+          <option value="680">Bredde: maks 680 px</option>
+          <option value="480">Bredde: maks 480 px</option>
+        </select>
+        <label class="ks-check"><input type="checkbox" id="optRound" checked><span>Avrundede hjørner</span></label>
+        <label class="cb-range"><span>Luft over</span>
+          <input type="range" id="padTop" min="-24" max="64" step="2" value="12"><output id="padTopOut"></output></label>
+        <label class="cb-range"><span>Luft under</span>
+          <input type="range" id="padBot" min="-24" max="64" step="2" value="12"><output id="padBotOut"></output></label>
+      </div>
+
+      <div class="caption-section">
+        <label class="url-section__label" for="altText">Beskrivelse for skjermlesere</label>
+        <input type="text" id="altText" class="caption-input caption-input--single" value="Roterbar klode som viser hvor kontoene styres fra, og hvilke land innleggene er rettet mot">
+        <label class="url-section__label" for="captionText" style="margin-top:6px;">Bildetekst (valgfri)</label>
+        <textarea id="captionText" class="caption-input" rows="2" placeholder="F.eks. Kilde: Facebooks sidetransparens. Grafikk: Faktisk.no" spellcheck="true"></textarea>
+      </div>
+
+      <div class="plugin-sidebar__spacer"></div>
+
+      <div class="project-row">
+        <select id="projectSelect" class="project-select">
+          <option value="">Velg lagret prosjekt…</option>
+        </select>
+        <button id="saveProjectBtn" class="btn-mini">Lagre…</button>
+      </div>
+
+      <button id="copyEmbedBtn" class="btn-mini btn-mini--block">Kopier embed</button>
+    </aside>
+
+    <section class="plugin-canvas">
+      <div class="cb-toolbar">
+        <button id="playBtn" class="btn-mini" type="button">▶ Spill av introen</button>
+        <div class="cb-seg cb-seg--dark" role="group" aria-label="Forhåndsvis bredde">
+          <button type="button" class="cb-seg__btn" data-pw="380">Mobil</button>
+          <button type="button" class="cb-seg__btn is-active" data-pw="680">Spalte</button>
+          <button type="button" class="cb-seg__btn" data-pw="1100">Full</button>
+        </div>
+        <span class="cb-toolbar__hint">Dra kloden og trykk på ikonene for å teste. Visningen kan lagres som start.</span>
+      </div>
+      <div class="slider-stage ftb-stage" id="stage">
+        <div class="cb-article" id="articleHost">
+          <p class="cb-article__fake">Brødtekst i artikkelen …</p>
+          <div id="previewHost"></div>
+          <p class="cb-article__fake">… artikkelen fortsetter.</p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+</div>
+
+<script src="shared/dialog.js"></script>
+<script>window.PLUGIN_ID = 'prikkeklode';</script>
+<script src="shared/new-project.js"></script>
+<script src="shared/labrador-status.js"></script>
+<script src="dots.js"></script>
+<script src="countries.js"></script>
+<script src="engine.js"></script>
+<script src="snippet.js"></script>
+<script src="main.js"></script>
+</body>
+</html>

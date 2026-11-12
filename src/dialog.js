@@ -111,6 +111,16 @@
       }
       .project-card:hover .project-card__delete { display: flex; }
       .project-card__delete:hover { background: rgba(255,80,80,0.85); }
+      .project-card__export {
+        position: absolute; top: 6px; right: 36px;
+        background: rgba(255,255,255,0.22); color: #fff;
+        width: 22px; height: 22px; border-radius: 4px;
+        /* Alltid synlig — deling skal være oppdagbar, i motsetning til
+           slett (×) som med vilje bare vises på hover */
+        display: flex; align-items: center; justify-content: center;
+        font-size: 13px; cursor: pointer; border: 0;
+      }
+      .project-card__export:hover { background: #0050FC; }
     `;
     document.head.appendChild(style);
     return host;

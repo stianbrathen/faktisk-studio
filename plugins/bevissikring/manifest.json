@@ -1,0 +1,9 @@
+{
+  "id": "bevissikring",
+  "name": "Bevissikring",
+  "version": "0.1.3",
+  "entry": "index.html",
+  "description": "Sikre nettsider og SoMe-innlegg før de forsvinner — hele siden, mens den rulles, PDF, nettarkiv, tekst, bilder og video, med manifest, sjekksum og uavhengig tidsstempel for hver sikring, samlet per sak. Profiler og innlegg (Facebook m.fl.), stikkprøver over tid (X, YouTube), «Bare video», lister med lenker (bare video eller side og kommentarer), import av skjermbilder og opptak fra mobil, søk i tekst, tale og tekst i bilder, «Følg med» når innhold endres eller slettes, kryptert arkiv og Chrome-utvidelse.",
+  "category": "kilder",
+  "minStudioVersion": "0.7.13"
+}

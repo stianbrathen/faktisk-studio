@@ -81,6 +81,7 @@ const els = {
   capX:          document.getElementById('capXRange'),
   capXOut:       document.getElementById('capXOut'),
   capY:          document.getElementById('capYRange'),
+  tiktokSafe:    document.getElementById('tiktokSafeChk'),
   capYOut:       document.getElementById('capYOut'),
   capReset:      document.getElementById('capResetBtn'),
 };
@@ -103,6 +104,7 @@ const state = {
   capOpacity: 1,      // dekning for hele tittelen (adjust-blend i FCPXML)
   capX: 0,            // flytting i prosent av bildehøyden (som FCPXML-posisjon)
   capY: 0,
+  tiktokSafe: true,  // stående: smalere linjer, klar av TikToks ikoner
   // 'no' = NB-Whisper. Alt annet bruker original (flerspråklig) Whisper:
   // 'auto' (autodeteksjon), 'en', eller 'translate-en' (→ engelsk tekst).
   language: 'no',
@@ -169,15 +171,51 @@ function effectiveModelId() {
 // Liggende format (1920 bredt, samme 60 px-tekst) har plass til lengre
 // linjer — og der er to linjer TV-teksting-konvensjonen. Kvadrat og
 // stående deler samme 1080-bredde og bruker malens tre linjer.
+const CAP_STYLE = {
+  blue: '#0050FC',
+  font: '"Haas Grot Text 75 Bold", "Helvetica Neue", Helvetica, Arial, sans-serif',
+  lineHeight: 1.25,  // som .cap-box--video
+  padX: 0.45,        // em, som CSS
+  padY: 0.12,
+  radius: 0.12,
+  gap: 0.25,         // em mellom boksene (4px ved 16px font i preview)
+};
+
 function currentLineBudget() {
   const vw = els.video.videoWidth || 0;
   const vh = els.video.videoHeight || 1;
   const landscape = vw > vh * 1.05;
   // Større tekst → færre tegn per linje (boksene skal fortsatt holde seg innenfor bildet)
   const k = capScale();
-  return landscape
-    ? { maxChars: Math.max(14, Math.round(42 / k)), maxLines: 2 }
-    : { maxChars: Math.max(10, Math.round(26 / k)), maxLines: 3 };
+  if (landscape) return { maxChars: Math.max(14, Math.round(42 / k)), maxLines: 2 };
+  if (state.tiktokSafe === false) return { maxChars: Math.max(10, Math.round(26 / k)), maxLines: 3 };
+  // Faktisks safe zone for stående (1080x1920): tekstfeltet nederst er
+  // x 238–846, dvs. maks 608 px bred boks sentrert om 540 — klar av
+  // TikTok/Reels-ikonene til høyre. Målt i ekte skrift, ikke tegn.
+  // Boksbredde = k·(tekst@60px + 2·0,45·60) ≤ 608 → tekst@60px ≤ 608/k − 54.
+  const maxPx60 = SAFE_CAPTION_W / k - 2 * CAP_STYLE.padX * 60;
+  // Litt over er lov når teksten ellers ikke får plass på tre linjer:
+  // opp til 660 px (høyre kant ~870 i stedet for 846).
+  const hardPx60 = SAFE_CAPTION_W_MAX / k - 2 * CAP_STYLE.padX * 60;
+  return { maxChars: Math.max(4, maxPx60 / UNIT_PX), hardChars: Math.max(4, hardPx60 / UNIT_PX), maxLines: 3, measure: measureCap };
+}
+
+// Måling av tekst i bokse-skriften (60 px), i «tegn-enheter» à 30 px
+const SAFE_CAPTION_W = 608;   // px på 1080 bredt stående bilde (malens tekstfelt)
+const SAFE_CAPTION_W_MAX = 660; // myk grense: litt over når det trengs
+const UNIT_PX = 30;
+const _capMeasure = { ctx: null, cache: new Map() };
+function measureCap(str) {
+  let v = _capMeasure.cache.get(str);
+  if (v !== undefined) return v;
+  if (!_capMeasure.ctx) {
+    _capMeasure.ctx = document.createElement('canvas').getContext('2d');
+    _capMeasure.ctx.font = 'bold 60px ' + CAP_STYLE.font;
+  }
+  v = _capMeasure.ctx.measureText(str).width / UNIT_PX;
+  if (_capMeasure.cache.size > 5000) _capMeasure.cache.clear();
+  _capMeasure.cache.set(str, v);
+  return v;
 }
 
 // Tekststørrelse valgt i sidepanelet (1 = malens 60 px på 1080)
@@ -220,6 +258,9 @@ function balanceLines(text) {
 // ============================================================
 //  Oppdeling i tekstbokser og manus (deling.js)
 // ============================================================
+
+// Ord whisper alltid skal kjenne (sendes som --prompt, kun i hovedpasset)
+const HOUSE_PROMPT = 'Faktisk.no, Faktisk, faktasjekk';
 
 function flagsFromWords(words) {
   const f = (words || []).filter(w => w.f === 'avvik' || w.f === 'sjekk')
@@ -396,8 +437,11 @@ els.transcribeBtn.addEventListener('click', async () => {
       translate: state.language === 'translate-en',
       // Navn og fagord fra manus, så whisper staver dem riktig (Studio 0.7.7+;
       // eldre Studio ignorerer feltet)
-      prompt: state.manus.trim() && state.language !== 'translate-en'
-        ? window.TekstDeling.promptFromManus(state.manus) : undefined,
+      // Faktisk-ordene er alltid med: uten hint hørte large «Faktisk.no» som «NHO».
+      prompt: state.language !== 'translate-en'
+        ? [HOUSE_PROMPT, state.manus.trim() ? window.TekstDeling.promptFromManus(state.manus, 260) : '']
+            .filter(Boolean).join(', ')
+        : undefined,
     });
 
     if (res.ok) {
@@ -895,7 +939,7 @@ if (els.timelineTrack) {
 
 function renderPreviewBoxes(container, text) {
   container.innerHTML = '';
-  const { lines, tooLong, maxLines } = balanceLines(text);
+  const { lines, tooLong, maxLines, manualIgnored } = balanceLines(text);
   lines.forEach(line => {
     const box = document.createElement('span');
     box.className = 'cap-box';
@@ -906,6 +950,11 @@ function renderPreviewBoxes(container, text) {
     const warn = document.createElement('span');
     warn.className = 'seg__warn';
     warn.textContent = 'For langt for ' + maxLines + ' linjer — del segmentet (Enter i teksten)';
+    container.appendChild(warn);
+  } else if (manualIgnored) {
+    const warn = document.createElement('span');
+    warn.className = 'seg__warn';
+    warn.textContent = 'Linjeskiftene dine får ikke plass på ' + maxLines + ' linjer — delt automatisk';
     container.appendChild(warn);
   }
 }
@@ -944,6 +993,13 @@ function bindEditor(editor, index) {
     const seg = state.segments[index];
     if (!seg) return;
 
+    // Shift+Enter = linjeskift i samme boks
+    if (e.key === 'Enter' && e.shiftKey) {
+      e.preventDefault();
+      insertNewline(editor);
+      return;
+    }
+
     // Enter = del segmentet ved markøren
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -958,6 +1014,23 @@ function bindEditor(editor, index) {
       mergeWithPrevious(index);
     }
   });
+}
+
+// Sett inn et ekte «\n» ved markøren. (execCommand('insertText') lager en
+// <div> i plaintext-only-felt, og da forsvinner skiftet fra textContent.)
+function insertNewline(el) {
+  const sel = window.getSelection();
+  if (!sel.rangeCount) return;
+  const r = sel.getRangeAt(0);
+  r.deleteContents();
+  const n = document.createTextNode('\n');
+  r.insertNode(n);
+  r.setStartAfter(n);
+  r.collapse(true);
+  sel.removeAllRanges();
+  sel.addRange(r);
+  el.normalize();
+  el.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
 function caretOffset(el) {
@@ -1157,6 +1230,7 @@ function syncCapControls() {
   els.fcpRes.value = state.fcpRes;
   els.capSize.value = String(capScale());
   els.capSizeOut.textContent = Math.round(capScale() * 100) + ' %';
+  if (els.tiktokSafe) els.tiktokSafe.checked = state.tiktokSafe !== false;
 }
 els.fcpRes.addEventListener('change', () => {
   state.fcpRes = els.fcpRes.value === '2160' ? '2160' : '1080';
@@ -1180,8 +1254,12 @@ els.animOut.addEventListener('change', () => { state.animOut = els.animOut.check
 els.capOp.addEventListener('input', () => { state.capOpacity = parseFloat(els.capOp.value) || 1; els.capOpOut.textContent = Math.round(capOpacity() * 100) + ' %'; refreshCaps(); });
 els.capX.addEventListener('input', () => { state.capX = parseFloat(els.capX.value) || 0; els.capXOut.textContent = String(state.capX); refreshCaps(); });
 els.capY.addEventListener('input', () => { state.capY = parseFloat(els.capY.value) || 0; els.capYOut.textContent = String(state.capY); refreshCaps(); });
+if (els.tiktokSafe) els.tiktokSafe.addEventListener('change', () => {
+  state.tiktokSafe = els.tiktokSafe.checked;
+  renderSegments(); lastOverlayIndex = -2; renderOverlay(); scheduleSaveState();
+});
 els.capReset.addEventListener('click', () => {
-  Object.assign(state, { capSize: 1, boxColor: '0', anim: '2', animIn: true, animOut: true, capOpacity: 1, capX: 0, capY: 0 });
+  Object.assign(state, { capSize: 1, boxColor: '0', anim: '2', animIn: true, animOut: true, capOpacity: 1, capX: 0, capY: 0, tiktokSafe: true });
   syncCapControls(); renderSegments(); refreshCaps();
 });
 syncCapControls();
@@ -1352,15 +1430,7 @@ els.exportSrtBtn.addEventListener('click', () => {
 // forhåndsvisningen (malens 60 px-tekst på 1080-lerret, bokser fra bunn),
 // og lar Studios ffmpeg legge dem over videoen med fade-inn.
 
-const CAP_STYLE = {
-  blue: '#0050FC',
-  font: '"Haas Grot Text 75 Bold", "Helvetica Neue", Helvetica, Arial, sans-serif',
-  lineHeight: 1.25,  // som .cap-box--video
-  padX: 0.45,        // em, som CSS
-  padY: 0.12,
-  radius: 0.12,
-  gap: 0.25,         // em mellom boksene (4px ved 16px font i preview)
-};
+// (CAP_STYLE er flyttet opp til linjedelingen)
 
 function renderCaptionPng(seg) {
   const W = els.video.videoWidth;
@@ -1638,6 +1708,7 @@ function serializeState() {
     capSize: state.capSize,
     boxColor: state.boxColor, anim: state.anim, animIn: state.animIn, animOut: state.animOut,
     capOpacity: state.capOpacity, capX: state.capX, capY: state.capY,
+    tiktokSafe: state.tiktokSafe,
   };
 }
 
@@ -1672,6 +1743,7 @@ async function applyState(s) {
     if (Number.isFinite(+s.capOpacity) && s.capOpacity) state.capOpacity = +s.capOpacity;
     if (Number.isFinite(+s.capX)) state.capX = +s.capX;
     if (Number.isFinite(+s.capY)) state.capY = +s.capY;
+    if (typeof s.tiktokSafe === 'boolean') state.tiktokSafe = s.tiktokSafe;
     syncCapControls();
     refreshModelStatus();
     if (s.localPath) {

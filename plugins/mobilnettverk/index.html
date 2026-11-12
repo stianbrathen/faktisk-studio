@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https:; font-src 'self' data:;">
+<title>Mobilnettverk · Faktisk Studio</title>
+<link rel="stylesheet" href="shared/style.css">
+<link rel="stylesheet" href="style.css">
+<script src="shared/embed-tokens.js"></script>
+</head>
+<body>
+<div class="studio">
+
+  <header class="topbar">
+    <div class="faktisk-logo" role="img" aria-label="Faktisk Studio"></div>
+    <span class="topbar__version" id="appVersion" title="Versjoner"></span>
+    <div class="topbar__title" role="img" aria-label="Labrador"></div>
+    <div class="topbar__actions">
+      <button class="btn-primary" id="backBtn">Malside</button>
+      <button class="btn-icon" id="newProjectBtn" title="Nytt prosjekt (tøm gjeldende)" aria-label="Nytt prosjekt">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+          <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+        </svg>
+      </button>
+      <button class="btn-icon" id="fullscreenBtn" title="Fullskjerm" aria-label="Fullskjerm">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+          <path d="M5 5h5v2H7v3H5V5zm9 0h5v5h-2V7h-3V5zM5 14h2v3h3v2H5v-5zm12 0h2v5h-5v-2h3v-3z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="plugin-page">
+
+    <aside class="plugin-sidebar">
+      <div class="plugin-sidebar__head">
+        <h2 class="plugin-sidebar__title">Mobilnettverk</h2>
+        <button id="openLabradorBtn" class="link-btn" type="button">Åpne Labrador ↗</button>
+      </div>
+
+      <!-- Skjermbilder -->
+      <div class="tb-section">
+        <div class="tb-section__header">
+          <span class="url-section__label">Skjermbilder</span>
+          <button id="addShotBtn" class="btn-mini" type="button">+ Skjermbilde</button>
+        </div>
+        <div class="ftb-labrow">
+          <button class="ftb-labbtn" type="button" id="batchUploadBtn" title="Velg mange bilder på Macen — de lastes opp til Labrador og legges til">Last opp flere…</button>
+          <button class="ftb-labbtn" type="button" id="batchPickBtn" title="Velg flere bilder som allerede ligger i Labrador">Velg flere fra Mine filer ▾</button>
+        </div>
+        <input type="file" id="batchFile" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden>
+        <div class="ftb-labpanel" id="batchPanel" style="display:none;"></div>
+        <div id="batchStatus" class="hk-hint" style="display:none;"></div>
+        <div id="shotList" class="cb-list mn-drop" title="Du kan også dra bilder fra Finder hit"></div>
+        <p class="hk-hint">Last opp skjermbildene til Labrador (PNG eller JPG). De første vises på de store
+          telefonene foran. Er det færre bilder enn telefoner, gjentas de. Teksten vises når leseren
+          trykker på en mobil.</p>
+      </div>
+
+      <!-- Telefoner -->
+      <div class="ftb-opts">
+        <span class="url-section__label">Visning</span>
+        <select id="view" class="project-select">
+          <option value="net" selected>Nettverk i lag (dra for å skyve)</option>
+          <option value="ring">Karusell i 3D (dra eller klikk for å snurre)</option>
+          <option value="side">Side om side (1–3 skjermbilder)</option>
+        </select>
+        <span class="url-section__label" style="margin-top:6px;">Telefoner</span>
+        <label class="cb-range mn-side-only" title="Hvor mange mobiler som står ved siden av hverandre"><span>Antall</span>
+          <input type="range" id="count" min="1" max="3" step="1" value="2"><output id="countOut"></output></label>
+        <label class="cb-range mn-ring-only" title="Antall telefoner i ringen"><span>I ringen</span>
+          <input type="range" id="ring" min="4" max="16" step="1" value="9"><output id="ringOut"></output></label>
+        <label class="ks-check mn-ring-only"><input type="checkbox" id="optArrows" checked><span>Pilknapper for å bla</span></label>
+        <label class="cb-range mn-net-only" title="Store telefoner foran (på mobil maks 2)"><span>Foran</span>
+          <input type="range" id="front" min="1" max="5" step="1" value="3"><output id="frontOut"></output></label>
+        <label class="cb-range mn-net-only" title="Mellomstore telefoner i midten"><span>Midten</span>
+          <input type="range" id="mid" min="0" max="8" step="1" value="4"><output id="midOut"></output></label>
+        <label class="cb-range mn-net-only" title="Små, mørke telefoner bakerst"><span>Bak</span>
+          <input type="range" id="back" min="0" max="20" step="1" value="10"><output id="backOut"></output></label>
+        <label class="cb-range" title="Størrelse på telefonen(e) foran"><span>Størrelse</span>
+          <input type="range" id="size" min="0.7" max="1.3" step="0.05" value="1"><output id="sizeOut"></output></label>
+        <button id="reseedBtn" class="btn-mini btn-mini--light" type="button" title="Samme innstillinger, ny plassering">⟳ Ny variant</button>
+
+        <span class="url-section__label" style="margin-top:6px;">Utseende</span>
+        <div class="cb-grid2">
+          <select id="bg" class="project-select">
+            <option value="navy" selected>Bakgrunn: mørk blå</option>
+            <option value="black">Bakgrunn: svart</option>
+            <option value="white">Bakgrunn: hvit</option>
+            <option value="none">Bakgrunn: ingen (artikkelen synes)</option>
+          </select>
+          <label class="mn-color" title="Farge på nettverket"><input type="color" id="lineColor" value="#6FA8FF"><span>Nettverk</span></label>
+        </div>
+        <label class="ks-check"><input type="checkbox" id="optNet" checked><span>Nettverkslinjer</span></label>
+        <label class="ks-check"><input type="checkbox" id="optShadow"><span>Skygge under mobilene</span></label>
+        <label class="ks-check mn-light-only" title="Mobiler og linjer helt ut i kanten tones bort, så boksen ikke får en synlig kant mot hvitt"><input type="checkbox" id="optFade" checked><span>Ton ut mot sidene</span></label>
+        <select id="motion" class="project-select">
+          <option value="0">Bevegelse: står stille</option>
+          <option value="1" selected>Bevegelse: rolig</option>
+          <option value="2">Bevegelse: livlig</option>
+        </select>
+        <select id="triggerSelect" class="project-select">
+          <option value="early">Starter så snart boksen dukker opp</option>
+          <option value="middle" selected>Starter når boksen er et stykke opp på skjermen</option>
+          <option value="full">Starter når hele boksen er synlig</option>
+          <option value="static">Står ferdig fra start</option>
+        </select>
+        <label class="ks-check mn-noside"><input type="checkbox" id="optDrag" checked><span>Leseren kan dra</span></label>
+        <label class="ks-check"><input type="checkbox" id="optHint" checked><span>Vis hint nederst i boksen</span></label>
+        <input type="text" id="hintText" class="hk-row__img" value="" placeholder="Tom = automatisk tekst for visningen">
+
+        <span class="url-section__label" style="margin-top:6px;">Størrelse</span>
+        <select id="aspect" class="project-select">
+          <option value="16/9" selected>Format: 16:9 (stående 4:5 på mobil)</option>
+          <option value="3/2">Format: 3:2 (stående 4:5 på mobil)</option>
+          <option value="21/9">Format: bredt 21:9 (stående 4:5 på mobil)</option>
+          <option value="1/1">Format: kvadrat</option>
+          <option value="4/5">Format: stående 4:5</option>
+        </select>
+        <select id="widthSelect" class="project-select">
+          <option value="full" selected>Bredde: fyll embed-boksen</option>
+          <option value="680">Bredde: maks 680 px</option>
+          <option value="480">Bredde: maks 480 px</option>
+        </select>
+        <label class="ks-check"><input type="checkbox" id="optRound" checked><span>Avrundede hjørner</span></label>
+        <label class="cb-range"><span>Luft over</span>
+          <input type="range" id="padTop" min="-24" max="64" step="2" value="12"><output id="padTopOut"></output></label>
+        <label class="cb-range"><span>Luft under</span>
+          <input type="range" id="padBot" min="-24" max="64" step="2" value="12"><output id="padBotOut"></output></label>
+      </div>
+
+      <div class="caption-section">
+        <label class="url-section__label" for="altText">Beskrivelse for skjermlesere</label>
+        <input type="text" id="altText" class="caption-input caption-input--single" value="Skjermbilder vist på mobiltelefoner">
+        <label class="url-section__label" for="captionText" style="margin-top:6px;">Bildetekst (valgfri)</label>
+        <textarea id="captionText" class="caption-input" rows="2" placeholder="F.eks. Skjermbilder fra kontoen. Foto: skjermdump" spellcheck="true"></textarea>
+      </div>
+
+      <div class="plugin-sidebar__spacer"></div>
+
+      <div class="project-row">
+        <select id="projectSelect" class="project-select">
+          <option value="">Velg lagret prosjekt…</option>
+        </select>
+        <button id="saveProjectBtn" class="btn-mini">Lagre…</button>
+      </div>
+
+      <button id="copyEmbedBtn" class="btn-mini btn-mini--block">Kopier embed</button>
+    </aside>
+
+    <section class="plugin-canvas">
+      <div class="cb-toolbar">
+        <button id="playBtn" class="btn-mini" type="button">▶ Spill av introen</button>
+        <div class="cb-seg cb-seg--dark" role="group" aria-label="Forhåndsvis bredde">
+          <button type="button" class="cb-seg__btn" data-pw="380">Mobil</button>
+          <button type="button" class="cb-seg__btn is-active" data-pw="680">Spalte</button>
+          <button type="button" class="cb-seg__btn" data-pw="1100">Full</button>
+        </div>
+        <span class="cb-toolbar__hint">Trykk på en mobil i forhåndsvisningen for å teste visningen leseren får.</span>
+      </div>
+      <div class="slider-stage ftb-stage" id="stage">
+        <div class="cb-article" id="articleHost">
+          <p class="cb-article__fake">Brødtekst i artikkelen …</p>
+          <div id="previewHost"></div>
+          <p class="cb-article__fake">… artikkelen fortsetter.</p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+</div>
+
+<script src="shared/dialog.js"></script>
+<script>window.PLUGIN_ID = 'mobilnettverk';</script>
+<script src="shared/new-project.js"></script>
+<script src="shared/labrador-status.js"></script>
+<script src="engine.js"></script>
+<script src="snippet.js"></script>
+<script src="main.js"></script>
+</body>
+</html>

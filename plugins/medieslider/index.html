@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https:; font-src 'self' data:;">
+<title>Medieslider · Faktisk Studio</title>
+<link rel="stylesheet" href="shared/style.css">
+<link rel="stylesheet" href="style.css">
+<script src="shared/embed-tokens.js"></script>
+<script src="runtime.js"></script>
+</head>
+<body>
+<div class="studio">
+
+  <header class="topbar">
+    <div class="faktisk-logo" role="img" aria-label="Faktisk Studio"></div>
+    <span class="topbar__version" id="appVersion" title="Versjoner"></span>
+    <div class="topbar__title" role="img" aria-label="Labrador"></div>
+    <div class="topbar__actions">
+      <button class="btn-primary" id="backBtn">Malside</button>
+      <button class="btn-icon" id="newProjectBtn" title="Nytt prosjekt (tøm gjeldende)" aria-label="Nytt prosjekt">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+          <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+        </svg>
+      </button>
+      <button class="btn-icon" id="fullscreenBtn" title="Fullskjerm" aria-label="Fullskjerm">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+          <path d="M5 5h5v2H7v3H5V5zm9 0h5v5h-2V7h-3V5zM5 14h2v3h3v2H5v-5zm12 0h2v5h-5v-2h3v-3z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="plugin-page">
+
+    <aside class="plugin-sidebar">
+      <div class="plugin-sidebar__head">
+        <h2 class="plugin-sidebar__title">Medieslider</h2>
+        <button id="openLabradorBtn" class="link-btn" type="button">Åpne Labrador ↗</button>
+      </div>
+
+      <div class="tb-section pod-import">
+        <button id="importToggle" class="ftb-labbtn" type="button" aria-expanded="false">Hent fra eksisterende embed ▾</button>
+        <div id="importPanel" class="pod-importpanel" style="display:none;">
+          <textarea id="importInput" class="caption-input pod-fetch" rows="3" spellcheck="false" style="width:100%;box-sizing:border-box;"
+                    placeholder="Lim inn hele embed-koden fra Markup-boksen i Labrador"></textarea>
+          <button id="importBtn" class="btn-mini btn-mini--block" type="button">Fyll ut fra embed</button>
+          <p class="hk-hint pod-status" id="importStatus" aria-live="polite"></p>
+        </div>
+      </div>
+
+      <div class="ftb-fields">
+        <input type="text" id="kickerInput" class="caption-input caption-input--single"
+               placeholder="Stikktittel (valgfri) — f.eks. SKJERMBILDER" spellcheck="true">
+        <input type="text" id="titleInput" class="caption-input caption-input--single"
+               placeholder="Overskrift (valgfri)" spellcheck="true">
+        <input type="text" id="ledeInput" class="caption-input caption-input--single"
+               placeholder="Linje under (valgfri)" spellcheck="true">
+      </div>
+
+      <div class="tb-section ms-opts">
+        <label class="url-section__label" for="modeSelect">Når leseren trykker på et element</label>
+        <select id="modeSelect" class="project-select">
+          <option value="lightbox" selected>Åpne over hele skjermen, dempet bakgrunn</option>
+          <option value="expand">Åpne stort over siden</option>
+          <option value="none">Ingenting – bare slider</option>
+        </select>
+        <label class="url-section__label" for="shapeSelect">Kortene i slideren</label>
+        <select id="shapeSelect" class="project-select">
+          <option value="original" selected>Originalform (samme høyde)</option>
+          <option value="portrait">Stående 4:5 (beskåret)</option>
+          <option value="square">Kvadrat (beskåret)</option>
+          <option value="landscape">Liggende 16:9 (beskåret)</option>
+        </select>
+        <label class="url-section__label" for="sizeSelect">Størrelse på kortene</label>
+        <select id="sizeSelect" class="project-select">
+          <option value="small">Små</option>
+          <option value="medium" selected>Middels</option>
+          <option value="large">Store</option>
+          <option value="xl">Ekstra store – nesten ett om gangen</option>
+        </select>
+        <label class="url-section__label" for="linkLabel">Tekst på lenke 1 (f.eks. arkivert innlegg)</label>
+        <input type="text" id="linkLabel" class="caption-input caption-input--single" value="Se originalen" placeholder="Se originalen">
+        <label class="url-section__label" for="link2Label">Tekst foran redaksjonen på lenke 2</label>
+        <input type="text" id="link2Label" class="caption-input caption-input--single" value="Først publisert hos" placeholder="Først publisert hos">
+        <p class="hk-hint">Lenke 1 får teksten over. Lenke 2 får «Først publisert hos NRK», «… hos VG» osv. ut fra adressen. Begge kan få egen tekst per bilde.</p>
+      </div>
+
+      <div class="tb-section">
+        <div class="tb-section__header">
+          <span class="url-section__label">Bilder og videoer (vises fra venstre)</span>
+        </div>
+        <div class="ftb-labrow">
+          <button class="ftb-labbtn" type="button" id="addFilesBtn">+ Fra Labrador ▾</button>
+          <button class="ftb-labbtn" type="button" id="addUploadBtn" title="Ett bilde eller én video">Last opp…</button>
+          <button class="ftb-labbtn" type="button" id="addBatchBtn" title="Velg mange bilder på én gang">Flere bilder…</button>
+          <button class="ftb-labbtn vs-narrow" type="button" id="addEmptyBtn" title="Tom rad – lim inn lenke selv">+</button>
+        </div>
+        <input type="file" id="batchInput" accept="image/png,image/jpeg,image/webp,image/avif,image/gif" multiple hidden>
+        <div class="ftb-labpanel" id="addPanel" style="display:none;"></div>
+        <p class="hk-hint pod-status" id="addStatus" aria-live="polite"></p>
+        <div id="itemList" class="tb-list pod-list vs-list"></div>
+        <button id="allPostersBtn" class="btn-mini btn-mini--light btn-mini--block" type="button">Lag stillbilder for videoene</button>
+        <p class="hk-hint">Du kan også dra bilder fra Finder rett inn her. Bilder og videoer skal ligge i Labrador (maks 100 MB per fil). Video: mp4 med H.264 og
+          «fast start». Skjermbilder bør være PNG eller JPG i god oppløsning – de vises stort.</p>
+      </div>
+
+      <div class="ftb-opts">
+        <label class="url-section__label" for="previewWidthSelect">Forhåndsvis som</label>
+        <select id="previewWidthSelect" class="project-select">
+          <option value="680" selected>Artikkel</option>
+          <option value="1048">Full bredde</option>
+          <option value="390">Mobil</option>
+        </select>
+      </div>
+
+      <div class="plugin-sidebar__spacer"></div>
+
+      <div class="project-row">
+        <select id="projectSelect" class="project-select">
+          <option value="">Velg lagret prosjekt…</option>
+        </select>
+        <button id="saveProjectBtn" class="btn-mini">Lagre…</button>
+      </div>
+
+      <button id="copyEmbedBtn" class="btn-mini btn-mini--block" disabled>
+        Kopier embed
+      </button>
+    </aside>
+
+    <section class="plugin-canvas">
+      <div class="slider-stage ftb-stage" id="stage">
+        <div class="ftb-previewhost pod-previewhost" id="previewHost"></div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Velg stillbilde for en video: spol til riktig bilde -->
+  <div class="vs-picker" id="picker" hidden>
+    <div class="vs-picker__box" role="dialog" aria-modal="true" aria-labelledby="pickerTitle">
+      <h3 class="vs-picker__title" id="pickerTitle">Velg stillbilde</h3>
+      <video id="pickerVideo" class="vs-picker__video" controls muted playsinline preload="metadata"></video>
+      <p class="hk-hint vs-picker__time" id="pickerTime">0,0 s</p>
+      <div class="vs-picker__btns">
+        <button id="pickerCancel" class="btn-mini btn-mini--light" type="button">Avbryt</button>
+        <button id="pickerUse" class="btn-mini" type="button">Bruk dette bildet</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script src="shared/dialog.js"></script>
+<script>window.PLUGIN_ID = 'medieslider';</script>
+<script src="shared/new-project.js"></script>
+<script src="shared/labrador-status.js"></script>
+<script src="main.js"></script>
+</body>
+</html>

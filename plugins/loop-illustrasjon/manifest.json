@@ -1,0 +1,9 @@
+{
+  "id": "loop-illustrasjon",
+  "name": "Loop-illustrasjon",
+  "version": "0.1.3",
+  "entry": "index.html",
+  "description": "Sett sammen en animert illustrasjon som går i loop: bakgrunn, bilder og logoer, video, ringer av elementer, nettverk og mobiler – med spinn, puls, sveving, uskarphet og inn/ut-animasjoner. Lag kan samles i mapper som animeres samlet. Genererer embed for Labrador og eksporterer video.",
+  "category": "annet",
+  "minStudioVersion": "0.7.0"
+}

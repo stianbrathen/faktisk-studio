@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https:; font-src 'self' data:;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob: https: file:; connect-src 'self' https:; font-src 'self' data:;">
 <title>Videosensur · Faktisk Studio</title>
 <link rel="stylesheet" href="shared/style.css">
 <link rel="stylesheet" href="style.css">
@@ -43,18 +43,21 @@
 
       <div class="url-section">
         <div class="url-section__header">
-          <label class="url-section__label" for="videoUrl">Lenke til video</label>
+          <label class="url-section__label" for="videoUrl">Video (lenke eller fil på Macen)</label>
           <button id="openLabradorBtn" class="link-btn" type="button">
             Åpne Labrador ↗
           </button>
         </div>
         <div class="url-row">
           <input type="text" id="videoUrl" class="url-row__input"
-                 placeholder="https://faktisk.no/uploads/…"
+                 placeholder="https://faktisk.no/uploads/… eller velg fil"
                  spellcheck="false" autocomplete="off">
           <button id="loadVideoBtn" class="btn-tiny">Hent video</button>
         </div>
         <div class="lab-row">
+          <button id="localFileBtn" class="btn-tiny lab-btn" type="button" title="Bruk en video rett fra Macen – ingen opplasting og ingen grense på 100 MB. Den ferdige videoen lagres også lokalt.">Velg video på Macen… (ingen opplasting)</button>
+        </div>
+        <div class="lab-row" style="margin-top:6px;">
           <button id="labFilesBtn" class="btn-tiny lab-btn" type="button">Mine filer ▾</button>
           <button id="labUploadBtn" class="btn-tiny lab-btn" type="button">Last opp fil…</button>
         </div>

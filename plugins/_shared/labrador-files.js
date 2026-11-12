@@ -183,23 +183,34 @@
       if (!open) refresh();
     });
 
-    uploadBtn.addEventListener('click', async () => {
+    if (cfg.accept === 'image') uploadBtn.title = 'Bilder komprimeres (AVIF + JPG i 1200/2400 px). Alt-klikk for å laste opp originalen.';
+    uploadBtn.addEventListener('click', async (ev) => {
       uploadBtn.disabled = true;
-      setStatus('Velg fil — lastes opp til Labrador…');
+      // Alt-klikk: last opp originalen uten komprimering (Studio 0.7.9+)
+      const optimize = !(ev && ev.altKey);
+      setStatus(optimize ? 'Velg fil — lastes opp til Labrador…' : 'Velg fil — originalen lastes opp uten komprimering…');
       const unsub = window.faktisk.onLabradorUploadProgress
         ? window.faktisk.onLabradorUploadProgress(msg => {
             progress.style.display = 'block';
             progressBar.style.width = msg.percent + '%';
-            setStatus('Laster opp… ' + msg.percent + '% (' + msg.sentMB + ' av ' + msg.totalMB + ' MB)');
+            setStatus(msg.label || ('Laster opp… ' + msg.percent + '% (' + msg.sentMB + ' av ' + msg.totalMB + ' MB)'));
           })
         : () => {};
       try {
         const res = await window.faktisk.labradorUpload({
           filters: UPLOAD_FILTERS[cfg.accept] || UPLOAD_FILTERS.image,
+          optimize,
         });
         if (res.canceled) { setStatus(''); return; }
         if (!res.ok) { setStatus(res.error, true); return; }
-        if (res.url) {
+        if (res.url && res.optimized && res.stats) {
+          const kb = n => n >= 1048576 ? (n / 1048576).toFixed(1).replace('.', ',') + ' MB' : Math.round(n / 1024) + ' KB';
+          const st = res.stats;
+          setStatus('Komprimert ✓ ' + kb(st.origBytes) + ' → ' + kb(st.fallbackBytes)
+            + (st.avifBytes ? ' (AVIF ' + kb(st.avifBytes) + ')' : '') + ' · ' + res.variants.width + ' px'
+            + (st.reused ? ' · fantes allerede i Labrador' : ''));
+          pick(res.url);
+        } else if (res.url) {
           setStatus('Lastet opp «' + res.name + '» ✓');
           pick(res.url);
         } else {

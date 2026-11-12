@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https:; font-src 'self' data:;">
+<title>Chatbobler · Faktisk Studio</title>
+<link rel="stylesheet" href="shared/style.css">
+<link rel="stylesheet" href="style.css">
+<script src="shared/embed-tokens.js"></script>
+</head>
+<body>
+<div class="studio">
+
+  <header class="topbar">
+    <div class="faktisk-logo" role="img" aria-label="Faktisk Studio"></div>
+    <span class="topbar__version" id="appVersion" title="Versjoner"></span>
+    <div class="topbar__title" role="img" aria-label="Labrador"></div>
+    <div class="topbar__actions">
+      <button class="btn-primary" id="backBtn">Malside</button>
+      <button class="btn-icon" id="newProjectBtn" title="Nytt prosjekt (tøm gjeldende)" aria-label="Nytt prosjekt">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+          <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+        </svg>
+      </button>
+      <button class="btn-icon" id="fullscreenBtn" title="Fullskjerm" aria-label="Fullskjerm">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+          <path d="M5 5h5v2H7v3H5V5zm9 0h5v5h-2V7h-3V5zM5 14h2v3h3v2H5v-5zm12 0h2v5h-5v-2h3v-3z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="plugin-page">
+
+    <aside class="plugin-sidebar">
+      <div class="plugin-sidebar__head">
+        <h2 class="plugin-sidebar__title">Chatbobler</h2>
+        <button id="openLabradorBtn" class="link-btn" type="button">Åpne Labrador ↗</button>
+      </div>
+
+      <div class="cb-grid2">
+        <div class="cb-field">
+          <label class="url-section__label" for="appSelect">App</label>
+          <select id="appSelect" class="project-select"></select>
+        </div>
+        <div class="cb-field">
+          <label class="url-section__label" for="themeSelect">Utseende</label>
+          <select id="themeSelect" class="project-select">
+            <option value="light" selected>Lys</option>
+            <option value="dark">Mørk</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="cb-seg cb-seg--3" role="group" aria-label="Visning">
+        <button type="button" class="cb-seg__btn is-active" data-frame="window">Chatvindu</button>
+        <button type="button" class="cb-seg__btn" data-frame="bare">Bare bobler</button>
+        <button type="button" class="cb-seg__btn" data-frame="profile" title="Profilbilde og navn øverst, boblene under">Profil + bobler</button>
+      </div>
+
+      <div class="cb-people">
+        <span class="url-section__label">Personer</span>
+        <div class="cb-person">
+          <span class="cb-chip cb-chip--them">Den andre</span>
+          <input type="text" id="themName" class="hk-row__title" placeholder="Navn" value="Kari">
+        </div>
+        <input type="text" id="themStatus" class="hk-row__img cb-only-window cb-also-profile" placeholder="Statuslinje under navnet (tom = standard for appen)">
+        <input type="text" id="themAvatar" class="hk-row__img cb-only-avatar" placeholder="Profilbilde-URL fra Labrador (valgfri — ellers initialer)" spellcheck="false">
+        <div class="ftb-labrow cb-only-avatar">
+          <button class="ftb-labbtn" type="button" id="avatarFilesBtn">Profilbilde: Mine filer ▾</button>
+          <button class="ftb-labbtn" type="button" id="avatarUploadBtn">Last opp…</button>
+        </div>
+        <div class="ftb-labpanel cb-only-avatar" id="avatarPanel" style="display:none;"></div>
+        <label class="cb-range cb-only-avatar" title="Størrelsen på profilbildet ved boblene">
+          <span>Størrelse</span>
+          <input type="range" id="avSize" min="0.5" max="2" step="0.05" value="1">
+          <output id="avSizeOut">100 %</output>
+        </label>
+        <div class="cb-avcrop cb-only-avatar">
+          <label class="cb-range" title="Zoom inn i bildet (f.eks. når profilbildet er klippet fra en skjermdump)">
+            <span>Zoom</span>
+            <input type="range" id="avZoom" min="1" max="4" step="0.05" value="1">
+            <output id="avZoomOut">100 %</output>
+          </label>
+          <label class="cb-range" title="Flytt utsnittet sideveis"><span>Sideveis</span>
+            <input type="range" id="avX" min="-50" max="50" step="1" value="0"><output></output></label>
+          <label class="cb-range" title="Flytt utsnittet opp/ned"><span>Opp/ned</span>
+            <input type="range" id="avY" min="-50" max="50" step="1" value="0"><output></output></label>
+        </div>
+        <div class="cb-person">
+          <span class="cb-chip cb-chip--me">Deg</span>
+          <input type="text" id="meName" class="hk-row__title" placeholder="Navn (leses opp for skjermlesere)" value="Meg">
+        </div>
+      </div>
+
+      <div class="tb-section">
+        <div class="tb-section__header">
+          <span class="url-section__label">Meldinger</span>
+        </div>
+        <div class="cb-addrow">
+          <button id="addThemBtn" class="btn-mini btn-mini--light" type="button">+ Den andre</button>
+          <button id="addMeBtn" class="btn-mini" type="button">+ Deg</button>
+          <button id="addSepBtn" class="btn-mini btn-mini--light" type="button">+ Tidsskille</button>
+        </div>
+        <div id="msgList" class="cb-list"></div>
+        <p class="hk-hint">Emojis: <b>⌃ ⌘ Mellomrom</b> åpner Macens emoji-velger.
+          Én til tre emojis alene i en melding vises store, som i appene.
+          Lenker i teksten understrekes, men er ikke klikkbare.</p>
+      </div>
+
+      <div class="ftb-opts">
+        <span class="url-section__label">Animasjon</span>
+        <select id="triggerSelect" class="project-select">
+          <option value="early">Starter så snart boksen dukker opp</option>
+          <option value="middle" selected>Starter når boksen er et stykke opp på skjermen</option>
+          <option value="full">Starter når hele boksen er synlig</option>
+          <option value="static">Står der hele tiden (ingen animasjon)</option>
+        </select>
+        <label class="url-section__label cb-only-anim" for="readySelect" style="margin-top:4px;">Står klar fra start</label>
+        <select id="readySelect" class="project-select cb-only-anim"></select>
+        <select id="speedSelect" class="project-select cb-only-anim">
+          <option value="1.45">Tempo: rolig</option>
+          <option value="1" selected>Tempo: normalt</option>
+          <option value="0.65">Tempo: raskt</option>
+        </select>
+        <label class="ks-check cb-only-anim"><input type="checkbox" id="optTyping" checked><span>Skriveindikator (•••) før svar</span></label>
+        <label class="ks-check cb-only-window cb-only-anim"><input type="checkbox" id="optCompose" checked><span>Dine meldinger skrives i tekstfeltet</span></label>
+        <label class="ks-check cb-only-anim"><input type="checkbox" id="optReplay" checked><span>«Spill av igjen»-knapp</span></label>
+
+        <span class="url-section__label" style="margin-top:6px;">Detaljer</span>
+        <label class="ks-check cb-only-window"><input type="checkbox" id="optHeader" checked><span>Topplinje med navn</span></label>
+        <select id="avatarLogSelect" class="project-select" title="Lite profilbilde til venstre for den andres bobler (på siste boble i hver gruppe)">
+          <option value="auto" selected>Profilbilde ved boblene: som i appen</option>
+          <option value="on">Profilbilde ved boblene: vis</option>
+          <option value="off">Profilbilde ved boblene: skjul</option>
+        </select>
+        <label class="ks-check"><input type="checkbox" id="optTimes" checked><span>Klokkeslett i boblene (der appen har det)</span></label>
+        <label class="ks-check"><input type="checkbox" id="optStatus" checked><span>Levert / lest-status</span></label>
+
+        <span class="url-section__label" style="margin-top:6px;">Størrelse</span>
+        <select id="widthSelect" class="project-select" title="Maks bredde. Er embed-boksen smalere (f.eks. på mobil), krymper chatten til boksens bredde.">
+          <option value="320">Bredde: smal (maks 320 px)</option>
+          <option value="390" selected>Bredde: mobil (maks 390 px)</option>
+          <option value="480">Bredde: medium (maks 480 px)</option>
+          <option value="640">Bredde: bred (maks 640 px)</option>
+          <option value="full">Bredde: fyll embed-boksen</option>
+        </select>
+        <div class="cb-grid2">
+          <select id="alignSelect" class="project-select" title="Plassering når chatten er smalere enn embed-boksen">
+            <option value="center" selected>Midtstilt</option>
+            <option value="left">Venstre</option>
+            <option value="right">Høyre</option>
+          </select>
+        </div>
+        <label class="cb-range" title="Skalerer tekst og bobler, 80–400 %. På mobil (smal artikkel) slår økningen inn med halv styrke. Over 200 % får boblene bruke nesten hele bredden.">
+          <span>Skalering</span>
+          <input type="range" id="sizeRange" min="0.8" max="4" step="0.05" value="1">
+          <output id="sizeOut">100 %</output>
+        </label>
+        <label class="cb-range" title="Luft over embedden. Negativ verdi trekker den nærmere teksten over (hvis Labradors egen avstand blir for stor).">
+          <span>Luft over</span>
+          <input type="range" id="padTop" min="-24" max="64" step="2" value="12">
+          <output id="padTopOut">12 px</output>
+        </label>
+        <label class="cb-range" title="Luft under embedden. Negativ verdi trekker teksten under nærmere.">
+          <span>Luft under</span>
+          <input type="range" id="padBot" min="-24" max="64" step="2" value="12">
+          <output id="padBotOut">12 px</output>
+        </label>
+        <div class="cb-grid2 cb-only-profile">
+          <select id="profBgSelect" class="project-select" title="Bakgrunnen bak profilbildet og boblene">
+            <option value="app" selected>Bakgrunn: som appen</option>
+            <option value="#FFFFFF">Bakgrunn: hvit</option>
+            <option value="#F2F2F7">Bakgrunn: lys grå</option>
+            <option value="#000000">Bakgrunn: svart</option>
+            <option value="transparent">Bakgrunn: ingen</option>
+            <option value="custom">Bakgrunn: egen farge…</option>
+          </select>
+          <input type="color" id="profBgColor" class="cb-profbg-color" value="#E9EEF8" title="Egen bakgrunnsfarge">
+        </div>
+        <select id="heightSelect" class="project-select cb-only-window" title="Fast høyde: eldre meldinger glir ut øverst, som på en telefon — leseren kan scrolle opp i vinduet">
+          <option value="auto" selected>Høyde: tilpass innholdet</option>
+          <option value="420">Høyde: fast, lav (maks 420 px)</option>
+          <option value="560">Høyde: fast, mobilskjerm (maks 560 px)</option>
+          <option value="700">Høyde: fast, høy (maks 700 px)</option>
+        </select>
+      </div>
+
+      <div class="caption-section">
+        <label class="url-section__label" for="captionText">Bildetekst (valgfri)</label>
+        <textarea id="captionText" class="caption-input" rows="2"
+                  placeholder="F.eks. Samtalen er gjenskapt av Faktisk.no. Navn er endret."
+                  spellcheck="true"></textarea>
+      </div>
+
+      <div class="ftb-opts cb-video">
+        <span class="url-section__label">Eksporter som video</span>
+        <select id="vidFormat" class="project-select" title="Video av animasjonen, slik leseren ser den">
+          <option value="mp4" selected>Vanlig video (MP4)</option>
+          <option value="prores">Transparent – ProRes 4444 (.mov, til redigering)</option>
+          <option value="hevc-alpha">Transparent – HEVC (.mov, liten fil, Apple)</option>
+        </select>
+        <div class="cb-grid2">
+          <select id="vidScale" class="project-select" title="Oppløsning: bredden på chatten ganget med dette">
+            <option value="2">Oppløsning: 2×</option>
+            <option value="3" selected>Oppløsning: 3×</option>
+            <option value="4">Oppløsning: 4×</option>
+          </select>
+          <select id="vidBg" class="project-select" title="Bakgrunn rundt chatten i MP4">
+            <option value="#FFFFFF" selected>Bakgrunn: hvit</option>
+            <option value="#F2F2F7">Bakgrunn: lys grå</option>
+            <option value="#000000">Bakgrunn: svart</option>
+            <option value="#00B140">Bakgrunn: grønn (keying)</option>
+          </select>
+        </div>
+        <button id="exportVideoBtn" class="btn-mini btn-mini--block" type="button">Eksporter video…</button>
+        <p id="vidStatus" class="hk-hint" style="margin:0;"></p>
+      </div>
+
+      <div class="plugin-sidebar__spacer"></div>
+
+      <div class="project-row">
+        <select id="projectSelect" class="project-select">
+          <option value="">Velg lagret prosjekt…</option>
+        </select>
+        <button id="saveProjectBtn" class="btn-mini">Lagre…</button>
+      </div>
+
+      <button id="copyEmbedBtn" class="btn-mini btn-mini--block" disabled>
+        Kopier embed
+      </button>
+    </aside>
+
+    <section class="plugin-canvas">
+      <div class="cb-toolbar">
+        <button id="playBtn" class="btn-mini" type="button">▶ Spill av animasjonen</button>
+        <div class="cb-seg cb-seg--dark" role="group" aria-label="Forhåndsvis bredde">
+          <button type="button" class="cb-seg__btn" data-pw="380" title="Labradors mobilvisning (380 px)">Mobil</button>
+          <button type="button" class="cb-seg__btn is-active" data-pw="680" title="Artikkelspalte (~680 px)">Spalte</button>
+          <button type="button" class="cb-seg__btn" data-pw="1100" title="Hel side / bred embed">Full</button>
+        </div>
+        <span class="cb-toolbar__hint" id="playHint">Forhåndsvisningen viser ferdig samtale — trykk for å se animasjonen slik leseren ser den.</span>
+      </div>
+      <div class="slider-stage ftb-stage" id="stage">
+        <div class="cb-article" id="articleHost">
+          <p class="cb-article__fake">Brødtekst i artikkelen …</p>
+          <div id="previewHost"></div>
+          <p class="cb-article__fake">… artikkelen fortsetter.</p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+</div>
+
+<script src="shared/dialog.js"></script>
+<script>window.PLUGIN_ID = 'chatbobler';</script>
+<script src="shared/new-project.js"></script>
+<script src="shared/labrador-status.js"></script>
+<script src="main.js"></script>
+</body>
+</html>

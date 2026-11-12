@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: file:; media-src 'self' blob: file:; connect-src 'self'; font-src 'self' data:;">
+<title>Bevissikring · Faktisk Studio</title>
+<link rel="stylesheet" href="shared/style.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="studio">
+
+  <header class="topbar">
+    <div class="faktisk-logo" role="img" aria-label="Faktisk Studio"></div>
+    <span class="topbar__version" id="appVersion" title="Versjoner"></span>
+    <div class="topbar__title" role="img" aria-label="Labrador"></div>
+    <div class="topbar__actions">
+      <button class="btn-primary" id="backBtn">Malside</button>
+      <button class="btn-icon" id="fullscreenBtn" title="Fullskjerm" aria-label="Fullskjerm">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+          <path d="M5 5h5v2H7v3H5V5zm9 0h5v5h-2V7h-3V5zM5 14h2v3h3v2H5v-5zm12 0h2v5h-5v-2h3v-3z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="plugin-page">
+
+    <aside class="plugin-sidebar">
+      <div class="plugin-sidebar__head">
+        <h2 class="plugin-sidebar__title">Bevissikring</h2>
+      </div>
+      <p class="bv-desc">
+        Sikre nettsider og SoMe-innlegg før de forsvinner. Alt lagres lokalt,
+        med tidspunkt og sjekksum for hver fil.
+      </p>
+
+      <div class="bv-block bv-setup" id="rootSetup" hidden>
+        <span class="url-section__label">Først: hvor skal sikringene lagres?</span>
+        <p class="bv-hint">Velg en lokal mappe — ikke en som synkes til iCloud, Google Drive eller Dropbox. For kildesensitivt materiale: lag et kryptert arkiv.</p>
+        <div class="bv-row">
+          <button id="setupPickBtn" class="btn-mini" type="button">Velg mappe…</button>
+          <button id="setupVaultBtn" class="btn-mini btn-mini--light" type="button">Lag kryptert arkiv…</button>
+        </div>
+      </div>
+
+      <div class="bv-block bv-vaultform" id="vaultForm" hidden>
+        <span class="url-section__label">Nytt kryptert arkiv</span>
+        <input id="vName" class="caption-input caption-input--single" value="Faktisk bevissikring" placeholder="Navn" autocomplete="off" spellcheck="false">
+        <div class="bv-inline-row"><span>Maks størrelse</span><input id="vSize" type="number" class="bv-num" min="1" max="2000" value="50"><span>GB (bruker bare det som lagres)</span></div>
+        <input id="vPw" type="password" class="caption-input caption-input--single" placeholder="Passord (minst 8 tegn)" autocomplete="new-password">
+        <input id="vPw2" type="password" class="caption-input caption-input--single" placeholder="Gjenta passordet" autocomplete="new-password">
+        <p class="bv-hint">Arkivet blir én fil (.sparsebundle) kryptert med AES-256. Passordet lagres ikke — mister dere det, er innholdet tapt.</p>
+        <div class="bv-row">
+          <button id="vCreateBtn" class="btn-mini" type="button">Velg plassering og lag</button>
+          <button id="vCancelBtn" class="link-btn" type="button">Avbryt</button>
+        </div>
+      </div>
+
+      <div class="bv-seg" id="modeSeg" role="tablist">
+        <button type="button" data-mode="single" class="is-on">Én side</button>
+        <button type="button" data-mode="profile">Profil</button>
+        <button type="button" data-mode="sample">Stikkprøver</button>
+        <button type="button" data-mode="list">Liste</button>
+      </div>
+
+      <div class="bv-block">
+        <label class="url-section__label" for="caseInput">Sak</label>
+        <input id="caseInput" class="caption-input caption-input--single" list="caseList" placeholder="F.eks. Falske annonser oktober" autocomplete="off" spellcheck="false">
+        <datalist id="caseList"></datalist>
+      </div>
+
+      <div class="bv-block bv-single-only">
+        <label class="url-section__label" for="urlInput">Adresse</label>
+        <div class="bv-urlrow">
+          <input id="urlInput" class="url-row__input" placeholder="Lim inn lenke til side eller innlegg" autocomplete="off" spellcheck="false">
+          <button id="openBtn" class="btn-mini" type="button">Åpne</button>
+        </div>
+        <button id="videoBtn" class="btn-mini btn-mini--block btn-mini--light" type="button" title="Last ned videoen fra lenken rett inn i saken — uten vindu og skjermbilder">Last ned bare videoen</button>
+        <button id="storiesBtn" class="btn-mini btn-mini--block btn-mini--light" type="button" title="Lim inn lenken til en Instagram-profil. Kontoen i sikringsvinduet havner på seerlista.">Last ned stories (Instagram)</button>
+        <div class="bv-win" id="winInfo">
+          <span class="bv-win__dot"></span>
+          <span class="bv-win__text" id="winText">Ingen side åpen</span>
+          <button id="focusBtn" class="link-btn" type="button" hidden>Vis vinduet</button>
+        </div>
+        <p class="bv-hint">Siden åpnes i et eget vindu. Logg inn, rull og åpne kommentarene der først — det du ser i vinduet, er det som sikres.</p>
+        <p class="bv-hint">Facebook-stories: åpne storyen i vinduet og bruk «Sikre utsnitt», eller ta skjermopptak (Cmd+Shift+5).</p>
+      </div>
+
+      <div class="bv-block bv-single-only">
+        <span class="url-section__label">Importer skjermbilder og opptak</span>
+        <div class="bv-drop" id="impDrop">
+          Slipp skjermbilder og skjermopptak her — fra mobilen (AirDrop/Bilder) eller Macen
+          <button id="impPickBtn" class="btn-mini btn-mini--light" type="button">Velg filer…</button>
+        </div>
+        <ul class="bv-implist" id="impList"></ul>
+        <label class="bv-check"><input type="checkbox" id="impSpeech" checked> <span>Transkriber tale i opptakene</span></label>
+        <button id="impBtn" class="btn-mini btn-mini--block" type="button" hidden>Importer</button>
+        <p class="bv-hint">Bruker Sak, Adresse (valgfri — hvor innholdet ble funnet) og Notat over. Filene kopieres urørt og får sjekksum og tidsstempel; opptakstiden hentes fra filene.</p>
+      </div>
+
+      <div class="bv-block bv-sample-only">
+        <div class="url-section__header">
+          <label class="url-section__label" for="planSelect">Plan</label>
+          <button id="planNewBtn" class="link-btn" type="button">Ny plan</button>
+        </div>
+        <select id="planSelect" class="project-select"><option value="">Ny plan …</option></select>
+      </div>
+
+      <div class="bv-block bv-sample-only" id="planForm">
+        <span class="url-section__label">Konto</span>
+        <div class="bv-urlrow">
+          <select id="sPlatform" class="project-select bv-plat">
+            <option value="x">X</option>
+            <option value="youtube">YouTube</option>
+            <option value="facebook" disabled>Facebook (kommer)</option>
+            <option value="instagram" disabled>Instagram (kommer)</option>
+            <option value="tiktok" disabled>TikTok (kommer)</option>
+          </select>
+          <input id="sAccount" class="url-row__input" placeholder="@konto eller lenke" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="bv-dates">
+          <label>Fra <input type="date" id="sFrom" class="bv-date"></label>
+          <label>Til <input type="date" id="sTo" class="bv-date"></label>
+        </div>
+        <div class="bv-row">
+          <button id="sFirstBtn" class="link-btn" type="button">Finn første video</button>
+          <span class="bv-hint" id="sFirstInfo"></span>
+        </div>
+        <span class="url-section__label">Utvalg</span>
+        <div class="bv-inline-row">
+          <select id="sMode" class="project-select">
+            <option value="interval">Ett nedslag hver</option>
+            <option value="count">Jevnt fordelt, antall</option>
+          </select>
+          <input id="sN" type="number" class="bv-num" min="1" value="14">
+          <span id="sNUnit">dag</span>
+        </div>
+        <div class="bv-inline-row">
+          <span>Hvert nedslag dekker</span>
+          <input id="sWindow" type="number" class="bv-num" min="1" max="31" value="1">
+          <span>døgn</span>
+        </div>
+        <div class="bv-inline-row bv-yt-only">
+          <span>Maks videoer per nedslag</span>
+          <input id="sPer" type="number" class="bv-num" min="1" max="10" value="1">
+        </div>
+        <p class="bv-hint" id="sSummary"></p>
+        <p class="bv-hint">Planen lagres og hashes i saken før noe hentes — da kan dere vise at utvalget var systematisk.</p>
+      </div>
+
+      <div class="bv-block bv-sample-only" id="planBox" hidden>
+        <div class="bv-hint bv-plan__meta" id="planMeta"></div>
+        <ol class="bv-plan" id="planList"></ol>
+        <button id="planRevealBtn" class="link-btn" type="button">Vis planen i Finder</button>
+      </div>
+
+      <div class="bv-block bv-list-only" id="lBlock">
+        <label class="url-section__label" for="lText">Lenker</label>
+        <textarea id="lText" class="caption-input bv-ltext" rows="6" placeholder="Én lenke per linje. Tekst etter lenken (tab, semikolon eller komma) blir notat. Skriv «video» eller «grundig» for å velge per lenke." spellcheck="false"></textarea>
+        <div class="bv-drop bv-drop--slim" id="lDrop">
+          Slipp en .txt-, .csv- eller Excel-fil her
+          <button id="lPickBtn" class="btn-mini btn-mini--light" type="button">Last opp fil…</button>
+          <input type="file" id="lFile" accept=".txt,.csv,.tsv,.xlsx,text/plain,text/csv" hidden>
+        </div>
+        <p class="bv-hint" id="lFileInfo"></p>
+        <span class="url-section__label">Hva sikres per lenke</span>
+        <label class="bv-check bv-lradio"><input type="radio" name="lMode" value="video" checked> <span><b>Bare video med referanser</b><br>Videofila med tittel, konto, dato, beskrivelse og lenke. Raskt.</span></label>
+        <label class="bv-check bv-lradio"><input type="radio" name="lMode" value="grundig"> <span><b>Video, side og kommentarer</b><br>Åpner siden og kommentarene og sikrer som «Sikre siden» (valgene under «Hva sikres»). 1–3 min per lenke.</span></label>
+        <label class="bv-check bv-check--sub"><input type="checkbox" id="lComments"> <span>Kommentarer som data (YouTube, TikTok m.fl.)</span></label>
+        <button id="lCheckBtn" class="btn-mini btn-mini--block" type="button">Sjekk lista</button>
+        <select id="lListSelect" class="project-select"><option value="">Tidligere lister …</option></select>
+      </div>
+
+      <div class="bv-block bv-list-only" id="lResBox" hidden>
+        <div class="bv-hint bv-plan__meta" id="lMeta"></div>
+        <ol class="bv-plan bv-posts" id="lList"></ol>
+        <button id="lRunBtn" class="btn-primary bv-go" type="button" disabled>Start</button>
+        <button id="lStopBtn" class="btn-mini btn-mini--block btn-mini--light" type="button" hidden>Stopp</button>
+        <button id="lRevealBtn" class="link-btn" type="button" hidden>Vis lista og oversikten i Finder</button>
+        <p class="bv-hint">Hver lenke blir en egen sikring i saken med sjekksum og tidsstempel. Lista lagres og hashes før noe hentes. Pause mellom lenker fra samme nettsted (tempo-innstillingen).</p>
+      </div>
+
+      <div class="bv-block bv-profile-only" id="profBlock">
+        <label class="url-section__label" for="pUrl">Profil eller side</label>
+        <div class="bv-urlrow">
+          <input id="pUrl" class="url-row__input" placeholder="Lenke til profilen eller siden" autocomplete="off" spellcheck="false">
+          <button id="pOpenBtn" class="btn-mini" type="button">Åpne</button>
+        </div>
+        <p class="bv-hint">Logg inn i vinduet først. Laget for Facebook, men virker også på Instagram, X, TikTok og Threads.</p>
+        <button id="pInfoBtn" class="btn-mini btn-mini--block" type="button" title="Toppen av profilen, Om-siden og (for sider) sidegjennomsiktighet — hver som egen sikring">Sikre profilinfo</button>
+        <span class="url-section__label">Finn innlegg</span>
+        <div class="bv-inline-row"><span>Rull maks</span><input id="pMax" type="number" class="bv-num" min="5" max="1000" value="150"><span>skjermer</span></div>
+        <div class="bv-inline-row"><span>Stopp ved dato</span><input id="pUntil" type="date" class="bv-date"></div>
+        <label class="bv-check"><input type="checkbox" id="pExpand" checked> <span>Åpne «Se mer» underveis</span></label>
+        <div class="bv-row">
+          <button id="pScanBtn" class="btn-mini" type="button">Finn innlegg</button>
+          <button id="pStopBtn" class="btn-mini btn-mini--light" type="button" disabled>Stopp</button>
+        </div>
+        <select id="pListSelect" class="project-select"><option value="">Tidligere lister …</option></select>
+      </div>
+
+      <div class="bv-block bv-profile-only" id="pResBox" hidden>
+        <div class="bv-hint bv-plan__meta" id="pMeta"></div>
+        <div class="bv-row">
+          <button id="pAllBtn" class="link-btn" type="button">Velg alle</button>
+          <button id="pNoneBtn" class="link-btn" type="button">Ingen</button>
+          <span class="bv-tools" id="pSel"></span>
+        </div>
+        <ol class="bv-plan bv-posts" id="pList"></ol>
+        <label class="bv-check"><input type="checkbox" id="pExpandComments" checked> <span>Åpne kommentarer før hvert innlegg sikres</span></label>
+        <button id="pRunBtn" class="btn-primary bv-go" type="button" disabled>Sikre valgte</button>
+        <button id="pRunStop" class="btn-mini btn-mini--block btn-mini--light" type="button" hidden>Stopp</button>
+        <button id="pRevealBtn" class="link-btn" type="button">Vis lista i Finder</button>
+      </div>
+
+      <div class="bv-block">
+        <span class="url-section__label">Hva sikres</span>
+        <label class="bv-check"><input type="checkbox" data-opt="scroll" checked> <span>Skjermbilder mens siden rulles</span></label>
+        <label class="bv-check"><input type="checkbox" data-opt="screenshot" checked> <span>Skjermbilde av hele siden</span></label>
+        <label class="bv-check"><input type="checkbox" data-opt="pdf" checked> <span>PDF</span></label>
+        <label class="bv-check"><input type="checkbox" data-opt="mhtml" checked> <span>Nettarkiv-fil (MHTML) og HTML</span></label>
+        <label class="bv-check"><input type="checkbox" data-opt="text" checked> <span>All tekst på siden</span></label>
+        <label class="bv-check"><input type="checkbox" data-opt="pageImages" checked> <span>Bilder på siden</span></label>
+        <label class="bv-check"><input type="checkbox" data-opt="media" checked> <span>Video og bilder fra innlegget</span></label>
+        <label class="bv-check bv-check--sub"><input type="checkbox" data-opt="comments"> <span>Kommentarer som data (YouTube m.fl.)</span></label>
+        <label class="bv-check"><input type="checkbox" data-opt="wayback"> <span>Offentlig kopi i Wayback Machine</span></label>
+        <p class="bv-hint bv-hint--warn" id="waybackHint" hidden>Wayback-kopien er offentlig og forteller Internet Archive hvilken side som sikres.</p>
+      </div>
+
+      <div class="bv-block">
+        <label class="url-section__label" for="noteInput">Notat</label>
+        <textarea id="noteInput" class="caption-input" rows="2" placeholder="Hvorfor sikres dette? Hvem fant det?"></textarea>
+      </div>
+
+      <div class="bv-actions">
+        <button id="captureBtn" class="btn-primary bv-go bv-single-only" type="button">Sikre siden</button>
+        <button id="regionBtn" class="btn-mini btn-mini--block btn-mini--light bv-single-only" type="button" title="Dra et rektangel i vinduet og sikre bare det">Sikre utsnitt…</button>
+        <button id="planBtn" class="btn-primary bv-go bv-sample-only" type="button">Lag plan</button>
+        <button id="runBtn" class="btn-primary bv-go bv-sample-only" type="button" hidden disabled>Kjør plan</button>
+        <button id="stopBtn" class="btn-mini btn-mini--block btn-mini--light bv-sample-only" type="button" hidden disabled>Stopp</button>
+      </div>
+
+      <div class="plugin-sidebar__status" id="status"></div>
+
+      <div class="bv-block bv-block--foot">
+        <span class="url-section__label">Arkivmappe</span>
+        <div class="bv-root" id="rootText"></div>
+        <div id="rootWarn"></div>
+        <div class="bv-vault" id="vaultBox" hidden>
+          <div class="bv-tools" id="vaultInfo"></div>
+          <div class="bv-row">
+            <input id="vaultPw" type="password" class="url-row__input" placeholder="Passord" autocomplete="current-password">
+            <button id="vaultOpenBtn" class="btn-mini" type="button">Lås opp</button>
+            <button id="vaultCloseBtn" class="btn-mini btn-mini--light" type="button" title="Lås arkivet når du er ferdig for dagen">Lås</button>
+          </div>
+        </div>
+        <div class="bv-row">
+          <button id="pickRootBtn" class="btn-mini btn-mini--light" type="button">Velg mappe…</button>
+          <button id="revealRootBtn" class="btn-mini btn-mini--light" type="button">Vis i Finder</button>
+        </div>
+        <div class="bv-tools" id="toolInfo"></div>
+        <div class="bv-row">
+          <button id="updateToolsBtn" class="link-btn" type="button">Oppdater yt-dlp</button>
+          <button id="logoutBtn" class="link-btn" type="button" title="Sletter innlogginger og informasjonskapsler i sikringsvinduet">Logg ut overalt</button>
+        </div>
+      </div>
+
+      <div class="bv-block bv-block--foot">
+        <span class="url-section__label">Innstillinger</span>
+        <label class="bv-field">Ditt navn i sikringene
+          <input id="setName" class="caption-input caption-input--single" placeholder="Fornavn Etternavn" autocomplete="off" spellcheck="false">
+        </label>
+        <label class="bv-field">Konto i sikringsvinduet
+          <input id="setAccount" class="caption-input caption-input--single" placeholder="F.eks. Research-IG 2, ikke innlogget" autocomplete="off" spellcheck="false">
+        </label>
+        <p class="bv-hint">Skrives i hver sikring, så det i ettertid står hvilken konto innholdet ble sett med. Oppdater feltet når du bytter konto. Bruk redaksjonens navn på kontoen, ikke passordet.</p>
+        <label class="bv-check"><input type="checkbox" id="setStamp" checked> <span>Uavhengig tidsstempel (RFC 3161)</span></label>
+        <p class="bv-hint">Bare sjekksummen sendes til DigiCert — aldri innholdet. Beviser at filene fantes i denne formen på tidspunktet.</p>
+        <label class="bv-field">Tempo på profiler og stikkprøver
+          <select id="setPace" class="project-select">
+            <option value="forsiktig">Forsiktig (8–25 s pause, anbefalt)</option>
+            <option value="normal">Normalt (3–8 s pause)</option>
+          </select>
+        </label>
+        <p class="bv-hint">Bruk en egen researchkonto i sikringsvinduet, ikke din private. Plattformene kan stenge kontoer som henter mye, og LinkedIn og stories viser hvem som har sett.</p>
+        <details class="bv-routine"><summary>Rutiner for arkivet</summary>
+          <ul>
+            <li>Sikringene ligger bare her. Ta sikkerhetskopi på redaksjonens lagring, ikke i private skytjenester.</li>
+            <li>Innlogginger i sikringsvinduet lagres på maskinen. «Logg ut overalt» når saken er ferdig.</li>
+            <li>Avtal hvor lenge sikringer skal oppbevares, og slett saksmappa når fristen er ute (personopplysninger).</li>
+            <li>Lås det krypterte arkivet når du går fra maskinen.</li>
+          </ul>
+          <button id="newVaultBtn" class="link-btn" type="button">Lag nytt kryptert arkiv…</button>
+        </details>
+      </div>
+
+      <div class="bv-block bv-block--foot" id="linkBlock">
+        <span class="url-section__label">Chrome-utvidelse</span>
+        <div class="bv-tools" id="linkInfo"></div>
+        <div class="bv-row">
+          <span class="bv-tools">Koble-kode</span>
+          <code class="bv-code" id="linkToken"></code>
+          <button id="linkCopyBtn" class="link-btn" type="button">Kopier</button>
+          <button id="linkNewBtn" class="link-btn" type="button">Ny kode</button>
+        </div>
+        <button id="linkExtBtn" class="btn-mini btn-mini--light" type="button" title="Legger utvidelsen i arkivmappa og viser den i Finder">Hent utvidelsen…</button>
+      </div>
+    </aside>
+
+    <section class="plugin-canvas bv-canvas">
+      <div class="bv-toolbar">
+        <input type="search" id="searchInput" class="bv-search" placeholder="Søk i alt — tekst, tale, tekst i bilder, notater…" spellcheck="false" autocomplete="off">
+        <select id="caseFilter" class="project-select bv-select">
+          <option value="">Alle saker</option>
+        </select>
+        <span class="bv-count" id="countInfo"></span>
+      </div>
+      <div class="bv-idxbar">
+        <span class="bv-tools" id="idxInfo"></span>
+        <label class="bv-check bv-inline" hidden><input type="checkbox" id="idxSpeech" checked> <span>med tale</span></label>
+        <button id="idxBtn" class="btn-mini btn-mini--light" type="button" hidden title="Leser tekst i bilder og video, og transkriberer tale, så alt i saken kan søkes i">Gjør søkbar</button>
+        <button id="idxStopBtn" class="btn-mini btn-mini--light" type="button" hidden>Stopp</button>
+      </div>
+      <div class="bv-list-wrap">
+        <div class="slider-empty" id="emptyState">
+          <p>Ingen sikringer ennå. Lim inn en adresse til venstre, trykk «Åpne», og «Sikre siden» når vinduet viser det du vil ta vare på.</p>
+        </div>
+        <div class="bv-list" id="list"></div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="shared/dialog.js"></script>
+<script>window.PLUGIN_ID = 'bevissikring';</script>
+<script src="main.js"></script>
+<script src="stikkprove.js"></script>
+<script src="chrome-kobling.js"></script>
+<script src="profil.js"></script>
+<script src="lenkeliste.js"></script>
+<script src="sikkerhet.js"></script>
+<script src="arkiv.js"></script>
+</body>
+</html>

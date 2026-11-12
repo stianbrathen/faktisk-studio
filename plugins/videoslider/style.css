@@ -1,0 +1,886 @@
+/* Videoslider — plugin-styling (basen er felles med podkast/tabell) */
+
+.plugin-page {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 313px 1fr;
+  gap: 22px;
+  overflow: hidden;
+  padding: 4px;
+}
+
+.plugin-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 4px 4px;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.3) transparent;
+}
+.plugin-sidebar::-webkit-scrollbar { width: 8px; }
+.plugin-sidebar::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.3);
+  border-radius: 4px;
+}
+/* Kopier embed-knappen pinnes nede så den alltid er synlig */
+#copyEmbedBtn {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  box-shadow: 0 -10px 14px -4px rgba(157,157,157,0.7);
+}
+
+.plugin-sidebar__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.plugin-sidebar__title {
+  font-family: var(--font-bold);
+  font-size: 22px;
+  font-weight: bold;
+  color: #212121;
+  margin: 0;
+  line-height: 1.05;
+}
+
+.plugin-sidebar__desc { display: none; }
+
+.plugin-sidebar__spacer { /* deaktivert — tb-section tar all ledig plass */ }
+
+.caption-section { display: flex; flex-direction: column; gap: 3px; }
+.caption-input {
+  background: var(--bg-input);
+  border: 0;
+  outline: 0;
+  border-radius: 6px;
+  padding: 6px 11px;
+  font-weight: bold;
+  font-size: 12px;
+  color: var(--text-input);
+  resize: vertical;
+  line-height: 1.3;
+  font-family: inherit;
+}
+.caption-input--single { height: 32px; padding: 0 11px; }
+.caption-input::placeholder { color: #888; font-weight: normal; }
+
+.plugin-sidebar__status {
+  font-size: 13px;
+  color: #fff;
+  min-height: 18px;
+  opacity: 0.85;
+}
+
+.url-section { display: flex; flex-direction: column; gap: 6px; }
+.url-section--compact { gap: 6px; }
+.url-section__label {
+  font-family: var(--font-bold);
+  font-size: 12px;
+  font-weight: bold;
+  color: #fff;
+}
+.url-section__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.link-btn {
+  background: transparent;
+  color: #fff;
+  font-family: var(--font-bold);
+  font-weight: bold;
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: rgba(255,255,255,0.5);
+  text-underline-offset: 3px;
+}
+.link-btn:hover { text-decoration-color: #fff; }
+
+.url-row {
+  background: var(--bg-input);
+  border-radius: 6px;
+  padding: 11px 14px;
+  display: flex;
+  align-items: center;
+}
+.url-row__input {
+  display: block;
+  flex: 1;
+  background: var(--bg-input);
+  border: 0;
+  outline: 0;
+  padding: 11px 14px;
+  border-radius: 6px;
+  font-family: var(--font-bold);
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--text-input);
+  font-weight: bold;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.url-row__input::placeholder { color: #888; font-weight: normal; }
+
+/* Legacy klasse — peker nå til samme stil som btn-mini */
+.btn-tiny {
+  background: var(--faktisk-blue);
+  color: #fff;
+  font-family: var(--font-bold);
+  font-weight: bold;
+  font-size: 12px;
+  padding: 5px 9px;
+  border-radius: 6px;
+  white-space: nowrap;
+  border: 0;
+  cursor: pointer;
+}
+.btn-tiny:hover { background: var(--faktisk-blue-hover); }
+
+.project-row { display: flex; gap: 4px; }
+.project-row .project-select { flex: 1; }
+.project-select {
+  width: 100%;
+  height: 32px;
+  background: var(--bg-input);
+  border: 0;
+  border-radius: 6px;
+  padding: 0 28px 0 11px;
+  font-family: var(--font-bold);
+  font-weight: bold;
+  font-size: 12px;
+  color: var(--text-input);
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path d='M1 1l5 5 5-5' stroke='%23313131' stroke-width='2' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+}
+
+.btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Canvas — slider preview */
+.plugin-canvas {
+  display: flex;
+  flex-direction: column;
+  /* IKKE overflow:hidden — tekstbokser skal kunne stikke ut av kart-området */
+  overflow: visible;
+  min-width: 0;
+  gap: 20px;
+  padding: 8px 0;
+}
+
+/* «Før» / «Etter»-bokser over bildet */
+.slider-labels {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  pointer-events: none;
+  flex: 0 0 auto;
+}
+.slider-label {
+  background: #0050FC;
+  color: #fff;
+  font-family: var(--font-bold);
+  font-weight: bold;
+  font-size: clamp(14px, 1.8cqw, 22px);
+  padding: 0.3em 0.65em;
+  border-radius: 5px;
+  line-height: 1.25;
+}
+
+/* Sidebar: toggle + felt for Før/Etter-tekster */
+.labels-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #fff;
+  font-family: var(--font-bold);
+  font-weight: bold;
+  cursor: pointer;
+  user-select: none;
+}
+.check-row input[type="checkbox"] {
+  accent-color: var(--faktisk-blue);
+  margin: 0;
+  cursor: pointer;
+}
+.labels-inputs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+.labels-section.is-off .labels-inputs { display: none; }
+
+/* Liten kompakt input — brukt på Før/Etter-tekst-felter (mindre enn URL-felt) */
+.input-mini {
+  background: var(--bg-input);
+  border: 0;
+  outline: 0;
+  height: 32px;
+  padding: 0 11px;
+  border-radius: 6px;
+  font-family: var(--font-bold);
+  font-size: 12px;
+  color: var(--text-input);
+  font-weight: bold;
+  width: 100%;
+  box-sizing: border-box;
+}
+.input-mini::placeholder { color: #888; font-weight: normal; }
+
+.slider-stage {
+  position: relative;
+  flex: 1;
+  background: transparent;
+  /* INGEN overflow:hidden her — slipper tekstbokser stikker ut.
+     Klippingen skjer på .slider-clipper innenfor. */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+}
+
+.slider-empty {
+  padding: 40px;
+  text-align: center;
+}
+.slider-empty p {
+  max-width: 420px;
+  font-size: 16px;
+  color: #fff;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.slider-preview {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  user-select: none;
+  container-type: inline-size;
+}
+/* Klipper for bildene + slider-handle + arrows/dots — tekstbokser ligger UTENFOR */
+.slider-clipper {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--bg-letterbox);
+}
+
+.slider-img {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  pointer-events: none;
+}
+
+.slider-clip {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  clip-path: inset(0 50% 0 0);
+  transition: clip-path 0.05s linear;
+  pointer-events: none;
+}
+
+.slider-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: clamp(5px, 0.9cqw, 9px);
+  background: #fff;
+  transform: translateX(-50%);
+  cursor: ew-resize;
+  z-index: 3;
+}
+
+.slider-handle__line {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+}
+
+.slider-handle__knob {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: clamp(28px, 4.2cqw, 38px);
+  height: clamp(20px, 3cqw, 28px);
+  background: #fff;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}
+.slider-handle__knob svg {
+  width: 78%;
+  height: 78%;
+}
+
+/* Tekstboks-seksjon i sidebar — Figma-stil med scroll-container */
+.tb-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.tb-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+/* Grå scroll-container som inneholder tekstboks-radene */
+.tb-list {
+  background: #929292;
+  border-radius: 6px;
+  padding: 10px 8px;
+  max-height: 180px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: #6e6e6e #888;
+}
+.tb-list::-webkit-scrollbar { width: 8px; }
+.tb-list::-webkit-scrollbar-track { background: #888; border-radius: 4px; }
+.tb-list::-webkit-scrollbar-thumb { background: #6e6e6e; border-radius: 4px; }
+.tb-list:empty::before {
+  content: "Ingen tekstbokser ennå. Trykk «+ Legg til»";
+  color: rgba(255,255,255,0.85);
+  font-size: 12px;
+  font-style: italic;
+  padding: 4px 2px;
+}
+
+.tb-row {
+  display: grid;
+  grid-template-columns: 24px 1fr 24px 24px;
+  gap: 4px;
+  align-items: flex-start;
+}
+.tb-row__chip {
+  height: 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: bold;
+  font-family: var(--font-bold);
+  color: #fff;
+}
+.tb-row__chip--light { background: #a2a2a2; }
+.tb-row__chip--dark { background: var(--faktisk-blue); }
+
+.tb-row__input {
+  background: #D4D4D4;
+  border: 0;
+  outline: 0;
+  border-radius: 6px;
+  padding: 4px 9px;
+  min-height: 24px;
+  font-family: var(--font-bold);
+  font-size: 12px;
+  color: #212121;
+  font-weight: bold;
+  resize: vertical;
+  line-height: 1.3;
+  font-family: inherit;
+}
+.tb-row__input::placeholder { color: #666; font-weight: normal; }
+input.tb-row__input { height: 24px; padding: 0 9px; }
+textarea.tb-row__input { min-height: 36px; }
+
+/* Peker-toggle (↗) og slett (×) — like små grå knapper */
+.tb-row__btn {
+  background: #a2a2a2;
+  color: #fff;
+  border: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: bold;
+  font-family: var(--font-bold);
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.tb-row__btn:hover { background: #888; }
+.tb-row__btn--active { background: #f18181; }   /* peker aktiv */
+.tb-row__btn--del:hover { background: #c95c5c; }
+
+/* Kompakt Figma-knapp — brukes overalt i sidebar */
+.btn-mini {
+  background: var(--faktisk-blue);
+  color: #fff;
+  font-family: var(--font-bold);
+  font-weight: bold;
+  font-size: 12px;
+  padding: 5px 9px;
+  border-radius: 6px;
+  border: 0;
+  cursor: pointer;
+  white-space: nowrap;
+  line-height: 1.3;
+}
+.btn-mini:hover:not(:disabled) { background: var(--faktisk-blue-hover); }
+.btn-mini:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-mini--block { width: 100%; text-align: center; }
+.btn-mini--light { background: #a2a2a2; }
+.btn-mini--light:hover:not(:disabled) { background: #888; }
+
+.tb-add-buttons {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* Tekstbokser PÅ preview (drag-bare) — matcher embed-størrelser */
+.tb-overlay {
+  position: absolute;
+  padding: 0.45em 0.95em;
+  border-radius: 5px;
+  font-family: var(--font-bold);
+  font-weight: bold;
+  font-size: clamp(14px, 1.8cqw, 26px);
+  line-height: 1.25;
+  cursor: move;
+  user-select: none;
+  pointer-events: auto;
+  white-space: nowrap;
+  transform: translate(-50%, -50%);
+  z-index: 4;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}
+.tb-overlay--light {
+  background: #D9D9D9;
+  color: #212121;
+  font-weight: normal;
+  font-size: clamp(14px, 1.6cqw, 22px);
+  white-space: normal;
+  word-break: break-word;
+  /* Bredden hentes fra --tb-w (settes inline per boks).
+     Preview-vinduet er typisk bredt, så ingen mobile-overstyring er nødvendig her. */
+  width: var(--tb-w, 28%);
+}
+.tb-overlay--dark { background: #0050fc; color: #fff; }
+/* Resize-håndtak (lite blått punkt nedre-høyre) for light-bokser */
+.tb-overlay__resize {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  width: 12px;
+  height: 12px;
+  background: #fff;
+  border: 2px solid #0050fc;
+  border-radius: 50%;
+  cursor: ew-resize;
+  z-index: 5;
+}
+.tb-overlay.is-selected { outline: 2px dashed #fff; outline-offset: 2px; }
+
+/* Markeringer (frittstående sirkler) i preview */
+.bm-marker {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  aspect-ratio: 1;
+  cursor: move;
+  z-index: 4;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+}
+.bm-marker--filled {
+  background: var(--mark-color, #0050fc);
+  border-radius: 50%;
+}
+.bm-marker--open {
+  border: 4px solid var(--mark-color, #0050fc);
+  border-radius: 50%;
+  background: transparent;
+}
+.bm-marker__scale {
+  position: absolute;
+  right: -8px;
+  bottom: -8px;
+  width: 16px;
+  height: 16px;
+  background: #fff;
+  border: 2px solid #0050fc;
+  border-radius: 50%;
+  cursor: nwse-resize;
+  z-index: 5;
+}
+
+/* Marker-seksjon i sidebar — samme stil som tb-section */
+.marker-section { display: flex; flex-direction: column; gap: 8px; flex: 0 0 auto; }
+
+/* Peker-sirkel — bevarer proporsjon (HTML-div, ikke SVG) + puls-ring.
+   Farge styres via variant-modifier (--dot-color custom prop). */
+.tb-pointer-circle {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  transform: translate(-50%, -50%);
+  cursor: move;
+  z-index: 5;
+  pointer-events: auto;
+  --dot-color: #fff;
+}
+.tb-pointer-circle--dark { --dot-color: #0050fc; }
+.tb-pointer-circle--light { --dot-color: #fff; }
+/* Åpen ring: erstatt fyll med border + transparent inside */
+.tb-pointer-circle--open .tb-pointer-dot-inner {
+  background: transparent;
+  border: 4px solid var(--dot-color);
+  box-sizing: border-box;
+}
+.tb-pointer-circle--open .tb-pointer-pulse {
+  background: transparent;
+  border: 3px solid var(--dot-color);
+  box-sizing: border-box;
+}
+/* Skalerings-håndtak på peker-sirkel (lite hvitt punkt nedre-høyre) */
+.tb-pointer-scale {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  width: 12px;
+  height: 12px;
+  background: #fff;
+  border: 2px solid #0050fc;
+  border-radius: 50%;
+  cursor: nwse-resize;
+  z-index: 6;
+}
+.tb-pointer-dot-inner {
+  position: absolute;
+  inset: 0;
+  background: var(--dot-color);
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+  z-index: 2;
+}
+.tb-pointer-pulse {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--dot-color);
+  opacity: 0.55;
+  animation: tb-pulse 1.8s ease-out infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+@keyframes tb-pulse {
+  0%   { transform: scale(1);   opacity: 0.55; }
+  80%  { transform: scale(2.6); opacity: 0;    }
+  100% { transform: scale(2.6); opacity: 0;    }
+}
+
+/* ============================================================
+   Tabell-spesifikt (radkort i sidepanelet + forhåndsvisning)
+   ============================================================ */
+
+.ftb-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 10px;
+}
+
+/* Radkort — samme mønster som hendelseskart/klippsamler */
+.hk-hint {
+  font-size: 11px;
+  color: rgba(255,255,255,0.65);
+  margin: 6px 0 0;
+  line-height: 1.4;
+}
+.hk-row {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.07);
+  margin-bottom: 6px;
+}
+.hk-row__top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.hk-row__num {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #0050FC;
+  color: #fff;
+  font-family: var(--font-bold);
+  font-weight: bold;
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.hk-row__title,
+.hk-row__img,
+.ftb-value {
+  box-sizing: border-box;
+  background: var(--bg-input, #fff);
+  color: #212121;
+  border: 0;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 12px;
+  padding: 5px 8px;
+}
+.hk-row__title { flex: 1; min-width: 0; font-weight: bold; }
+.hk-row__img { width: 100%; font-size: 11px; color: #555; }
+.ftb-value {
+  width: 54px;
+  flex-shrink: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.ks-clip__btns {
+  flex-shrink: 0;
+  display: inline-flex;
+  gap: 2px;
+}
+
+.ftb-opts {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ks-check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: #fff;
+  cursor: pointer;
+  user-select: none;
+}
+.ks-check input { accent-color: #0050FC; }
+
+/* Forhåndsvisning: rullbar kolonne med embedden i naturlig bredde */
+.ftb-stage {
+  display: block !important;
+  overflow-y: auto;
+  padding: 28px 24px;
+}
+.ftb-previewhost {
+  max-width: 720px;
+  margin: 0 auto;
+}
+.ftb-empty {
+  color: rgba(255,255,255,0.6);
+  text-align: center;
+  font-size: 14px;
+  margin-top: 15vh;
+}
+
+/* Labrador-knapper og filpanel per rad */
+.ftb-labrow {
+  display: flex;
+  gap: 5px;
+}
+.ftb-labbtn {
+  flex: 1;
+  background: rgba(255,255,255,0.14);
+  color: #fff;
+  border: 0;
+  border-radius: 6px;
+  font-family: var(--font-bold);
+  font-weight: bold;
+  font-size: 11px;
+  height: 24px;
+  padding: 0 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ftb-labbtn:hover { background: rgba(255,255,255,0.28); }
+.ftb-labbtn:disabled { opacity: 0.5; cursor: default; }
+.ftb-labpanel {
+  background: var(--bg-input, #fff);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.ftb-labpanel__status {
+  font-size: 11px;
+  color: #555;
+  padding: 6px 8px;
+}
+.ftb-labpanel__status .ftb-labbtn {
+  background: #0050FC;
+  margin-top: 4px;
+}
+.ftb-labpanel__list {
+  max-height: 150px;
+  overflow-y: auto;
+  border-top: 1px solid #E5E5E5;
+}
+.ftb-labfile {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: #212121;
+  font-family: inherit;
+  font-size: 11px;
+  padding: 5px 8px;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ftb-labfile:hover { background: rgba(0,80,252,0.12); }
+
+/* Ramme-valg: tykkelse + fargevelger side om side */
+.ftb-framerow {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.ftb-framerow .project-select { flex: 1; }
+.ftb-framerow input[type="color"] {
+  width: 34px;
+  height: 26px;
+  border: 0;
+  border-radius: 6px;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+/* ---------- Podkast-spesifikt (lagt til etter tabell-basen) ---------- */
+.pod-fetch { min-height: 52px; font-size: 12px; }
+.pod-status { min-height: 0; margin: 2px 0 0; }
+.pod-status:empty { display: none; }
+.pod-status.is-bad { color: #ffb4b4; }
+.pod-list { max-height: none; }
+.pod-meta { display: flex; gap: 5px; }
+.pod-meta .ftb-value { text-align: left; }
+.pod-no { width: 52px; }
+.pod-date { flex: 1; width: auto; }
+.pod-dur { width: 64px; }
+.pod-desc { font-size: 12px; min-height: 40px; }
+.pod-thumbrow { display: flex; align-items: center; gap: 8px; }
+.pod-thumbmini { width: 64px; aspect-ratio: 16/9; object-fit: cover; border-radius: 4px; background: #555; }
+.pod-thumbstate { font-size: 11px; color: #ffd27a; }
+.pod-thumbstate.is-ok { color: #9be39b; }
+.pod-previewhost { max-width: 1048px; transition: max-width .2s; }
+.pod-list .ftb-labrow { flex-wrap: wrap; }
+
+/* ---------- Videoslider-spesifikt ---------- */
+.vs-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.vs-narrow { flex: 0 0 34px; }
+.vs-list:empty::before { content: "Ingen videoer ennå. Hent fra Labrador eller last opp."; }
+.vs-media { display: grid; grid-template-columns: 54px 1fr; gap: 8px; align-items: start; }
+.vs-thumb {
+  width: 54px; aspect-ratio: 9 / 16; object-fit: cover; border-radius: 4px;
+  background: #555; display: block; cursor: pointer; border: 0; padding: 0;
+}
+.vs-thumb--empty { display: grid; place-items: center; color: rgba(255,255,255,.6); font-size: 18px; }
+.vs-fields { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.vs-meta { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
+.vs-meta .ftb-value { text-align: left; }
+.vs-dur { width: 58px; }
+.vs-poststate { font-size: 11px; color: #ffd27a; }
+.vs-poststate.is-ok { color: #9be39b; }
+.vs-poststate.is-bad { color: #ffb4b4; }
+.vs-row-warn { font-size: 11px; color: #ffb4b4; margin: 0; }
+
+.vs-picker {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(0,0,0,.6);
+  display: grid; place-items: center;
+}
+.vs-picker[hidden] { display: none; }
+.vs-picker__box {
+  background: var(--bg-topbar, #707070); border-radius: 15px; padding: 18px;
+  display: flex; flex-direction: column; gap: 10px; max-height: 94vh;
+  box-shadow: 0 10px 30px rgba(0,0,0,.45);
+}
+.vs-picker__title { margin: 0; font-family: var(--font-bold); font-size: 16px; color: #fff; }
+.vs-picker__video { height: min(70vh, 640px); aspect-ratio: 9 / 16; background: #000; border-radius: 8px; display: block; }
+.vs-picker__time { margin: 0; text-align: center; font-variant-numeric: tabular-nums; }
+.vs-picker__btns { display: flex; gap: 6px; justify-content: flex-end; }
+.vs-thumbbtn { border: 0; padding: 0; background: none; cursor: pointer; display: block; width: 54px; border-radius: 4px; }
+.vs-thumbbtn:disabled { cursor: default; opacity: .6; }
+.vs-thumbbtn:hover:not(:disabled) .vs-thumb { outline: 2px solid #fff; outline-offset: 1px; }
+
+/* Hent fra TikTok */
+.vs-ttrow { display: flex; gap: 5px; }
+.vs-ttrow[hidden] { display: none; }
+.vs-ttrow .caption-input { flex: 1; min-width: 0; }
+.vs-ttlist {
+  background: #929292; border-radius: 6px; padding: 6px; max-height: 330px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 4px;
+  scrollbar-width: thin; scrollbar-color: #6e6e6e #888;
+}
+.vs-ttlist[hidden] { display: none; }
+.vs-tt {
+  display: grid; grid-template-columns: 16px 40px 1fr; gap: 8px; align-items: center;
+  padding: 5px; border-radius: 6px; background: rgba(255,255,255,.08); cursor: pointer;
+}
+.vs-tt:hover { background: rgba(255,255,255,.16); }
+.vs-tt input { accent-color: var(--faktisk-blue); margin: 0; cursor: pointer; }
+.vs-tt img, .vs-tt__noimg { width: 40px; aspect-ratio: 9 / 16; object-fit: cover; border-radius: 4px; background: #555; display: block; }
+.vs-tt__txt { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.vs-tt__title {
+  font-size: 12px; font-weight: bold; color: #fff; line-height: 1.25;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.vs-tt__meta { font-size: 11px; color: rgba(255,255,255,.75); }
+.vs-tt.is-in { opacity: .6; cursor: default; }
+.vs-tt.is-in input { cursor: default; }
+.vs-tt.is-in .vs-tt__meta::after { content: " · i slideren"; color: #9be39b; }
+.vs-ttpaste summary { font-size: 12px; color: #fff; cursor: pointer; font-family: var(--font-bold); font-weight: bold; }
+.vs-ttpaste[open] summary { margin-bottom: 6px; }
+.vs-ttpaste textarea { width: 100%; box-sizing: border-box; margin-bottom: 5px; }
+.vs-pair > * { min-width: 0; width: 100%; }
+/* Den faste «Kopier embed»-knappen skal ikke være gjennomsiktig når den er avslått */
+#copyEmbedBtn:disabled { opacity: 1; background: #8193bd; color: rgba(255,255,255,.8); }
+
+/* Publiseringsdato fra TikTok i videoraden */
+.vs-date{font-size:12px;color:#6b7280;white-space:nowrap}
+
+/* Rulling (05.11.2026): rammen får fast høyde, så sidepanel og forhåndsvisning ruller hver for seg
+   i stedet for å vokse forbi vinduet og bli klippet. */
+.plugin-page { min-height: 0; grid-template-rows: minmax(0, 1fr); }
+.plugin-sidebar { min-height: 0; max-height: 100%; }
+.plugin-canvas { min-height: 0; max-height: 100%; }
+.ftb-stage { min-height: 0; max-height: 100%; overflow-y: auto; }
