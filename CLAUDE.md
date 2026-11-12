@@ -152,3 +152,11 @@ Endringer i plugin-koden må pushes til **`faktiskorg-studio-plugins`-repoen**, 
 - Chromiums decodeAudioData følger elst media_time, men IKKE tom redigering (forsinket lydstart) — legg til `startDelay` fra elst, ellers blir leppesynk feil.
 - Søk til midten av bildet (`(n+0,5)/fps`); `requestVideoFrameCallback` fyrer ikke for skjult video.
 - Stabilisering på mobil gir ukorrelert bevegelse mellom ansikt og bakgrunn i ekte selfies — ikke et komposittbevis alene. Parallakse er derfor ikke med i 0.1.
+
+## Dokumenter (.faktisk) — Studio 0.8.0 (sluppet 12.11.2026)
+- `src/documents-main.js` registrerer alle `document-*`-IPC-ene og `documents-export-all` (eksponert i preload som `documentOpen`, `documentSave`, `documentSaveAs`, `documentRecent`, `documentInfo`, `documentImportMedia`, `documentsExportAll`, m.fl.). Ved etterkontroll av bygget: grep i `src/documents-main.js` i app.asar, ikke main.js.
+- keynote-klipp 0.3.0 krever 0.8.0 (minStudioVersion 0.8.0 satt manuelt i registry — release-plugin.sh setter den ikke).
+- Detaljer: `Claude-overforing faktisk.no/kunnskapsbase/faktisk_studio_release_workflow.md` § Studio 0.8.0.
+
+## Forslag: Final Cut-maler i Studio (12.11.2026, ikke påbegynt)
+Malsynk (register + zip i GitHub Releases, ikke plugin-bundles), tre nivåer Kjerne/Delt/Mine, Grafikk-plugin med FCPXML, UUID-vakt i release. Se `Claude-overforing faktisk.no/kunnskapsbase/fcp_maler_i_studio.md`.
