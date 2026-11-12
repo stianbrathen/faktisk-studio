@@ -271,9 +271,21 @@ window.addEventListener('DOMContentLoaded', () => {
   saveBtn.type = 'button'; saveBtn.className = btn.className; saveBtn.id = 'saveProjectBtn';
   saveBtn.title = 'Lagre som dokument i Finder (⌘S)';
 
-  sel.replaceWith(openBtn);
-  btn.replaceWith(saveBtn);
-  openBtn.parentElement.insertBefore(name, openBtn);
+  // To knapper per rad:  [Åpne…] [Lagre…]  /  [Vis i Finder] [Medier]
+  // Andre rad vises bare når et dokument er lagret.
+  const grid = () => { const r = document.createElement('div');
+    Object.assign(r.style, { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }); return r; };
+  const row1 = grid(), row2 = grid();
+  const revealBtn = document.createElement('button');
+  revealBtn.type = 'button'; revealBtn.className = btn.className; revealBtn.textContent = 'Vis i Finder';
+  revealBtn.addEventListener('click', () => ipcRenderer.invoke('document-reveal'));
+  for (const b of [openBtn, saveBtn, revealBtn]) { b.style.width = '100%'; b.style.minWidth = '0'; }
+  sel.replaceWith(row1);
+  btn.remove();
+  row1.append(openBtn, saveBtn);
+  row1.before(name);
+  row1.after(row2);
+  row2.append(revealBtn);
 
   // ---- medieliste: hvilke filer dokumentet bruker, og hvor de ligger ----
   // Samme knappestil som Åpne… og Lagre… i pluginen
@@ -284,8 +296,10 @@ window.addEventListener('DOMContentLoaded', () => {
   const panel = document.createElement('div');
   Object.assign(panel.style, { display: 'none', flexDirection: 'column', gap: '8px', padding: '10px',
     borderRadius: '8px', background: 'rgba(0,0,0,0.12)', font: '400 12px/1.35 -apple-system, sans-serif' });
-  saveBtn.after(mediaBtn);
-  mediaBtn.after(panel);
+  mediaBtn.style.width = '100%'; mediaBtn.style.minWidth = '0';
+  mediaBtn.style.whiteSpace = 'nowrap'; mediaBtn.style.overflow = 'hidden'; mediaBtn.style.textOverflow = 'ellipsis';
+  row2.append(mediaBtn);
+  row2.after(panel);
   let open = false;
   mediaBtn.addEventListener('click', () => {
     open = !open; panel.style.display = open ? 'flex' : 'none';
@@ -294,7 +308,8 @@ window.addEventListener('DOMContentLoaded', () => {
   let lastLabel = { n: 0, missing: 0 };
   function setLabel() {
     const { n, missing } = lastLabel;
-    mediaBtn.textContent = (open ? '▾ ' : '▸ ') + 'Medier (' + n + ')' + (missing ? ' · ' + missing + ' mangler' : '');
+    mediaBtn.textContent = (open ? '▾ ' : '▸ ') + 'Medier (' + n + ')' + (missing ? ' · ' + missing + ' !' : '');
+    mediaBtn.title = missing ? missing + ' fil(er) mangler eller ligger ikke på maskinen' : 'Filene dokumentet bruker';
     mediaBtn.style.boxShadow = missing ? 'inset 0 0 0 2px #C8321E' : '';
   }
 
@@ -303,7 +318,8 @@ window.addEventListener('DOMContentLoaded', () => {
 
   async function loadMedia() {
     const res = await ipcRenderer.invoke('document-media-list');
-    if (!res) { mediaBtn.style.display = 'none'; panel.style.display = 'none'; return; }
+    if (!res) { row2.style.display = 'none'; panel.style.display = 'none'; return; }
+    row2.style.display = 'grid';
     // I lokale plugins (Keynote-klipp, Presentasjon) må alt ligge på maskinen
     const online = res.mode === 'lokal' ? res.files.filter(f => f.web).length : 0;
     const missing = res.files.filter(f => !f.exists).length + online;
@@ -341,22 +357,22 @@ window.addEventListener('DOMContentLoaded', () => {
     if (info) {
       name.textContent = info.name;
       name.title = info.path;
-      saveBtn.textContent = 'Vis i Finder';
-      saveBtn.title = info.path;
+      // Lagres automatisk etter første gang, så knappen blir «Lagre som…»
+      saveBtn.textContent = 'Lagre som…';
+      saveBtn.title = 'Lagre en kopi et annet sted (⇧⌘S). Endringer lagres automatisk.';
+      revealBtn.title = info.path;
+      row2.style.display = 'grid';
     } else {
       name.textContent = 'Ikke lagret';
       name.title = '';
       saveBtn.textContent = 'Lagre…';
       saveBtn.title = 'Lagre som dokument i Finder (⌘S)';
+      row2.style.display = 'none';
     }
-    saveBtn.dataset.mode = info ? 'reveal' : 'save';
   };
 
   openBtn.addEventListener('click', () => ipcRenderer.invoke('document-open'));
-  saveBtn.addEventListener('click', () => {
-    if (saveBtn.dataset.mode === 'reveal') ipcRenderer.invoke('document-reveal');
-    else ipcRenderer.invoke('document-save-as');
-  });
+  saveBtn.addEventListener('click', () => ipcRenderer.invoke('document-save-as'));
   ipcRenderer.on('document-changed', (_e, info) => { render(info); loadMedia(); });
   ipcRenderer.invoke('document-info').then((info) => { render(info); loadMedia(); });
 });
