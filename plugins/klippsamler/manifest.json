@@ -1,7 +1,7 @@
 {
   "id": "klippsamler",
   "name": "Klippsamler",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "entry": "index.html",
   "description": "Sett sammen flere videoklipp til ett: trim hvert klipp, ordne rekkefølgen, velg format og eksporter samlet — med eller uten lyd. For redigering med tidslinje, musikk og effekter: bruk Final Cut.",
   "category": "video",

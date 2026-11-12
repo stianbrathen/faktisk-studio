@@ -246,11 +246,75 @@ function selectedClip() {
 
 function updateTrimInfo() {
   const c = selectedClip();
-  if (!c) { els.trimInfo.textContent = ''; return; }
-  els.trimInfo.textContent =
-    'Inn ' + fmtTime(c.start) + ' · Ut ' + fmtTime(c.end)
-    + ' · bruker ' + fmtTime(clipDur(c)) + ' av ' + fmtTime(c.duration);
+  els.trimInfo.textContent = '';
+  renderTimeline();
 }
+
+// ---- Trimstrek: dra i start-/sluttpunktet, klikk for å spole ----
+var tl = {
+  box: document.getElementById('tl'), track: document.getElementById('tlTrack'),
+  keep: document.getElementById('tlKeep'), hIn: document.getElementById('tlIn'),
+  hOut: document.getElementById('tlOut'), ph: document.getElementById('tlPh'),
+  inLbl: document.getElementById('tlInLbl'), mid: document.getElementById('tlMid'),
+  outLbl: document.getElementById('tlOutLbl'),
+};
+function renderTimeline() {
+  // Kan kalles før resten av skriptet er lest inn (renderClips ved oppstart)
+  try { if (!tl || previewIdx === undefined) return; } catch (e) { return; }
+  const c = selectedClip();
+  if (!c || !c.duration || previewIdx >= 0) { tl.box.hidden = true; return; }
+  tl.box.hidden = false;
+  const pct = t => (Math.max(0, Math.min(c.duration, t)) / c.duration * 100) + '%';
+  tl.keep.style.left = pct(c.start);
+  tl.keep.style.width = ((c.end - c.start) / c.duration * 100) + '%';
+  tl.hIn.style.left = pct(c.start);
+  tl.hOut.style.left = pct(c.end);
+  tl.ph.style.left = pct(els.video.currentTime || 0);
+  tl.inLbl.textContent = 'Inn ' + fmtTime(c.start);
+  tl.mid.textContent = 'Bruker ' + fmtTime(clipDur(c)) + ' av ' + fmtTime(c.duration);
+  tl.outLbl.textContent = 'Ut ' + fmtTime(c.end);
+}
+function timeAt(ev) {
+  const c = selectedClip(); const r = tl.track.getBoundingClientRect();
+  return Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width)) * c.duration;
+}
+function dragHandle(which) {
+  return ev => {
+    const c = selectedClip(); if (!c) return;
+    ev.preventDefault(); ev.stopPropagation();
+    els.video.pause();
+    const move = e => {
+      const t = timeAt(e);
+      if (which === 'in') c.start = Math.max(0, Math.min(t, c.end - 0.2));
+      else c.end = Math.min(c.duration, Math.max(t, c.start + 0.2));
+      // Vis bildet der man kutter
+      els.video.currentTime = which === 'in' ? c.start : c.end;
+      renderClips();
+    };
+    const up = () => {
+      removeEventListener('pointermove', move); removeEventListener('pointerup', up);
+      scheduleSaveState();
+    };
+    addEventListener('pointermove', move); addEventListener('pointerup', up);
+  };
+}
+tl.hIn.addEventListener('pointerdown', dragHandle('in'));
+tl.hOut.addEventListener('pointerdown', dragHandle('out'));
+tl.track.addEventListener('pointerdown', ev => {
+  if (ev.target === tl.hIn || ev.target === tl.hOut || !selectedClip()) return;
+  const seek = e => { els.video.currentTime = timeAt(e); renderTimeline(); };
+  seek(ev);
+  const up = () => { removeEventListener('pointermove', seek); removeEventListener('pointerup', up); };
+  addEventListener('pointermove', seek); addEventListener('pointerup', up);
+});
+els.video.addEventListener('timeupdate', renderTimeline);
+els.video.addEventListener('seeked', renderTimeline);
+// I og O setter inn/ut der spillehodet står (når man ikke skriver i et felt)
+addEventListener('keydown', e => {
+  if (e.metaKey || e.ctrlKey || e.altKey || /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
+  if (e.key === 'i' || e.key === 'I') els.setInBtn.click();
+  if (e.key === 'o' || e.key === 'O') els.setOutBtn.click();
+});
 
 els.setInBtn.addEventListener('click', () => {
   const c = selectedClip();
@@ -293,6 +357,7 @@ function stopPreview(msg) {
   previewSwitching = false;
   els.playAllBtn.textContent = '▶ Spill gjennom redigeringen';
   if (msg) setStatus(msg);
+  renderTimeline();
 }
 
 function previewPlayClip(idx) {

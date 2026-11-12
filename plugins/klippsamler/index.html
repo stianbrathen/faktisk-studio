@@ -67,10 +67,11 @@
       <!-- Trim for valgt klipp -->
       <div class="ks-trim" id="trimBox" style="display:none;">
         <span class="url-section__label">Trim valgt klipp</span>
+        <p class="ks-trim__hint">Dra i håndtakene under bildet, eller sett inn/ut der spillehodet står:</p>
         <div class="ks-trim__row">
-          <button id="setInBtn" class="btn-tiny" title="Sett klippets startpunkt til der spillehodet står">Inn = spillehodet</button>
-          <button id="setOutBtn" class="btn-tiny" title="Sett klippets sluttpunkt til der spillehodet står">Ut = spillehodet</button>
-          <button id="resetTrimBtn" class="btn-tiny" title="Bruk hele klippet">Nullstill</button>
+          <button id="setInBtn" class="btn-tiny" title="Sett klippets startpunkt til der spillehodet står (I)">Inn her</button>
+          <button id="setOutBtn" class="btn-tiny" title="Sett klippets sluttpunkt til der spillehodet står (O)">Ut her</button>
+          <button id="resetTrimBtn" class="btn-tiny" title="Bruk hele klippet">Hele klippet</button>
         </div>
         <div class="ks-trim__info" id="trimInfo"></div>
       </div>
@@ -114,6 +115,21 @@
              Klikk et klipp i lista for å se og trimme det.</p>
         </div>
         <video id="videoEl" class="ks-video" controls playsinline style="display:none;"></video>
+      </div>
+
+      <!-- Trimstrek for valgt klipp: grått = kuttes bort, lyst = beholdes -->
+      <div class="ks-tl" id="tl" hidden>
+        <div class="ks-tl__track" id="tlTrack">
+          <div class="ks-tl__keep" id="tlKeep"></div>
+          <button class="ks-tl__h ks-tl__h--in" id="tlIn" type="button" aria-label="Startpunkt"></button>
+          <button class="ks-tl__h ks-tl__h--out" id="tlOut" type="button" aria-label="Sluttpunkt"></button>
+          <div class="ks-tl__ph" id="tlPh"></div>
+        </div>
+        <div class="ks-tl__labels">
+          <span id="tlInLbl"></span>
+          <span id="tlMid"></span>
+          <span id="tlOutLbl"></span>
+        </div>
       </div>
     </section>
 
