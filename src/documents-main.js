@@ -37,6 +37,16 @@ function rememberFolder(p) {
   try { fs.writeFileSync(lastFolderFile(), path.dirname(path.dirname(p)), 'utf-8'); } catch (e) {}
 }
 
+// Sist brukte dokumenter til forsiden (Electrons egen liste kan ikke leses)
+function recentFile() { return path.join(ctx.app.getPath('userData'), 'recent-documents.json'); }
+function readRecent() { try { return JSON.parse(fs.readFileSync(recentFile(), 'utf-8')) || []; } catch (e) { return []; } }
+function addRecent(p, pluginId) {
+  const list = readRecent().filter(d => d.path !== p);
+  list.unshift({ path: p, name: docName(p), pluginId, openedAt: new Date().toISOString() });
+  try { fs.writeFileSync(recentFile(), JSON.stringify(list.slice(0, 20), null, 2), 'utf-8'); } catch (e) {}
+  ctx.app.addRecentDocument(p);
+}
+
 function docName(p) { return path.basename(p, '.' + EXT); }
 function folderOf(p) { return path.dirname(p); }
 
@@ -311,7 +321,7 @@ function openDocument(p) {
     return { ok: false, error: msg };
   }
   setCurrent({ path: p, pluginId: payload.pluginId, name: docName(p), settings: Object.assign({ copyMedia: true }, payload.settings || {}) });
-  ctx.app.addRecentDocument(p);
+  addRecent(p, payload.pluginId);
   ctx.getWindow().loadFile(entry);
   return { ok: true };
 }
@@ -357,7 +367,7 @@ async function saveAs() {
   // Videre arbeid går til det nye dokumentet. Pluginen er allerede lastet med
   // samme tilstand, så vi bytter bare mål uten å laste på nytt.
   setCurrent({ path: p, pluginId, name: docName(p), settings });
-  ctx.app.addRecentDocument(p);
+  addRecent(p, pluginId);
   rememberFolder(p);
   // Last pluginen på nytt fra dokumentet, så den bruker kopiene i Medier/
   const win = ctx.getWindow(); if (win) win.webContents.reload();
@@ -433,6 +443,7 @@ function register(ipcMain, c) {
   });
   ipcMain.handle('document-save', async () => { save(); return { ok: true }; });
   ipcMain.handle('document-media-list', async () => listMedia());
+  ipcMain.handle('document-recent', async () => readRecent().filter(d => { try { return fs.statSync(d.path).isFile(); } catch (e) { return false; } }));
   ipcMain.handle('document-media-reveal', async (e, p) => { if (p && fs.existsSync(p)) ctx.shell.showItemInFolder(p); return { ok: true }; });
   ipcMain.handle('document-media-copy', async (e, p) => {
     if (!current) return { ok: false };

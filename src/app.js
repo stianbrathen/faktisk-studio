@@ -40,6 +40,8 @@ function buildCategories(items) {
 }
 
 async function renderHub() {
+  // Ny forside (hub.js): søk, kategorier, sist brukte dokumenter og grupper
+  if (window.renderNewHub) return window.renderNewHub(document.getElementById('pluginGrid'));
   const grid = document.getElementById('pluginGrid');
   grid.innerHTML = '';
 

@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('faktisk', {
   documentSave: () => ipcRenderer.invoke('document-save'),
   documentSaveAs: () => ipcRenderer.invoke('document-save-as'),
   documentOpen: (filePath) => ipcRenderer.invoke('document-open', filePath),
+  documentRecent: () => ipcRenderer.invoke('document-recent'),
 
   projectSave: (pluginId, name, state) => ipcRenderer.invoke('project-save', pluginId, name, state),
   projectList: (pluginId) => ipcRenderer.invoke('project-list', pluginId),
