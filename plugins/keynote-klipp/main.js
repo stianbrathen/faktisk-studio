@@ -436,6 +436,31 @@ document.querySelectorAll('.tl-speed').forEach(btn => {
 //  Dra for å plassere utsnittet
 // ============================================================
 
+// Rull eller knip i forhåndsvisningen for å zoome. Punktet under pekeren
+// står stille, så man zoomer inn mot det man peker på. Dobbeltklikk = 100 %.
+function setZoomAt(z, fx, fy) {
+  const before = currentCrop();
+  const px = before.x + fx * before.w, py = before.y + fy * before.h;
+  state.zoom = Math.max(1, Math.min(3, z));
+  const base = baseCropSize();
+  const w = base.w / state.zoom, h = base.h / state.zoom;
+  const maxX = state.srcW - w, maxY = state.srcH - h;
+  state.panX = maxX > 0.5 ? Math.max(0, Math.min(1, (px - fx * w) / maxX)) : 0.5;
+  state.panY = maxY > 0.5 ? Math.max(0, Math.min(1, (py - fy * h) / maxY)) : 0.5;
+  els.zoomRange.value = Math.round(state.zoom * 100);
+  els.zoomVal.textContent = Math.round(state.zoom * 100) + ' %';
+  layoutStage();
+  scheduleSaveState();
+}
+els.stage.addEventListener('wheel', e => {
+  if (!state.loaded) return;
+  e.preventDefault();
+  const r = els.stage.getBoundingClientRect();
+  const k = e.ctrlKey ? 0.01 : 0.002; // knip på styreflaten kommer som ctrl+wheel
+  setZoomAt(state.zoom * Math.exp(-e.deltaY * k), (e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height);
+}, { passive: false });
+els.stage.addEventListener('dblclick', () => { if (state.loaded) setZoomAt(1, 0.5, 0.5); });
+
 els.stage.addEventListener('pointerdown', e => {
   if (!state.loaded) return;
   e.preventDefault();
