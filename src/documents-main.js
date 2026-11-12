@@ -457,7 +457,7 @@ function register(ipcMain, c) {
     if (res.canceled || !res.filePaths[0]) return { ok: false, canceled: true };
     const root = res.filePaths[0];
     const dir = ctx.projectsDir;
-    const safe = s => String(s).replace(/[\/:*?"<>|]/g, '-').replace(/\s+/g, ' ').trim().slice(0, 80) || 'Uten navn';
+    const safe = s => String(s).replace(/:/g, ' -').replace(/[\/:*?"<>|]/g, '-').replace(/\s+/g, ' ').trim().slice(0, 80) || 'Uten navn';
     let done = 0; const failed = [];
     let plugins = [];
     try { plugins = fs.readdirSync(dir, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name); } catch (e) {}
