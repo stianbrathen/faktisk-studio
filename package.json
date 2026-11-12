@@ -69,6 +69,15 @@
       "entitlementsInherit": "build/entitlements.mac.plist",
       "identity": null
     },
+    "fileAssociations": [
+      {
+        "ext": "faktisk",
+        "name": "Faktisk Studio-dokument",
+        "description": "Faktisk Studio-dokument",
+        "role": "Editor",
+        "rank": "Owner"
+      }
+    ],
     "protocols": [
       {
         "name": "Faktisk Studio",

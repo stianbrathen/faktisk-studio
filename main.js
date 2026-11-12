@@ -2,7 +2,7 @@
 // Hovedvindu laster src/index.html (Malside-hub). Pluginene ligger i
 // plugins/<id>/index.html og navigeres til via window.location.
 
-const { app, BrowserWindow, ipcMain, clipboard, dialog, shell, net } = require('electron');
+const { app, BrowserWindow, ipcMain, clipboard, dialog, shell, net, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const https = require('https');
@@ -19,6 +19,10 @@ try {
 }
 
 let mainWindow = null;
+
+// Dokumenter på disk (.faktisk) — se src/documents-main.js
+const docs = require('./src/documents-main.js');
+docs.early(app);
 
 // Mappe for brukerinstallerte plugins (kan skrives til, sletteslves)
 const userPluginsDir = path.join(app.getPath('userData'), 'plugins');
@@ -52,6 +56,17 @@ function createWindow() {
 
 app.whenReady().then(() => {
   createWindow();
+  docs.register(ipcMain, {
+    app, dialog, shell, Menu,
+    getWindow: () => mainWindow,
+    pluginEntry: (id) => pluginEntryFor(id),
+    homeEntry: () => path.join(__dirname, 'src', 'index.html'),
+    readAutoState: (id) => {
+      try { return JSON.parse(fs.readFileSync(path.join(dataDir, safeId(id) + '.json'), 'utf-8')).state || null; }
+      catch (e) { return null; }
+    },
+    clearAutoState: (id) => { try { fs.rmSync(path.join(dataDir, safeId(id) + '.json')); } catch (e) {} },
+  });
   setupAutoUpdater();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -155,7 +170,7 @@ ipcMain.handle('list-plugins', async () => {
   return Array.from(byId.values());
 });
 
-ipcMain.handle('open-plugin', async (e, pluginId) => {
+function pluginEntryFor(pluginId) {
   // I dev (npm start) skal repo-versjonen alltid vinne over installerte
   // kopier i userData — ellers tester man gamle filer uten å vite det.
   // Dev-appen deler userData med den pakkede appen, så fellen er reell.
@@ -168,13 +183,19 @@ ipcMain.handle('open-plugin', async (e, pluginId) => {
         path.join(builtinPluginsDir, pluginId, 'index.html'),
         path.join(userPluginsDir, pluginId, 'index.html'),
       ];
-  const found = candidates.find(p => fs.existsSync(p));
+  return candidates.find(p => fs.existsSync(p)) || null;
+}
+
+ipcMain.handle('open-plugin', async (e, pluginId) => {
+  const found = pluginEntryFor(pluginId);
   if (!found) return { ok: false, error: 'Plugin finnes ikke: ' + pluginId };
+  docs.onLeave(); // åpnet fra forsiden: nytt arbeid, ikke et dokument
   mainWindow.loadFile(found);
   return { ok: true };
 });
 
 ipcMain.handle('go-home', async () => {
+  docs.onLeave();
   mainWindow.loadFile(path.join(__dirname, 'src', 'index.html'));
   return { ok: true };
 });
@@ -200,7 +221,7 @@ ipcMain.handle('toggle-fullscreen', async () => {
 });
 
 ipcMain.handle('save-dialog', async (e, opts) => {
-  const result = await dialog.showSaveDialog(mainWindow, opts || {});
+  const result = await dialog.showSaveDialog(mainWindow, docs.adjustSaveOpts(opts));
   return result.canceled ? null : result.filePath;
 });
 
@@ -228,6 +249,7 @@ function safeId(s) {
 
 ipcMain.handle('state-save', async (e, pluginId, state) => {
   try {
+    if (docs.onStateSave(pluginId, state)) return { ok: true, document: true };
     ensureDir(dataDir);
     const file = path.join(dataDir, safeId(pluginId) + '.json');
     const payload = { schemaVersion: 1, savedAt: new Date().toISOString(), state };
@@ -240,6 +262,8 @@ ipcMain.handle('state-save', async (e, pluginId, state) => {
 
 ipcMain.handle('state-load', async (e, pluginId) => {
   try {
+    const fromDoc = docs.onStateLoad(pluginId);
+    if (fromDoc !== undefined) return fromDoc;
     const file = path.join(dataDir, safeId(pluginId) + '.json');
     if (!fs.existsSync(file)) return { ok: true, state: null };
     const payload = JSON.parse(fs.readFileSync(file, 'utf-8'));

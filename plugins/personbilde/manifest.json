@@ -5,5 +5,6 @@
   "entry": "index.html",
   "description": "Et bilde med navn og tittel: i boks med avrundede hjørner eller sirkel, med eller uten ramme og skygge, og et bilde som puster sakte. Teksten står under bildet i Unica, i bobler som popper opp der du plasserer dem, eller i en boks. Genererer embed for Labrador.",
   "category": "annet",
-  "minStudioVersion": "0.7.0"
+  "minStudioVersion": "0.7.0",
+  "media": "labrador"
 }

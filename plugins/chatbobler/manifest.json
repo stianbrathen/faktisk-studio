@@ -5,5 +5,6 @@
   "entry": "index.html",
   "description": "Gjenskap en chatsamtale i stilen til iMessage, WhatsApp, Telegram, Messenger, Instagram, Signal eller SMS. Boblene popper opp med skriveindikator når leseren scroller dit, som en ekte samtale. Kan også brukes til én enkelt boble. Genererer embed for Labrador.",
   "category": "annet",
-  "minStudioVersion": "0.7.0"
+  "minStudioVersion": "0.7.0",
+  "media": "labrador"
 }

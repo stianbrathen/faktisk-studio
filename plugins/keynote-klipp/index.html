@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob: https: file:; connect-src 'self' https:; font-src 'self' data:;">
+<title>Keynote-klipp · Faktisk Studio</title>
+<link rel="stylesheet" href="shared/style.css">
+<link rel="stylesheet" href="style.css">
+<script src="shared/embed-tokens.js"></script>
+</head>
+<body>
+<div class="studio">
+
+  <header class="topbar">
+    <div class="faktisk-logo" role="img" aria-label="Faktisk Studio"></div>
+    <span class="topbar__version" id="appVersion" title="Versjoner"></span>
+    <div class="topbar__title" role="img" aria-label="Labrador"></div>
+    <div class="topbar__actions">
+      <button class="btn-primary" id="backBtn">Malside</button>
+      <button class="btn-icon" id="newProjectBtn" title="Nytt prosjekt (tøm gjeldende)" aria-label="Nytt prosjekt">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+          <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+        </svg>
+      </button>
+      <button class="btn-icon" id="fullscreenBtn" title="Fullskjerm" aria-label="Fullskjerm">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+          <path d="M5 5h5v2H7v3H5V5zm9 0h5v5h-2V7h-3V5zM5 14h2v3h3v2H5v-5zm12 0h2v5h-5v-2h3v-3z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="plugin-page">
+
+    <aside class="plugin-sidebar">
+      <h2 class="plugin-sidebar__title">Keynote-klipp</h2>
+
+      <p class="plugin-sidebar__desc">
+        Lager stumme videoklipp med runde hjørner og ekte gjennomsiktighet,
+        klare til å dras inn i Keynote. Bakgrunnsfargen på lysbildet skinner
+        gjennom hjørnene, og Keynotes egen skygge følger den runde formen.
+      </p>
+
+      <div class="url-section">
+        <div class="url-section__header">
+          <label class="url-section__label" for="videoUrl">Kilde</label>
+          <button id="openLabradorBtn" class="link-btn" type="button" hidden>
+            Åpne Labrador ↗
+          </button>
+        </div>
+        <button id="localFileBtn" class="btn-tiny btn-wide" type="button">
+          Velg videoklipp fra maskinen…
+        </button>
+        <p class="ctl-hint">
+          Klippet hentes fra maskinen og kopieres inn i prosjektmappa når
+          du lagrer dokumentet. Det trenger ikke ligge på Labrador.
+        </p>
+        <div class="url-row" hidden>
+          <input type="text" id="videoUrl" class="url-row__input"
+                 placeholder="…eller lim inn Labrador-URL"
+                 spellcheck="false" autocomplete="off">
+          <button id="loadVideoBtn" class="btn-tiny">Hent</button>
+        </div>
+        <div class="lab-row" hidden>
+          <button id="labFilesBtn" class="btn-tiny lab-btn" type="button">Mine filer ▾</button>
+          <button id="labUploadBtn" class="btn-tiny lab-btn" type="button">Last opp fil…</button>
+        </div>
+        <div class="lab-panel" id="labPanel" style="display:none;">
+          <div class="lab-panel__status" id="labPanelStatus"></div>
+          <div class="lab-panel__list" id="labPanelList"></div>
+        </div>
+      </div>
+
+      <div class="plugin-sidebar__status" id="status"></div>
+
+      <!-- Målformat -->
+      <div class="ctl-group">
+        <span class="ctl-group__label">Format</span>
+        <div class="fmt-grid" id="fmtGrid">
+          <button class="fmt-btn on" data-w="1080" data-h="1920">
+            <span class="fmt-btn__box fmt-btn__box--port"></span>
+            <span class="fmt-btn__txt">Mobil<br><small>1080×1920</small></span>
+          </button>
+          <button class="fmt-btn" data-w="1920" data-h="1080">
+            <span class="fmt-btn__box fmt-btn__box--land"></span>
+            <span class="fmt-btn__txt">Bred<br><small>1920×1080</small></span>
+          </button>
+          <button class="fmt-btn" data-w="1080" data-h="1080">
+            <span class="fmt-btn__box fmt-btn__box--sq"></span>
+            <span class="fmt-btn__txt">Kvadrat<br><small>1080×1080</small></span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Forvalg for Faktisk-presentasjonsmalen (Keynote) -->
+      <div class="ctl-group">
+        <span class="ctl-group__label">Presentasjonsmal</span>
+        <div class="ctl-presets">
+          <button class="kn-btn" data-w="1080" data-h="1920" data-radius="48"
+                  title="Passer feltet i «Video + tittel» (511 × 907). Hjørnene blir 23 px i lysbildet, som bildene i malen.">Mobil</button>
+          <button class="kn-btn" data-w="1920" data-h="1080" data-radius="40"
+                  title="Passer feltet i «Skjermopptak» og «Verktøy» (1152 × 648). Hjørnene blir 24 px i lysbildet.">Skjermopptak</button>
+          <button class="kn-btn" data-w="1080" data-h="1920" data-radius="72"
+                  title="Fire mobilklipp side om side (338 × 600 hver). Hjørnene blir 23 px i lysbildet.">Fire klipp</button>
+        </div>
+        <span class="ctl-hint">Setter format og hjørner slik at klippet passer rett inn i Keynote-malen. Uten ramme.</span>
+      </div>
+
+      <!-- Hjørneradius -->
+      <div class="ctl-group">
+        <label class="ctl-group__label" for="radiusRange">
+          Hjørneradius <span class="ctl-val" id="radiusVal">80 px</span>
+        </label>
+        <input type="range" id="radiusRange" min="0" max="200" step="4" value="80" class="ctl-range">
+        <div class="ctl-presets">
+          <button class="preset-btn" data-radius="0">Ingen</button>
+          <button class="preset-btn" data-radius="40">Lett</button>
+          <button class="preset-btn on" data-radius="80">Mobil</button>
+          <button class="preset-btn" data-radius="140">Sterk</button>
+        </div>
+      </div>
+
+      <!-- Ramme -->
+      <div class="ctl-group">
+        <label class="ctl-check">
+          <input type="checkbox" id="borderOn">
+          <span>Ramme rundt klippet</span>
+        </label>
+        <div class="border-ctl" id="borderCtl" style="display:none;">
+          <label class="ctl-sub" for="borderWidth">
+            Tykkelse <span class="ctl-val" id="borderWidthVal">8 px</span>
+          </label>
+          <input type="range" id="borderWidth" min="1" max="40" step="1" value="8" class="ctl-range">
+          <div class="color-row">
+            <span class="ctl-sub">Farge</span>
+            <div class="swatches" id="swatches">
+              <button class="swatch on" data-color="#FFFFFF" style="background:#FFFFFF" title="Hvit"></button>
+              <button class="swatch" data-color="#0050FC" style="background:#0050FC" title="Faktisk-blå"></button>
+              <button class="swatch" data-color="#212121" style="background:#212121" title="Nesten svart"></button>
+              <button class="swatch" data-color="#D9D9D9" style="background:#D9D9D9" title="Lys grå"></button>
+            </div>
+            <input type="color" id="borderColor" value="#FFFFFF" class="color-input" title="Egen farge">
+          </div>
+        </div>
+      </div>
+
+      <!-- Utsnitt / zoom -->
+      <div class="ctl-group">
+        <label class="ctl-group__label" for="zoomRange">
+          Zoom <span class="ctl-val" id="zoomVal">100 %</span>
+        </label>
+        <input type="range" id="zoomRange" min="100" max="300" step="5" value="100" class="ctl-range">
+        <p class="ctl-hint">Dra i bildet for å velge hvilken del som beholdes.</p>
+      </div>
+
+      <!-- Eksportvalg -->
+      <div class="ctl-group">
+        <span class="ctl-group__label">Eksport</span>
+        <label class="ctl-check">
+          <input type="checkbox" id="audioOpt">
+          <span>Behold lyd</span>
+        </label>
+        <label class="ctl-check" id="loopLabel">
+          <input type="checkbox" id="loopOpt" checked>
+          <span>Sømløs looping</span>
+        </label>
+        <p class="ctl-hint" id="loopHint">
+          Kutter siste bilde, så klippet ikke hakker der løkken starter på nytt.
+        </p>
+        <label class="ctl-check">
+          <input type="checkbox" id="proresOpt">
+          <span>ProRes 4444 <small>(mye større fil)</small></span>
+        </label>
+      </div>
+
+      <div class="plugin-sidebar__spacer"></div>
+
+      <div class="project-row">
+        <select id="projectSelect" class="project-select">
+          <option value="">Velg lagret prosjekt…</option>
+        </select>
+        <button id="saveProjectBtn" class="btn-tiny">Lagre…</button>
+      </div>
+
+      <div class="export-section">
+        <div class="export-trim" id="exportTrimInfo" style="display:none;">
+          <span id="exportTrimText"></span>
+          <button id="trimResetBtn" class="link-btn" type="button">Nullstill</button>
+        </div>
+        <button id="exportBtn" class="btn-primary" disabled>Eksporter til Keynote…</button>
+        <div class="export-progress" id="exportProgress" style="display:none;">
+          <div class="export-progress__bar" id="exportBar"></div>
+        </div>
+        <p class="export-note" id="exportNote"></p>
+      </div>
+    </aside>
+
+    <section class="plugin-canvas">
+      <div class="canvas-area bg-checker" id="canvasArea">
+        <div class="stage" id="stage">
+          <video id="videoEl" class="stage__video" muted playsinline></video>
+          <div class="stage__frame" id="stageFrame"></div>
+        </div>
+        <div class="canvas-empty" id="canvasEmpty">
+          <p>Hent en video fra Labrador eller maskinen for å komme i gang.</p>
+        </div>
+      </div>
+
+      <div class="checker-row">
+        <span class="checker-label">Bakgrunn i forhåndsvisning:</span>
+        <button class="bg-btn on" data-bg="checker" title="Rutemønster = gjennomsiktig"></button>
+        <button class="bg-btn bg-btn--white" data-bg="#FFFFFF" title="Hvit"></button>
+        <button class="bg-btn bg-btn--dark" data-bg="#1D1D1F" title="Mørk"></button>
+        <button class="bg-btn bg-btn--blue" data-bg="#0050FC" title="Faktisk-blå"></button>
+      </div>
+
+      <div class="timeline-stack">
+        <div class="tl-toolbar">
+          <button id="playBtn" class="tl-btn" title="Spill av / pause">▶</button>
+          <span class="tl-sep"></span>
+          <button class="tl-btn tl-speed on" data-rate="1">1×</button>
+          <button class="tl-btn tl-speed" data-rate="0.5">½×</button>
+          <span class="tl-hint">Dra i håndtakene for å velge utsnitt</span>
+        </div>
+        <div class="tl-wrap" id="tlWrap">
+          <div class="timeline-row">
+            <span class="timeline-row__label">Utsnitt</span>
+            <div class="timeline__track tl-trim" id="trimTrack">
+              <div class="tl-trim__sel" id="trimSel"></div>
+              <div class="tl-trim__handle" id="trimHandleStart" title="Start"></div>
+              <div class="tl-trim__handle tl-trim__handle--end" id="trimHandleEnd" title="Slutt"></div>
+            </div>
+          </div>
+          <div class="timeline-row">
+            <span class="timeline-row__label">Spol</span>
+            <div class="timeline__track tl-ruler" id="ruler">
+              <div class="tl-playhead" id="playhead"></div>
+            </div>
+          </div>
+        </div>
+        <div class="timeline__labels">
+          <span id="labelPos">0,0s</span>
+          <span class="hint-inline" id="labelClip"></span>
+          <span id="labelDur">0,0s</span>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+</div>
+
+<script src="shared/dialog.js"></script>
+<script>window.PLUGIN_ID = 'keynote-klipp';</script>
+<script src="shared/new-project.js"></script>
+<script src="main.js"></script>
+</body>
+</html>

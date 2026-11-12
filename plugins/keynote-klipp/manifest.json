@@ -1,0 +1,10 @@
+{
+  "id": "keynote-klipp",
+  "name": "Keynote-klipp",
+  "version": "0.3.0",
+  "entry": "index.html",
+  "description": "Lag videoklipp med runde hjørner og ekte gjennomsiktighet, klare for Keynote. Velg mobil-, bred- eller kvadratformat, juster utsnitt og hjørneradius, legg på ramme som følger den runde formen, og velg om lyden skal være med. Forvalg for Faktisks presentasjonsmal. Klippene hentes fra maskinen, ikke Labrador.",
+  "category": "video",
+  "minStudioVersion": "0.6.8",
+  "media": "lokal"
+}

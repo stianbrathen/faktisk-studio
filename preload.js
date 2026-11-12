@@ -16,6 +16,14 @@ contextBridge.exposeInMainWorld('faktisk', {
   stateLoad: (pluginId) => ipcRenderer.invoke('state-load', pluginId),
   stateClear: (pluginId) => ipcRenderer.invoke('state-clear', pluginId),
 
+  // Dokumenter på disk (.faktisk). documentInfo() gir null uten åpent dokument,
+  // ellers { path, name, pluginId, folder, mediaDir, exportDir }.
+  documentInfo: () => ipcRenderer.invoke('document-info'),
+  documentImportMedia: (filePaths) => ipcRenderer.invoke('document-import-media', filePaths),
+  documentSave: () => ipcRenderer.invoke('document-save'),
+  documentSaveAs: () => ipcRenderer.invoke('document-save-as'),
+  documentOpen: (filePath) => ipcRenderer.invoke('document-open', filePath),
+
   projectSave: (pluginId, name, state) => ipcRenderer.invoke('project-save', pluginId, name, state),
   projectList: (pluginId) => ipcRenderer.invoke('project-list', pluginId),
   projectLoad: (pluginId, fileId) => ipcRenderer.invoke('project-load', pluginId, fileId),
@@ -236,4 +244,109 @@ contextBridge.exposeInMainWorld('faktisk', {
     ipcRenderer.on('updater-state', listener);
     return () => ipcRenderer.removeListener('updater-state', listener);
   },
+});
+
+// ============================================================
+//  Dokumentlinje i pluginene
+// ============================================================
+// De fleste pluginene har «Velg lagret prosjekt…» og «Lagre…» nederst i
+// venstrespalten (#projectSelect og #saveProjectBtn). Her byttes de ut med
+// Åpne… og Lagre som bruker dokumenter i Finder (.faktisk), uten at hver
+// plugin må endres. De gamle elementene erstattes med nye noder, så pluginens
+// egne lyttere på dem slutter å virke.
+window.addEventListener('DOMContentLoaded', () => {
+  const sel = document.getElementById('projectSelect');
+  const btn = document.getElementById('saveProjectBtn');
+  if (!sel || !btn) return;
+
+  const name = document.createElement('div');
+  name.className = 'fk-doc-name';
+  Object.assign(name.style, { font: '600 12px/1.3 -apple-system, sans-serif', opacity: '0.85',
+    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', cursor: 'default' });
+
+  const openBtn = document.createElement('button');
+  openBtn.type = 'button'; openBtn.className = btn.className; openBtn.textContent = 'Åpne…';
+  openBtn.title = 'Åpne et dokument (⌘O)';
+  const saveBtn = document.createElement('button');
+  saveBtn.type = 'button'; saveBtn.className = btn.className; saveBtn.id = 'saveProjectBtn';
+  saveBtn.title = 'Lagre som dokument i Finder (⌘S)';
+
+  sel.replaceWith(openBtn);
+  btn.replaceWith(saveBtn);
+  openBtn.parentElement.insertBefore(name, openBtn);
+
+  // ---- medieliste: hvilke filer dokumentet bruker, og hvor de ligger ----
+  const mediaBtn = document.createElement('button');
+  mediaBtn.type = 'button';
+  Object.assign(mediaBtn.style, { all: 'unset', cursor: 'pointer', font: '500 12px/1.3 -apple-system, sans-serif',
+    opacity: '0.8', textDecoration: 'underline', textUnderlineOffset: '2px', display: 'none' });
+  const panel = document.createElement('div');
+  Object.assign(panel.style, { display: 'none', flexDirection: 'column', gap: '8px', padding: '10px',
+    borderRadius: '8px', background: 'rgba(0,0,0,0.12)', font: '400 12px/1.35 -apple-system, sans-serif' });
+  name.after(mediaBtn);
+  saveBtn.after(panel);
+  let open = false;
+  mediaBtn.addEventListener('click', () => { open = !open; panel.style.display = open ? 'flex' : 'none'; if (open) loadMedia(); });
+
+  const el = (tag, text, style) => { const d = document.createElement(tag); if (text != null) d.textContent = text; if (style) Object.assign(d.style, style); return d; };
+  const small = (label, fn) => { const b = el('button', label, { all: 'unset', cursor: 'pointer', fontWeight: '600', textDecoration: 'underline', marginRight: '10px' }); b.type = 'button'; b.addEventListener('click', fn); return b; };
+
+  async function loadMedia() {
+    const res = await ipcRenderer.invoke('document-media-list');
+    if (!res) { mediaBtn.style.display = 'none'; panel.style.display = 'none'; return; }
+    // I lokale plugins (Keynote-klipp, Presentasjon) må alt ligge på maskinen
+    const online = res.mode === 'lokal' ? res.files.filter(f => f.web).length : 0;
+    const missing = res.files.filter(f => !f.exists).length + online;
+    mediaBtn.style.display = '';
+    mediaBtn.textContent = 'Medier (' + res.files.length + ')' + (missing ? ' · ' + missing + ' mangler' : '');
+    mediaBtn.style.color = missing ? '#C8321E' : '';
+    if (!open) return;
+    panel.textContent = '';
+    const lab = el('label', null, { display: 'flex', gap: '6px', alignItems: 'flex-start', cursor: 'pointer' });
+    const cb = el('input'); cb.type = 'checkbox'; cb.checked = res.copyMedia;
+    cb.addEventListener('change', () => ipcRenderer.invoke('document-set-copy-media', cb.checked));
+    lab.append(cb, el('span', 'Kopier mediefiler inn i prosjektmappa'));
+    panel.append(lab);
+    if (!res.files.length) panel.append(el('div', 'Dokumentet bruker ingen lokale filer.', { opacity: '0.7' }));
+    for (const f of res.files) {
+      const row = el('div', null, { display: 'flex', flexDirection: 'column', gap: '2px', paddingTop: '6px', borderTop: '1px solid rgba(0,0,0,0.12)' });
+      const bad = !f.exists || (f.web && res.mode === 'lokal');
+      row.append(el('div', f.name, { fontWeight: '600', wordBreak: 'break-all', color: bad ? '#C8321E' : '' }));
+      row.append(el('div', f.web ? (res.mode === 'lokal' ? 'Ligger på nett (' + f.where + '), ikke på maskinen' : 'Labrador · ' + f.where)
+        : !f.exists ? 'Mangler · ' + f.where : f.inside ? 'Kopiert inn · Medier/' : 'Lenket · ' + f.where,
+        { opacity: '0.75', wordBreak: 'break-all' }));
+      row.title = f.path;
+      const acts = el('div');
+      if (f.web) { row.append(acts); panel.append(row); continue; }
+      if (f.exists) acts.append(small('Vis i Finder', () => ipcRenderer.invoke('document-media-reveal', f.path)));
+      if (f.exists && !f.inside) acts.append(small('Kopier inn', () => ipcRenderer.invoke('document-media-copy', f.path)));
+      if (!f.exists) acts.append(small('Finn fila…', () => ipcRenderer.invoke('document-media-relink', f.path)));
+      row.append(acts);
+      panel.append(row);
+    }
+  }
+  ipcRenderer.on('document-media-changed', () => loadMedia());
+
+  const render = (info) => {
+    if (info) {
+      name.textContent = info.name;
+      name.title = info.path;
+      saveBtn.textContent = 'Vis i Finder';
+      saveBtn.title = info.path;
+    } else {
+      name.textContent = 'Ikke lagret';
+      name.title = '';
+      saveBtn.textContent = 'Lagre…';
+      saveBtn.title = 'Lagre som dokument i Finder (⌘S)';
+    }
+    saveBtn.dataset.mode = info ? 'reveal' : 'save';
+  };
+
+  openBtn.addEventListener('click', () => ipcRenderer.invoke('document-open'));
+  saveBtn.addEventListener('click', () => {
+    if (saveBtn.dataset.mode === 'reveal') ipcRenderer.invoke('document-reveal');
+    else ipcRenderer.invoke('document-save-as');
+  });
+  ipcRenderer.on('document-changed', (_e, info) => { render(info); loadMedia(); });
+  ipcRenderer.invoke('document-info').then((info) => { render(info); loadMedia(); });
 });

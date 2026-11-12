@@ -5,5 +5,6 @@
   "entry": "index.html",
   "description": "Faktaboks i Faktisk-stil for metode og forbehold: stikktittel, tittel, punkter med ikon (dokumentert, observert, vet ikke, info …) og kilde. Valgfri rolig prikkeklode-illustrasjon med buer mellom land. Genererer embed for Labrador.",
   "category": "annet",
-  "minStudioVersion": "0.7.0"
+  "minStudioVersion": "0.7.0",
+  "media": "labrador"
 }

@@ -5,5 +5,6 @@
   "entry": "index.html",
   "description": "Sammenlign to bilder med dra-slider. Last opp før- og etterbilde fra Labrador, generer interaktiv embed.",
   "category": "image",
-  "minStudioVersion": "0.2.0"
+  "minStudioVersion": "0.2.0",
+  "media": "labrador"
 }

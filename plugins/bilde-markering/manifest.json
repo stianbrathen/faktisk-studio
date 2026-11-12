@@ -5,5 +5,6 @@
   "entry": "index.html",
   "description": "Marker viktige punkter på et bilde med tekstbokser, piler og skalerbare sirkler (fylt eller åpen ring).",
   "category": "image",
-  "minStudioVersion": "0.2.0"
+  "minStudioVersion": "0.2.0",
+  "media": "labrador"
 }
