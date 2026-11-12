@@ -35,6 +35,9 @@ const els = {
   full:           document.getElementById('fullscreenBtn'),
 
   video:          document.getElementById('videoEl'),
+  bgVideo:        document.getElementById('bgVideoEl'),
+  fillCtl:        document.getElementById('fillCtl'),
+  fillColor:      document.getElementById('fillColor'),
   stage:          document.getElementById('stage'),
   stageFrame:     document.getElementById('stageFrame'),
   canvasArea:     document.getElementById('canvasArea'),
@@ -95,7 +98,9 @@ const state = {
   borderWidth: 8,
   borderColor: '#FFFFFF',
 
-  zoom: 1,          // 1 = største mulige utsnitt i målformatet
+  zoom: 1,          // 1 = største mulige utsnitt i målformatet; under 1 vises hele videoen
+  fillMode: 'transparent', // utenfor videoen når zoom < 1: transparent | color | blur
+  fillColor: '#0F1514',
   panX: 0.5,        // 0–1, hvor i kilden utsnittet ligger
   panY: 0.5,
 
@@ -137,17 +142,37 @@ function baseCropSize() {
   return { w: state.srcW, h: state.srcW / targetAspect };
 }
 
+// Laveste zoom: hele videoen synlig i målformatet (resten fylles)
+function fitZoom() {
+  if (!state.srcW || !state.srcH) return 1;
+  const base = baseCropSize();
+  return Math.min(1, base.w / state.srcW, base.h / state.srcH);
+}
+
 function currentCrop() {
   const base = baseCropSize();
   const w = base.w / state.zoom;
   const h = base.h / state.zoom;
-  const maxX = Math.max(0, state.srcW - w);
-  const maxY = Math.max(0, state.srcH - h);
+  // Er utsnittet større enn kilden i en retning, sentreres videoen der
+  const maxX = state.srcW - w;
+  const maxY = state.srcH - h;
   return {
     w, h,
-    x: maxX * state.panX,
-    y: maxY * state.panY,
+    x: maxX >= 0 ? maxX * state.panX : maxX / 2,
+    y: maxY >= 0 ? maxY * state.panY : maxY / 2,
   };
+}
+
+function fillOn() { return state.loaded && state.zoom < 0.999; }
+
+function applyFill() {
+  const on = fillOn();
+  els.fillCtl.hidden = !(state.loaded && fitZoom() < 0.999 && on);
+  document.querySelectorAll('.fill-btn').forEach(b => b.classList.toggle('on', b.dataset.fill === state.fillMode));
+  els.fillColor.hidden = state.fillMode !== 'color';
+  els.fillColor.value = state.fillColor;
+  els.stage.style.backgroundColor = on && state.fillMode === 'color' ? state.fillColor : 'transparent';
+  els.bgVideo.style.display = on && state.fillMode === 'blur' ? 'block' : 'none';
 }
 
 // ============================================================
@@ -179,6 +204,7 @@ function layoutStage() {
   els.video.style.height = (state.srcH * scale) + 'px';
   els.video.style.left = (-crop.x * scale) + 'px';
   els.video.style.top = (-crop.y * scale) + 'px';
+  applyFill();
 
   // Radius og rammetykkelse skaleres ned til forhåndsvisningen, slik at
   // proporsjonene stemmer med det som faktisk eksporteres.
@@ -296,6 +322,8 @@ async function loadVideo(srcOverride) {
     state.panX = 0.5;
     state.panY = 0.5;
     els.zoomRange.value = 100;
+    els.zoomRange.min = Math.floor(fitZoom() * 100);
+    els.bgVideo.src = els.video.currentSrc || els.video.src;
 
     els.canvasEmpty.style.display = 'none';
     els.stage.style.display = 'block';
@@ -436,12 +464,28 @@ document.querySelectorAll('.tl-speed').forEach(btn => {
 //  Dra for å plassere utsnittet
 // ============================================================
 
+// Fyll utenfor videoen (zoom under 100 %)
+document.querySelectorAll('.fill-btn').forEach(b => b.addEventListener('click', () => {
+  state.fillMode = b.dataset.fill; applyFill(); scheduleSaveState();
+}));
+els.fillColor.addEventListener('input', () => { state.fillColor = els.fillColor.value; applyFill(); scheduleSaveState(); });
+
+// Den uskarpe bakgrunnskopien følger hovedvideoen
+const syncBg = () => {
+  const b = els.bgVideo; if (b.style.display === 'none' || !b.src) return;
+  if (Math.abs(b.currentTime - els.video.currentTime) > 0.15) b.currentTime = els.video.currentTime;
+  b.playbackRate = els.video.playbackRate;
+  if (els.video.paused && !b.paused) b.pause();
+  if (!els.video.paused && b.paused) b.play().catch(() => {});
+};
+['play', 'pause', 'seeked', 'timeupdate', 'ratechange'].forEach(ev => els.video.addEventListener(ev, syncBg));
+
 // Rull eller knip i forhåndsvisningen for å zoome. Punktet under pekeren
 // står stille, så man zoomer inn mot det man peker på. Dobbeltklikk = 100 %.
 function setZoomAt(z, fx, fy) {
   const before = currentCrop();
   const px = before.x + fx * before.w, py = before.y + fy * before.h;
-  state.zoom = Math.max(1, Math.min(3, z));
+  state.zoom = Math.max(fitZoom(), Math.min(3, z));
   const base = baseCropSize();
   const w = base.w / state.zoom, h = base.h / state.zoom;
   const maxX = state.srcW - w, maxY = state.srcH - h;
@@ -603,7 +647,7 @@ els.swatches.addEventListener('click', e => {
 els.borderColor.addEventListener('input', () => setBorderColor(els.borderColor.value));
 
 els.zoomRange.addEventListener('input', () => {
-  state.zoom = parseInt(els.zoomRange.value, 10) / 100;
+  state.zoom = Math.max(fitZoom(), parseInt(els.zoomRange.value, 10) / 100);
   els.zoomVal.textContent = els.zoomRange.value + ' %';
   layoutStage();
   scheduleSaveState();
@@ -704,6 +748,9 @@ els.exportBtn.addEventListener('click', async () => {
       outWidth: state.outW,
       outHeight: state.outH,
       cropX: crop.x, cropY: crop.y, cropW: crop.w, cropH: crop.h,
+      srcW: state.srcW, srcH: state.srcH,
+      fillMode: fillOn() ? state.fillMode : undefined,
+      fillColor: state.fillColor,
       maskPng: buildMaskPng(),
       borderPng: buildBorderPng(),
       trimStart: state.trimStart,
@@ -876,6 +923,7 @@ let saveTimer = null;
 
 function serializeState() {
   return {
+    fillMode: state.fillMode, fillColor: state.fillColor,
     url: state.url,
     localPath: state.localPath,
     outW: state.outW, outH: state.outH,
@@ -929,6 +977,8 @@ async function applyState(s) {
     syncKeynotePresets();
 
     state.zoom = s.zoom || 1;
+    state.fillMode = s.fillMode || 'transparent';
+    state.fillColor = s.fillColor || '#0F1514';
     els.zoomRange.value = Math.round(state.zoom * 100);
     els.zoomVal.textContent = Math.round(state.zoom * 100) + ' %';
     state.panX = typeof s.panX === 'number' ? s.panX : 0.5;
@@ -950,6 +1000,12 @@ async function applyState(s) {
 
     // Utsnitt settes etter lasting, siden loadVideo nullstiller det
     if (state.loaded) {
+      // loadVideo nullstiller utsnittet, så zoom og plassering settes her
+      state.zoom = Math.max(fitZoom(), Math.min(3, s.zoom || 1));
+      state.panX = typeof s.panX === 'number' ? s.panX : 0.5;
+      state.panY = typeof s.panY === 'number' ? s.panY : 0.5;
+      els.zoomRange.value = Math.round(state.zoom * 100);
+      els.zoomVal.textContent = Math.round(state.zoom * 100) + ' %';
       state.trimStart = s.trimStart || 0;
       state.trimEnd = typeof s.trimEnd === 'number' ? s.trimEnd : null;
       renderTimeline();

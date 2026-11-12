@@ -1459,6 +1459,8 @@ ipcMain.handle('keynote-export', async (e, opts) => {
     trimStart, trimEnd, duration,
     codec,                         // 'hevc' (standard) | 'prores'
     keepAudio,                     // som regel false — Keynote-klipp er stumme
+    srcW, srcH,                    // kildens størrelse (trengs når hele videoen vises)
+    fillMode, fillColor,           // utenfor videoen ved zoom < 100 %: transparent | color | blur
   } = opts || {};
 
   if ((!url && !inputPath) || !savePath) {
@@ -1516,6 +1518,34 @@ ipcMain.handle('keynote-export', async (e, opts) => {
     `[1:v]format=gray[m];` +
     `[v][m]alphamerge[a]`;
   let outLabel = '[a]';
+
+  // Hele videoen synlig (zoom under 100 %): videoen skaleres ned og legges
+  // oppå et lerret i målformatet — gjennomsiktig, ensfarget eller en uskarp,
+  // forstørret kopi av videoen. Maska ganges med lerretets alfa, så både de
+  // runde hjørnene og de gjennomsiktige feltene blir riktige.
+  if (fillMode && srcW && srcH && cropW && cropH) {
+    const s = outWidth / cropW;
+    const fw = Math.max(2, Math.round(srcW * s / 2) * 2);
+    const fh = Math.max(2, Math.round(srcH * s / 2) * 2);
+    const fx = Math.round(-(cropX || 0) * s);
+    const fy = Math.round(-(cropY || 0) * s);
+    const hex = /^#?[0-9a-f]{6}$/i.test(fillColor || '') ? fillColor.replace('#', '') : '0F1514';
+    const [cr, cg, cb] = [0, 2, 4].map(i => parseInt(hex.slice(i, i + 2), 16));
+    const W = outWidth, H = outHeight;
+    const bg = fillMode === 'blur'
+      ? `[s1]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},setsar=1,gblur=sigma=40,format=rgba[bg]`
+      : fillMode === 'color'
+        ? `[s1]scale=${W}:${H},setsar=1,format=rgba,lutrgb=r=${cr}:g=${cg}:b=${cb}:a=255[bg]`
+        : `[s1]scale=${W}:${H},setsar=1,format=rgba,lutrgb=r=0:g=0:b=0:a=0[bg]`;
+    graph =
+      `[0:v]split=2[s1][s2];${bg};` +
+      `[s2]scale=${fw}:${fh}:flags=lanczos,setsar=1,format=rgba[fg];` +
+      `[bg][fg]overlay=${fx}:${fy}:format=auto[c];` +
+      `[1:v]format=gray,scale=${W}:${H}[m];` +
+      (fillMode === 'transparent'
+        ? `[c]split[c1][c2];[c2]alphaextract[ca];[ca][m]blend=all_mode=multiply[am];[c1][am]alphamerge[a]`
+        : `[c][m]alphamerge[a]`);
+  }
 
   if (borderFile) {
     graph += `;[a][2:v]overlay=0:0:format=auto[out]`;

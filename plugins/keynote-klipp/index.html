@@ -151,7 +151,16 @@
           Zoom <span class="ctl-val" id="zoomVal">100 %</span>
         </label>
         <input type="range" id="zoomRange" min="100" max="300" step="5" value="100" class="ctl-range">
-        <p class="ctl-hint">Dra i bildet for å flytte utsnittet. Rull eller knip i bildet for å zoome, dobbeltklikk for 100 %.</p>
+        <p class="ctl-hint">Dra i bildet for å flytte utsnittet. Rull eller knip i bildet for å zoome, dobbeltklikk for 100 %. Under 100 % vises hele videoen.</p>
+        <div class="fill-ctl" id="fillCtl" hidden>
+          <span class="ctl-sub">Utenfor videoen</span>
+          <div class="ctl-presets">
+            <button class="preset-btn fill-btn" type="button" data-fill="transparent">Gjennomsiktig</button>
+            <button class="preset-btn fill-btn" type="button" data-fill="color">Farge</button>
+            <button class="preset-btn fill-btn" type="button" data-fill="blur">Uskarp</button>
+          </div>
+          <input type="color" id="fillColor" value="#0F1514" class="color-input" title="Bakgrunnsfarge" hidden>
+        </div>
       </div>
 
       <!-- Eksportvalg -->
@@ -199,6 +208,7 @@
     <section class="plugin-canvas">
       <div class="canvas-area bg-checker" id="canvasArea">
         <div class="stage" id="stage">
+          <video id="bgVideoEl" class="stage__bg" muted playsinline aria-hidden="true"></video>
           <video id="videoEl" class="stage__video" muted playsinline></video>
           <div class="stage__frame" id="stageFrame"></div>
         </div>

@@ -398,6 +398,19 @@
 }
 .stage.is-dragging { cursor: grabbing; }
 
+/* Uskarp kopi av videoen bak, når hele videoen vises (zoom under 100 %) */
+.stage__bg {
+  position: absolute;
+  inset: -8%;
+  width: 116%;
+  height: 116%;
+  object-fit: cover;
+  filter: blur(18px);
+  pointer-events: none;
+  display: none;
+}
+.fill-ctl { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+
 .stage__video {
   position: absolute;
   top: 0;
