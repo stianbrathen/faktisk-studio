@@ -276,17 +276,27 @@ window.addEventListener('DOMContentLoaded', () => {
   openBtn.parentElement.insertBefore(name, openBtn);
 
   // ---- medieliste: hvilke filer dokumentet bruker, og hvor de ligger ----
+  // Samme knappestil som Åpne… og Lagre… i pluginen
   const mediaBtn = document.createElement('button');
-  mediaBtn.type = 'button';
-  Object.assign(mediaBtn.style, { all: 'unset', cursor: 'pointer', font: '500 12px/1.3 -apple-system, sans-serif',
-    opacity: '0.8', textDecoration: 'underline', textUnderlineOffset: '2px', display: 'none' });
+  mediaBtn.type = 'button'; mediaBtn.className = btn.className;
+  mediaBtn.style.display = 'none';
+  mediaBtn.setAttribute('aria-expanded', 'false');
   const panel = document.createElement('div');
   Object.assign(panel.style, { display: 'none', flexDirection: 'column', gap: '8px', padding: '10px',
     borderRadius: '8px', background: 'rgba(0,0,0,0.12)', font: '400 12px/1.35 -apple-system, sans-serif' });
-  name.after(mediaBtn);
-  saveBtn.after(panel);
+  saveBtn.after(mediaBtn);
+  mediaBtn.after(panel);
   let open = false;
-  mediaBtn.addEventListener('click', () => { open = !open; panel.style.display = open ? 'flex' : 'none'; if (open) loadMedia(); });
+  mediaBtn.addEventListener('click', () => {
+    open = !open; panel.style.display = open ? 'flex' : 'none';
+    mediaBtn.setAttribute('aria-expanded', String(open)); if (open) loadMedia(); else setLabel();
+  });
+  let lastLabel = { n: 0, missing: 0 };
+  function setLabel() {
+    const { n, missing } = lastLabel;
+    mediaBtn.textContent = (open ? '▾ ' : '▸ ') + 'Medier (' + n + ')' + (missing ? ' · ' + missing + ' mangler' : '');
+    mediaBtn.style.boxShadow = missing ? 'inset 0 0 0 2px #C8321E' : '';
+  }
 
   const el = (tag, text, style) => { const d = document.createElement(tag); if (text != null) d.textContent = text; if (style) Object.assign(d.style, style); return d; };
   const small = (label, fn) => { const b = el('button', label, { all: 'unset', cursor: 'pointer', fontWeight: '600', textDecoration: 'underline', marginRight: '10px' }); b.type = 'button'; b.addEventListener('click', fn); return b; };
@@ -298,8 +308,8 @@ window.addEventListener('DOMContentLoaded', () => {
     const online = res.mode === 'lokal' ? res.files.filter(f => f.web).length : 0;
     const missing = res.files.filter(f => !f.exists).length + online;
     mediaBtn.style.display = '';
-    mediaBtn.textContent = 'Medier (' + res.files.length + ')' + (missing ? ' · ' + missing + ' mangler' : '');
-    mediaBtn.style.color = missing ? '#C8321E' : '';
+    lastLabel = { n: res.files.length, missing };
+    setLabel();
     if (!open) return;
     panel.textContent = '';
     const lab = el('label', null, { display: 'flex', gap: '6px', alignItems: 'flex-start', cursor: 'pointer' });
