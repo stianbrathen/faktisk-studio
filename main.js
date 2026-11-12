@@ -1698,7 +1698,11 @@ ipcMain.handle('sequence-export', async (e, opts) => {
       const end = (typeof c.end === 'number' && c.end > start + 0.05)
         ? Math.min(c.end, meta.duration || c.end)
         : (meta.duration || 0);
-      sources.push({ input, meta, start, end, dur: Math.max(0.1, end - start) });
+      // Lengden rundes til hele bilder (30 fps), og lyden kuttes til nøyaktig
+      // samme lengde. Ellers glir lyd og bilde fra hverandre for hvert klipp,
+      // og det hakker i overgangene.
+      const dur = Math.max(0.1, Math.round((end - start) * 30) / 30);
+      sources.push({ input, meta, start, end: start + dur, dur });
     }
   } catch (err) {
     return { ok: false, error: err.message };
@@ -1737,7 +1741,11 @@ ipcMain.handle('sequence-export', async (e, opts) => {
       if (s.meta.hasAudio) {
         parts.push(
           `[${k}:a]atrim=${s.start.toFixed(3)}:${s.end.toFixed(3)},asetpts=PTS-STARTPTS,` +
-          `aresample=48000,aformat=channel_layouts=stereo[a${k}]`);
+          `aresample=48000,aformat=channel_layouts=stereo,` +
+          // fyll ut hvis lyden er kortere enn bildet, kutt nøyaktig, og myk
+          // overgang (15 ms) i hver ende så kuttet ikke gir klikk
+          `apad,atrim=0:${s.dur.toFixed(4)},` +
+          `afade=t=in:d=0.015,afade=t=out:st=${Math.max(0, s.dur - 0.015).toFixed(4)}:d=0.015[a${k}]`);
       } else {
         parts.push(`[${silentIdx[k]}:a]asetpts=PTS-STARTPTS[a${k}]`);
       }

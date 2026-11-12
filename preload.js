@@ -280,11 +280,16 @@ window.addEventListener('DOMContentLoaded', () => {
   revealBtn.type = 'button'; revealBtn.className = btn.className; revealBtn.textContent = 'Vis i Finder';
   revealBtn.addEventListener('click', () => ipcRenderer.invoke('document-reveal'));
   for (const b of [openBtn, saveBtn, revealBtn]) { b.style.width = '100%'; b.style.minWidth = '0'; }
-  sel.replaceWith(row1);
-  btn.remove();
+  // Egen beholder, så oppsettet blir likt uansett hvordan pluginen har
+  // stilt opp de gamle kontrollene (noen har dem på én rad, andre i kolonne)
+  const wrap = document.createElement('div');
+  wrap.className = 'fk-docbar';
+  Object.assign(wrap.style, { display: 'flex', flexDirection: 'column', gap: '6px', width: '100%', boxSizing: 'border-box' });
+  const host = sel.parentElement;
+  if (host && host === btn.parentElement && host.children.length === 2) host.replaceWith(wrap);
+  else { sel.replaceWith(wrap); btn.remove(); }
+  wrap.append(name, row1, row2);
   row1.append(openBtn, saveBtn);
-  row1.before(name);
-  row1.after(row2);
   row2.append(revealBtn);
 
   // ---- medieliste: hvilke filer dokumentet bruker, og hvor de ligger ----
@@ -299,7 +304,7 @@ window.addEventListener('DOMContentLoaded', () => {
   mediaBtn.style.width = '100%'; mediaBtn.style.minWidth = '0';
   mediaBtn.style.whiteSpace = 'nowrap'; mediaBtn.style.overflow = 'hidden'; mediaBtn.style.textOverflow = 'ellipsis';
   row2.append(mediaBtn);
-  row2.after(panel);
+  wrap.append(panel);
   let open = false;
   mediaBtn.addEventListener('click', () => {
     open = !open; panel.style.display = open ? 'flex' : 'none';
