@@ -66,6 +66,7 @@ app.whenReady().then(() => {
       catch (e) { return null; }
     },
     clearAutoState: (id) => { try { fs.rmSync(path.join(dataDir, safeId(id) + '.json')); } catch (e) {} },
+    projectsDir,
   });
   setupAutoUpdater();
   app.on('activate', () => {

@@ -177,6 +177,7 @@ async function openMyProjectsModal() {
     <p class="fd-message">Mine prosjekter</p>
     ${listHtml}
     <div class="fd-row">
+      ${projects.length && window.faktisk.documentsExportAll ? '<button class="fd-btn fd-btn-cancel" data-export-all title="Lagrer hvert prosjekt som et dokument (.faktisk) i en mappe du velger, med mediefilene">Lagre alle som dokumenter…</button>' : ''}
       <button class="fd-btn fd-btn-cancel" data-import>Importer prosjekt…</button>
       <button class="fd-btn fd-btn-cancel" data-close>Lukk</button>
     </div>
@@ -186,6 +187,24 @@ async function openMyProjectsModal() {
   function close() { host.classList.remove('open'); host.innerHTML = ''; host.onclick = null; }
   host.querySelector('[data-close]').onclick = close;
   host.onclick = e => { if (e.target === host) close(); };
+
+  const exportAllBtn = host.querySelector('[data-export-all]');
+  if (exportAllBtn) {
+    exportAllBtn.onclick = async () => {
+      exportAllBtn.disabled = true; exportAllBtn.textContent = 'Lagrer…';
+      try {
+        const res = await window.faktisk.documentsExportAll();
+        if (res.canceled) return;
+        close();
+        let msg = res.done + ' prosjekt' + (res.done === 1 ? '' : 'er') + ' er lagret som dokumenter i\n' + res.folder
+          + '\n\nDe gamle prosjektene ligger fortsatt i Mine prosjekter til du sletter dem.';
+        if (res.failed && res.failed.length) msg += '\n\nKunne ikke lagre ' + res.failed.length + ':\n' + res.failed.slice(0, 5).join('\n');
+        await window.faktiskDialog.alert(msg);
+      } finally {
+        exportAllBtn.disabled = false; exportAllBtn.textContent = 'Lagre alle som dokumenter…';
+      }
+    };
+  }
 
   // Importer prosjekt fra fil (delt av en kollega) — åpner pluginen med
   // prosjektet etterpå, eller forklarer hvilken plugin som mangler.

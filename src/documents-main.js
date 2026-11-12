@@ -443,6 +443,46 @@ function register(ipcMain, c) {
   });
   ipcMain.handle('document-save', async () => { save(); return { ok: true }; });
   ipcMain.handle('document-media-list', async () => listMedia());
+  // Lagre alle gamle prosjekter («Mine prosjekter») som dokumenter i en mappe:
+  //   <valgt mappe>/<Plugin>/<Prosjekt>/<Prosjekt>.faktisk  (+ Medier/)
+  // Lokale filer kopieres inn for lokale plugins; Labrador-lenker beholdes.
+  ipcMain.handle('documents-export-all', async () => {
+    const res = await ctx.dialog.showOpenDialog(ctx.getWindow(), {
+      title: 'Velg mappe for de lagrede prosjektene',
+      buttonLabel: 'Lagre her',
+      defaultPath: lastFolder(),
+      properties: ['openDirectory', 'createDirectory'],
+      message: 'Hvert prosjekt får sin egen mappe, sortert etter plugin.',
+    });
+    if (res.canceled || !res.filePaths[0]) return { ok: false, canceled: true };
+    const root = res.filePaths[0];
+    const dir = ctx.projectsDir;
+    const safe = s => String(s).replace(/[\/:*?"<>|]/g, '-').replace(/\s+/g, ' ').trim().slice(0, 80) || 'Uten navn';
+    let done = 0; const failed = [];
+    let plugins = [];
+    try { plugins = fs.readdirSync(dir, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name); } catch (e) {}
+    for (const pid of plugins) {
+      let pluginName = pid;
+      try { pluginName = JSON.parse(fs.readFileSync(path.join(path.dirname(ctx.pluginEntry(pid)), 'manifest.json'), 'utf-8')).name || pid; } catch (e) {}
+      for (const f of fs.readdirSync(path.join(dir, pid)).filter(f => f.endsWith('.json'))) {
+        try {
+          const payload = JSON.parse(fs.readFileSync(path.join(dir, pid, f), 'utf-8'));
+          const name = safe(payload.name || f.replace(/\.json$/, ''));
+          let folder = path.join(root, safe(pluginName), name), n = 2;
+          while (fs.existsSync(folder)) folder = path.join(root, safe(pluginName), name + ' ' + n++);
+          fs.mkdirSync(folder, { recursive: true });
+          copied = new Map(); relinks = new Map();
+          writeDoc(path.join(folder, path.basename(folder) + '.' + EXT), payload.pluginId || pid, payload.state,
+                   { copyMedia: mediaMode(payload.pluginId || pid) !== 'labrador' });
+          done++;
+        } catch (e) { failed.push(pid + '/' + f + ': ' + e.message); }
+      }
+    }
+    copied = new Map(); relinks = new Map();
+    try { fs.writeFileSync(lastFolderFile(), root, 'utf-8'); } catch (e) {}
+    if (done) ctx.shell.openPath(root);
+    return { ok: true, done, failed, folder: root };
+  });
   ipcMain.handle('document-recent', async () => readRecent().filter(d => { try { return fs.statSync(d.path).isFile(); } catch (e) { return false; } }));
   ipcMain.handle('document-media-reveal', async (e, p) => { if (p && fs.existsSync(p)) ctx.shell.showItemInFolder(p); return { ok: true }; });
   ipcMain.handle('document-media-copy', async (e, p) => {
