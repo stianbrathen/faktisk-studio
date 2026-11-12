@@ -142,12 +142,15 @@ function baseCropSize() {
   return { w: state.srcW, h: state.srcW / targetAspect };
 }
 
-// Laveste zoom: hele videoen synlig i målformatet (resten fylles)
-function fitZoom() {
-  if (!state.srcW || !state.srcH) return 1;
+// Zoom der hele bredden / hele høyden av videoen er synlig (1 = Fyll)
+function fitZooms() {
+  if (!state.srcW || !state.srcH) return { width: 1, height: 1 };
   const base = baseCropSize();
-  return Math.min(1, base.w / state.srcW, base.h / state.srcH);
+  return { width: base.w / state.srcW, height: base.h / state.srcH };
 }
+// Hele videoen synlig, og laveste tillatte zoom (halvparten av det)
+function fitZoom() { const f = fitZooms(); return Math.min(1, f.width, f.height); }
+function minZoom() { return fitZoom() * 0.5; }
 
 function currentCrop() {
   const base = baseCropSize();
@@ -158,8 +161,9 @@ function currentCrop() {
   const maxY = state.srcH - h;
   return {
     w, h,
-    x: maxX >= 0 ? maxX * state.panX : maxX / 2,
-    y: maxY >= 0 ? maxY * state.panY : maxY / 2,
+    // Også når videoen er mindre enn formatet kan den flyttes fritt (pan 0–1)
+    x: maxX * state.panX,
+    y: maxY * state.panY,
   };
 }
 
@@ -167,7 +171,15 @@ function fillOn() { return state.loaded && state.zoom < 0.999; }
 
 function applyFill() {
   const on = fillOn();
-  els.fillCtl.hidden = !(state.loaded && fitZoom() < 0.999 && on);
+  els.fillCtl.hidden = !on;
+  // Glidebryteren følger formatet (det kan byttes etter at videoen er lastet)
+  els.zoomRange.min = Math.floor(minZoom() * 100);
+  if (state.loaded && state.zoom < minZoom()) state.zoom = minZoom();
+  const f = fitZooms();
+  document.querySelectorAll('.fit-btn').forEach(b => {
+    const z = b.dataset.fit === 'fill' ? 1 : f[b.dataset.fit];
+    b.classList.toggle('on', Math.abs(state.zoom - z) < 0.005 && Math.abs(state.panX - 0.5) < 0.01 && Math.abs(state.panY - 0.5) < 0.01);
+  });
   document.querySelectorAll('.fill-btn').forEach(b => b.classList.toggle('on', b.dataset.fill === state.fillMode));
   els.fillColor.hidden = state.fillMode !== 'color';
   els.fillColor.value = state.fillColor;
@@ -322,7 +334,6 @@ async function loadVideo(srcOverride) {
     state.panX = 0.5;
     state.panY = 0.5;
     els.zoomRange.value = 100;
-    els.zoomRange.min = Math.floor(fitZoom() * 100);
     els.bgVideo.src = els.video.currentSrc || els.video.src;
 
     els.canvasEmpty.style.display = 'none';
@@ -485,12 +496,12 @@ const syncBg = () => {
 function setZoomAt(z, fx, fy) {
   const before = currentCrop();
   const px = before.x + fx * before.w, py = before.y + fy * before.h;
-  state.zoom = Math.max(fitZoom(), Math.min(3, z));
+  state.zoom = Math.max(minZoom(), Math.min(3, z));
   const base = baseCropSize();
   const w = base.w / state.zoom, h = base.h / state.zoom;
   const maxX = state.srcW - w, maxY = state.srcH - h;
-  state.panX = maxX > 0.5 ? Math.max(0, Math.min(1, (px - fx * w) / maxX)) : 0.5;
-  state.panY = maxY > 0.5 ? Math.max(0, Math.min(1, (py - fy * h) / maxY)) : 0.5;
+  state.panX = Math.abs(maxX) > 0.5 ? Math.max(0, Math.min(1, (px - fx * w) / maxX)) : 0.5;
+  state.panY = Math.abs(maxY) > 0.5 ? Math.max(0, Math.min(1, (py - fy * h) / maxY)) : 0.5;
   els.zoomRange.value = Math.round(state.zoom * 100);
   els.zoomVal.textContent = Math.round(state.zoom * 100) + ' %';
   layoutStage();
@@ -503,7 +514,19 @@ els.stage.addEventListener('wheel', e => {
   const k = e.ctrlKey ? 0.01 : 0.002; // knip på styreflaten kommer som ctrl+wheel
   setZoomAt(state.zoom * Math.exp(-e.deltaY * k), (e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height);
 }, { passive: false });
-els.stage.addEventListener('dblclick', () => { if (state.loaded) setZoomAt(1, 0.5, 0.5); });
+els.stage.addEventListener('dblclick', () => { if (state.loaded) setFit('fill'); });
+
+// Fyll / Hele bredden / Hele høyden: sentrert
+function setFit(kind) {
+  const f = fitZooms();
+  state.zoom = kind === 'fill' ? 1 : f[kind];
+  state.panX = 0.5; state.panY = 0.5;
+  els.zoomRange.value = Math.round(state.zoom * 100);
+  els.zoomVal.textContent = Math.round(state.zoom * 100) + ' %';
+  layoutStage();
+  scheduleSaveState();
+}
+document.querySelectorAll('.fit-btn').forEach(b => b.addEventListener('click', () => { if (state.loaded) setFit(b.dataset.fit); }));
 
 els.stage.addEventListener('pointerdown', e => {
   if (!state.loaded) return;
@@ -516,14 +539,16 @@ els.stage.addEventListener('pointerdown', e => {
   const crop = currentCrop();
   const stageW = els.stage.getBoundingClientRect().width;
   const scale = stageW / crop.w;
-  const maxX = Math.max(1, state.srcW - crop.w);
-  const maxY = Math.max(1, state.srcH - crop.h);
+  // Negativ når videoen er mindre enn formatet i den retningen; da snus
+  // retningen automatisk, så videoen følger pekeren uansett
+  const maxX = state.srcW - crop.w;
+  const maxY = state.srcH - crop.h;
 
   const move = ev => {
     const dx = (ev.clientX - startX) / scale;
     const dy = (ev.clientY - startY) / scale;
-    state.panX = Math.max(0, Math.min(1, startPanX - dx / maxX));
-    state.panY = Math.max(0, Math.min(1, startPanY - dy / maxY));
+    if (Math.abs(maxX) > 0.5) state.panX = Math.max(0, Math.min(1, startPanX - dx / maxX));
+    if (Math.abs(maxY) > 0.5) state.panY = Math.max(0, Math.min(1, startPanY - dy / maxY));
     layoutStage();
   };
   const up = () => {
@@ -647,7 +672,7 @@ els.swatches.addEventListener('click', e => {
 els.borderColor.addEventListener('input', () => setBorderColor(els.borderColor.value));
 
 els.zoomRange.addEventListener('input', () => {
-  state.zoom = Math.max(fitZoom(), parseInt(els.zoomRange.value, 10) / 100);
+  state.zoom = Math.max(minZoom(), parseInt(els.zoomRange.value, 10) / 100);
   els.zoomVal.textContent = els.zoomRange.value + ' %';
   layoutStage();
   scheduleSaveState();
@@ -1001,7 +1026,7 @@ async function applyState(s) {
     // Utsnitt settes etter lasting, siden loadVideo nullstiller det
     if (state.loaded) {
       // loadVideo nullstiller utsnittet, så zoom og plassering settes her
-      state.zoom = Math.max(fitZoom(), Math.min(3, s.zoom || 1));
+      state.zoom = Math.max(minZoom(), Math.min(3, s.zoom || 1));
       state.panX = typeof s.panX === 'number' ? s.panX : 0.5;
       state.panY = typeof s.panY === 'number' ? s.panY : 0.5;
       els.zoomRange.value = Math.round(state.zoom * 100);
