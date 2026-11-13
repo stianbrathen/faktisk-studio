@@ -114,9 +114,9 @@ EXPORT_HOOKS.readFile = async (url) => { const r = await window.faktisk.presenta
 EXPORT_HOOKS.waveVideo = async (s, pal, from, to, seg) => {
   if (!window.faktisk.presentationWaveform) return null;
   const src = lydSrc(s); if (!src || !src.startsWith('file:')) return null;
-  const mk = seg != null && s.marks[seg], o = mk ? {seg:mk, label:`FUNN ${seg + 1}`} : {};
-  const r = await window.faktisk.presentationWaveform({src, base:waveBasePng(s, pal, {...o, played:false}), played:waveBasePng(s, pal, o), dur:waveFor(s).dur, from, to,
-    tekst:exHex('tekst', pal), dempet:exHex('dempet', pal)});
+  const mk = seg != null && s.marks[seg], c = {}; for (const k of ['flate','aksent','markering','tekst','dempet']) c[k] = pal[k];
+  const r = await window.faktisk.presentationWaveform({src, peaks:waveFor(s).p, dur:waveFor(s).dur, from, to, colors:c,
+    seg:mk ? mk : null, label:mk ? `FUNN ${seg + 1}` : ''});
   if (!r || !r.ok) { console.warn('lydbølge', r && r.error); return null; }
   return 'file://' + encodeURI(r.path).replace(/#/g, '%23');
 };

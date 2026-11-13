@@ -405,6 +405,25 @@ const WAVES = {
   clinton:{dur:126.4, p:[0.42,0.42,0.42,0.46,0.33,0.32,0.36,0.28,0.38,0.26,0.1,0.51,0.22,0.41,0.33,0.09,0.36,0.31,0.39,0.39,0.38,0.13,0.32,0.43,0.34,0.3,0.42,0.28,0.35,0.26,0.46,0.3,0.34,0.31,0.3,0.29,0.42,0.33,0.25,0.4,0.37,0.1,0.36,0.47,0.21,0.19,0.35,0.44,0.29,0.4,0.22,0.42,0.49,0.19,0.38,0.39,0.2,0.36,0.4,0.33,0.31,0.43,0.44,0.37,0.26,0.45,0.35,0.23,0.24,0.17,0.39,0.37,0.28,0.25,0.38,0.31,0.48,0.46,0.45,0.29,0.4,0.45,0.33,0.3,0.34,0.39,0.46,0.43,0.4,0.17,0.09,0.32,0.27,0.39,0.31,0.42,0.29,0.36,0.34,0.37,0.34,0.13,0.33,0.35,0.29,0.28,0.13,0.26,0.45,0.34,0.27,0.32,0.28,0.1,0.35,0.17,0.34,0.39,0.14,0.42,0.46,0.3,0.24,0.2,0.45,0.17,0.16,0.3,0.33,0.18,0.26,0.18,0.41,0.36,0.42,0.41,0.43,0.29,0.29,0.3,0.32,0.32,0.18,0.32,0.34,0.39,0.36,0.38,0.4,0.24,0.44,0.32,0.13,0.29,0.39,0.28,0.13,0.35,0.31,0.31,0.22,0.12,0.32,0.32,0.29,0.41,0.38,0.33,0.36,0.34,0.35,0.45,0.48,0.38,0.41,0.42,0.33,0.4,0.45,0.39,0.36,0.39,0.26,0.44,0.14,0.25,0.22,0.44,0.22,0.15,0.15,0.31,0.45,0.35,0.34,0.3,0.33,0.31,0.17,0.23,0.37,0.28,0.38,0.35,0.33,0.33,0.4,0.28,0.25,0.37,0.31,0.37,0.45,0.35,0.42,0.42,0.22,0.32,0.33,0.45,0.38,0.27,0.4,0.33,0.33,0.29,0.33,0.43,0.35,0.37,0.46,0.37,0.37,0.33,0.08,0.74,1.0,0.7,0.58,0.47]},
   obama:{dur:223.9, p:[0.29,0.75,0.79,0.34,0.74,0.88,0.83,0.57,0.41,1.0,0.78,0.56,0.67,0.76,0.59,0.67,0.44,0.54,0.42,0.51,0.76,0.33,0.0,0.91,0.4,0.67,0.84,0.66,0.65,0.43,0.33,0.71,0.45,0.48,0.46,0.66,0.68,0.66,0.45,0.57,0.73,0.7,0.53,0.66,0.58,0.53,0.56,0.57,0.64,0.45,0.93,0.52,0.7,0.61,0.99,0.84,0.72,0.34,0.98,0.67,0.64,0.68,0.79,0.75,0.41,0.69,0.68,0.73,0.46,0.7,0.65,0.63,0.82,0.5,0.65,0.65,0.78,0.52,0.72,0.63,0.76,0.79,0.77,0.41,0.82,0.78,0.55,0.41,0.59,0.78,0.61,0.82,0.73,0.68,0.84,0.7,0.81,0.52,0.52,0.78,0.66,0.87,0.77,0.66,0.58,0.49,0.7,0.57,0.83,0.64,0.57,0.44,0.73,0.74,0.75,0.69,0.64,0.82,0.6,0.72,0.48,0.83,0.83,0.78,0.73,0.66,0.66,0.55,0.53,0.57,0.62,0.6,0.93,0.37,0.67,0.75,0.73,0.55,0.52,0.43,0.76,0.6,0.47,0.67,0.6,0.62,0.61,0.69,0.63,0.61,0.5,0.34,0.57,0.57,0.85,0.83,0.96,0.76,0.54,0.24,0.66,0.8,0.72,0.54,0.42,0.66,0.61,0.5,0.67,0.66,0.5,0.71,0.74,0.78,0.45,0.7,0.5,0.51,0.43,0.7,0.64,0.67,0.57,0.36,0.59,0.68,0.63,0.42,0.79,0.78,0.59,0.6,0.56,0.76,0.54,0.75,0.49,0.47,0.77,0.59,0.29,0.83,0.55,0.5,0.65,0.44,0.75,0.75,0.48,0.66,0.55,0.5,0.61,0.81,0.49,0.61,0.65,0.8,0.64,0.67,0.68,0.65,0.37,0.7,0.72,0.42,0.88,0.62,0.66,0.79,0.64,0.64,0.59,0.38,0.7,0.65,0.68,0.61,0.73,0.55]},
 };
+/* Lydmåler: stolpene rundt streken følger lydstyrken der og da (samme regler i Studios video) */
+const LIVE = {span:9, dt:.03, block:.02};
+function liveBar(baseH, d, lvl, WH){ const w = Math.exp(-((d/4)**2)); return baseH*(1-w) + Math.max(baseH*.35, 6 + WH*Math.min(1, lvl)*.95)*w; }
+function envAt(env, t){ return env.v[Math.max(0, Math.min(env.v.length - 1, Math.floor(t / LIVE.block)))] || 0; }
+const lydEnvs = {};
+// lydstyrke per 20 ms, normert mot 98-persentilen, så stolpene får fart
+function lydEnv(src){
+  if (!lydEnvs[src]) lydEnvs[src] = (async () => {
+    let buf;
+    if (src.startsWith('file:') && typeof EXPORT_HOOKS !== 'undefined' && EXPORT_HOOKS.readFile) buf = (await EXPORT_HOOKS.readFile(src)).bytes.slice().buffer;
+    else buf = await (await fetch(src)).arrayBuffer();
+    const ctx = new (window.AudioContext || window.webkitAudioContext)(), ab = await ctx.decodeAudioData(buf); ctx.close && ctx.close();
+    const ch = ab.getChannelData(0), n = Math.max(1, Math.round(ab.sampleRate * LIVE.block)), v = [];
+    for (let i = 0; i < ch.length; i += n) { let s = 0, c = 0; for (let j = i; j < Math.min(ch.length, i + n); j += 2) { s += ch[j]*ch[j]; c++; } v.push(Math.sqrt(s / Math.max(1, c))); }
+    const ref = [...v].sort((a, b) => a - b)[Math.floor(v.length * .98)] || 1;
+    return {v:v.map(x => Math.pow(Math.min(1, x / ref), .7))};
+  })().catch(e => { console.warn('lydmåler', e); return null; });
+  return lydEnvs[src];
+}
 function waveFor(s){
   if (s.peaks) return {p:s.peaks, dur:s.dur||60};
   if (s.wave && WAVES[s.wave]) return WAVES[s.wave];
@@ -433,7 +452,7 @@ function giuffreSlides(){ return [
   mk('toklipp',{kicker:'PÅSTANDEN',tittel:'To lydklipp skal være Giuffre, tatt opp før hun døde',tekst1:'Klipp 1: Clinton (2:06)',tekst2:'Klipp 2: om Barack Obama (3:44)'},{build:'punkt',stor:true,def:{klipp1:{src:'media/giuffre-clinton.mp4',kind:'video'},klipp2:{src:'media/giuffre-obama.mp4',kind:'video'}},notes:'Klippene ligger inne i nedskalert versjon (uten lyd i prototypen). I Studio lages en kort sammenstilling med hovedanklagene i Klippsamler.'}),
   mk('tekst',{kicker:'KONTEKST',tittel:'Stemmer det med det hun har sagt før?',begrep1:'Det hun har sagt',forklaring1:'Giuffre har rettet direkte overgrepsanklager mot blant andre prins Andrew og Ehud Barak.',begrep2:'Det hun ikke har sagt',forklaring2:'Hun har aldri anklaget Barack Obama eller Clinton-ekteparet for overgrep. Om Bill Clinton har hun sagt at han var i Epsteins omgangskrets, men at han ikke forgrep seg på henne.'},{build:'punkt',notes:'Virginia Giuffre døde 25. april 2025, 41 år gammel. Kilde: Siljes casebeskrivelse, memoarene Nobody\'s Girl og rettsdokumenter.'}),
   mk('lyd',{kicker:'LYDANALYSE · KLIPP 1',tittel:'Hva lyden avslører','m1-tittel':'Ingen naturlige pauser','m1-tekst':'Over to minutter med jevn, flat framføring uten pauser.','m2-tittel':'Ingen hørbar pust','m2-tekst':'Et parti på 13 sekunder uten et eneste pust.','m3-tittel':'Brå kutt','m3-tekst':'Kutt til stillhet uten naturlig romklang.'},
-     {wave:'clinton',def:{lyd:{src:'media/giuffre-clinton.mp4',kind:'audio'},lydvideo:{src:'media/giuffre-clinton-lydbolge-v2.mp4',palette:'akademisk'},lydseg:[{i:1,a:40,b:53,src:'media/giuffre-clinton-lyd-funn2-v2.mp4'},{i:2,a:82,b:87,src:'media/giuffre-clinton-lyd-funn3-v2.mp4'}]},marks:[[0,126.4],[40,53],[84,85]],build:'punkt',notes:'Lydbølgen er målt fra Clinton-klippet. I hele fila finnes ingen pause lenger enn et kvart sekund. Merke 2 og 3 står på omtrentlig plass: sett riktige tidskoder til høyre. Funnene er ekspertvurderinger gjengitt av PolitiFact (Siwei Lyu og Hafiz Malik).'}),
+     {wave:'clinton',def:{lyd:{src:'media/giuffre-clinton.mp4',kind:'audio'},lydvideo:{src:'media/giuffre-clinton-lydbolge-v3.mp4',palette:'akademisk'},lydseg:[{i:1,a:40,b:53,src:'media/giuffre-clinton-lyd-funn2-v3.mp4'},{i:2,a:82,b:87,src:'media/giuffre-clinton-lyd-funn3-v3.mp4'}]},marks:[[0,126.4],[40,53],[84,85]],build:'punkt',notes:'Lydbølgen er målt fra Clinton-klippet. I hele fila finnes ingen pause lenger enn et kvart sekund. Merke 2 og 3 står på omtrentlig plass: sett riktige tidskoder til høyre. Funnene er ekspertvurderinger gjengitt av PolitiFact (Siwei Lyu og Hafiz Malik).'}),
   mk('detektor',{kicker:'VERKTØY',tittel:'Hva sier deteksjonsverktøyene?','v1-navn':'DeepFake-O-Meter','v1-tekst':'University at Buffalo, fem modeller','v1-verdi':'4 av 5','v2-navn':'Northwestern University','v2-tekst':'83 deteksjonsalgoritmer','v2-verdi':'67 av 83','v3-navn':'ElevenLabs-klassifisereren','v3-tekst':'Kjenner igjen lyd laget med ElevenLabs','v3-verdi':'Svært trolig',kilde:'Kilde: PolitiFact, 26. februar 2026'},
      {steps:3,vals:[.8,.81,0],build:'punkt',notes:'Poenget: ingen enkeltverktøy avgjør. Flere uavhengige verktøy og ekspertvurderinger peker samme vei. ElevenLabs gir en vurdering, ikke en prosent, derfor ingen stolpe.'}),
   mk('spredning',{kicker:'SPREDNING',tittel:'Hvem spredte klippene?','kilde-navn':'The People\'s Voice','kilde-tekst':'@tpvsean. Kjent kilde til feilinformasjon. Kalte klippet et «nylig lekket opptak» av Giuffre.',p1:'X',k1:'@tpvsean legger ut klippet',n1:'Nov. 2025',p2:'TikTok',k2:'Lyden over et bilde av Epstein og Bill Clinton',n2:'24. feb. 2026',p3:'Instagram og Facebook',k3:'Delt videre. Ett innlegg sier stemmen er Giuffres',n3:'Feb. 2026'},
@@ -624,10 +643,10 @@ function setMedia(slide, role, file){
 function waveEl(slide, e, editable){
   const d = document.createElement('div'); d.className = 'el wave';
   const {p} = waveFor(slide), n = p.length, bw = e.w / n;
-  const bars = p.map((v,i) => { const hh = Math.max(4, v*e.h); return `<rect x="${(i*bw+bw*.2).toFixed(1)}" y="${((e.h-hh)/2).toFixed(1)}" width="${(bw*.6).toFixed(1)}" height="${hh.toFixed(1)}" rx="${(bw*.3).toFixed(1)}"/>`; }).join('');
+  const bars = p.map((v,i) => { const hh = Math.max(4, v*e.h); return `<rect data-h="${hh.toFixed(1)}" x="${(i*bw+bw*.2).toFixed(1)}" y="${((e.h-hh)/2).toFixed(1)}" width="${(bw*.6).toFixed(1)}" height="${hh.toFixed(1)}" rx="${(bw*.3).toFixed(1)}"/>`; }).join('');
   // to lag: svak bølge under, full bølge over som klippes til der lyden er kommet (spilt del lyser)
   d.innerHTML = `<svg class="wbg" width="${e.w}" height="${e.h}" viewBox="0 0 ${e.w} ${e.h}" aria-hidden="true">${bars}</svg><svg class="wfg" width="${e.w}" height="${e.h}" viewBox="0 0 ${e.w} ${e.h}" aria-hidden="true">${bars}</svg>`;
-  d.setAttribute('role','img'); d.setAttribute('aria-label','Lydbølge'); d.dataset.sid = slide.id;
+  d.setAttribute('role','img'); d.setAttribute('aria-label','Lydbølge'); d.dataset.sid = slide.id; d.dataset.h = e.h;
   const src = lydSrc(slide);
   if (src) {
     const ph = document.createElement('div'); ph.className = 'playhead'; d.appendChild(ph);
@@ -659,6 +678,7 @@ async function lydUrl(src){ if (src.startsWith('blob:') || src.startsWith('file:
 async function lydEnsure(slide){
   if (lyd.sid === slide.id && lyd.audio) return lyd.audio;
   lydStop(); const a = new Audio(await lydUrl(lydSrc(slide))); lyd.audio = a; lyd.sid = slide.id; a.addEventListener('ended', () => lydTick());
+  lyd.env = null; lydEnv(await lydUrl(lydSrc(slide))).then(env => { if (lyd.audio === a) lyd.env = env; });
   if (a.readyState < 1) await new Promise(ok => a.addEventListener('loadedmetadata', ok, {once:true}));
   return a;
 }
@@ -674,7 +694,16 @@ async function lydPlay(slide, from, to, seg = null){
   a.play().catch(() => toast('Lyden kunne ikke spilles av her.'));
   cancelAnimationFrame(lyd.raf); lyd.raf = requestAnimationFrame(lydTick);
 }
-function lydStop(){ if (lyd.audio) { lyd.audio.pause(); lyd.audio.removeAttribute('src'); lyd.audio.load(); } lyd.audio = null; lyd.sid = null; cancelAnimationFrame(lyd.raf); document.querySelectorAll('.wave.playing').forEach(w => w.classList.remove('playing')); document.querySelectorAll('.mark.on').forEach(m => m.classList.remove('on')); document.querySelectorAll('.wave .wfg').forEach(f => { f.style.clipPath = ''; }); lyd.seg = null; }
+function liveBars(w, t, dur, env, active){
+  const rb = w._rb || (w._rb = [...w.querySelectorAll('.wbg rect')]), rf = w._rf || (w._rf = [...w.querySelectorAll('.wfg rect')]);
+  const N = rb.length, H = +w.dataset.h, k = t / dur * N, now = new Set();
+  const put = (i, hh) => { const y = ((H - hh) / 2).toFixed(1), hs = hh.toFixed(1); rb[i].setAttribute('y', y); rb[i].setAttribute('height', hs); rf[i].setAttribute('y', y); rf[i].setAttribute('height', hs); };
+  if (active) for (let i = Math.max(0, Math.floor(k - LIVE.span)); i <= Math.min(N - 1, Math.ceil(k + LIVE.span)); i++) {
+    const d = i + .5 - k; put(i, liveBar(+rb[i].dataset.h, d, envAt(env, t + d * LIVE.dt), H)); now.add(i); }
+  for (const i of (w._touched || [])) if (!now.has(i)) put(i, +rb[i].dataset.h);
+  w._touched = now;
+}
+function lydStop(){ document.querySelectorAll('.wave').forEach(w => { if (w._touched && w._touched.size) liveBars(w, 0, 1, {v:[0]}, false); }); if (lyd.audio) { lyd.audio.pause(); lyd.audio.removeAttribute('src'); lyd.audio.load(); } lyd.audio = null; lyd.sid = null; cancelAnimationFrame(lyd.raf); document.querySelectorAll('.wave.playing').forEach(w => w.classList.remove('playing')); document.querySelectorAll('.mark.on').forEach(m => m.classList.remove('on')); document.querySelectorAll('.wave .wfg').forEach(f => { f.style.clipPath = ''; }); lyd.seg = null; }
 function lydTick(){
   if (!lyd.audio) return;
   const waves = [...document.querySelectorAll(`.wave[data-sid="${lyd.sid}"]`)].filter(w => !w.closest('.thumb'));
@@ -685,8 +714,9 @@ function lydTick(){
   waves.forEach(w => { w.classList.toggle('playing', on); const ph = w.querySelector('.playhead'); if (ph) ph.style.left = pct + '%';
     const fg = w.querySelector('.wfg'); if (fg) fg.style.clipPath = `inset(0 ${100 - pct}% 0 0)`;
     const tt = w.querySelector('.lydtid'); if (tt) tt.textContent = (seg != null ? `Funn ${seg + 1} · ` : '') + `${fmtT(t)} / ${fmtT(dur)}`; });
+  if (lyd.env) waves.forEach(w => liveBars(w, t, dur, lyd.env, on || t > 0));
   // spilles ett funn, er det bare det som lyser; ellers lyser funnene streken er inne i
-  document.querySelectorAll(`.mark[data-sid="${lyd.sid}"]`).forEach(m => m.classList.toggle('on', seg != null ? +m.dataset.mi === seg : ((on || t > 0) && t >= +m.dataset.a && t <= +m.dataset.b + .3)));
+  document.querySelectorAll(`.mark[data-sid="${lyd.sid}"]`).forEach(m => m.classList.toggle('on', seg != null ? +m.dataset.mi === seg : ((on || t > 0) && +m.dataset.b - +m.dataset.a < dur * .9 && t >= +m.dataset.a && t <= +m.dataset.b + .3)));
   if (on) lyd.raf = requestAnimationFrame(lydTick);
 }
 const audiopick = Object.assign(document.createElement('input'), {type:'file', accept:'audio/*,video/*', hidden:true}); document.body.appendChild(audiopick);
@@ -1000,25 +1030,6 @@ async function localUrl(url){
   if (!localCache[url]) localCache[url] = EXPORT_HOOKS.readFile(url).then(r => URL.createObjectURL(new Blob([r.bytes], {type:r.type})));
   return localCache[url];
 }
-// Bildet bak lydbølge-videoen (1660 × 310, bølgen i y 30–260): played=false gir svak bølge (ikke spilt),
-// seg = [fra, til] markerer ett funn med bånd og etikett øverst.
-function waveBasePng(s, pal, o = {}){
-  const W = 1660, H = 310, WY = 30, WH = 230, c = document.createElement('canvas'); c.width = W; c.height = H;
-  const g = c.getContext('2d'), {p, dur} = waveFor(s), bw = W / p.length;
-  g.fillStyle = pal.flate; g.fillRect(0, 0, W, H);
-  if (o.seg) {
-    const x0 = o.seg[0] / dur * W, x1 = Math.max(x0 + 8, o.seg[1] / dur * W);
-    g.fillStyle = pal.markering; g.globalAlpha = .2; g.fillRect(x0, WY - 6, x1 - x0, WH + 12); g.globalAlpha = 1;
-    g.strokeStyle = pal.markering; g.lineWidth = 3; g.strokeRect(x0 + 1.5, WY - 4.5, x1 - x0 - 3, WH + 9);
-    if (o.label) { g.font = '700 19px "Haas Grot Text", Inter, Helvetica, Arial, sans-serif'; const tw = g.measureText(o.label).width;
-      g.fillStyle = pal.markering; g.fillText(o.label, Math.max(0, Math.min(W - tw, (x0 + x1) / 2 - tw / 2)), 19); }
-  }
-  g.fillStyle = pal.aksent; g.globalAlpha = o.played === false ? .3 : 1;
-  p.forEach((v, i) => { const hh = Math.max(4, v*WH), x = i*bw + bw*.2, w = bw*.6, y = WY + (WH-hh)/2;
-    g.beginPath(); g.roundRect ? g.roundRect(x, y, w, hh, w/2) : g.rect(x, y, w, hh); g.fill(); });
-  g.globalAlpha = 1;
-  return c.toDataURL('image/png');
-}
 async function urlToDataUrl(url){ url = await localUrl(url); const res = await fetch(url); if (!res.ok) throw new Error('Fant ikke ' + url); return blobToB64(await res.blob()); }
 function loadImg(src){ return new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = src; }); }
 
@@ -1282,9 +1293,9 @@ EXPORT_HOOKS.readFile = async (url) => { const r = await window.faktisk.presenta
 EXPORT_HOOKS.waveVideo = async (s, pal, from, to, seg) => {
   if (!window.faktisk.presentationWaveform) return null;
   const src = lydSrc(s); if (!src || !src.startsWith('file:')) return null;
-  const mk = seg != null && s.marks[seg], o = mk ? {seg:mk, label:`FUNN ${seg + 1}`} : {};
-  const r = await window.faktisk.presentationWaveform({src, base:waveBasePng(s, pal, {...o, played:false}), played:waveBasePng(s, pal, o), dur:waveFor(s).dur, from, to,
-    tekst:exHex('tekst', pal), dempet:exHex('dempet', pal)});
+  const mk = seg != null && s.marks[seg], c = {}; for (const k of ['flate','aksent','markering','tekst','dempet']) c[k] = pal[k];
+  const r = await window.faktisk.presentationWaveform({src, peaks:waveFor(s).p, dur:waveFor(s).dur, from, to, colors:c,
+    seg:mk ? mk : null, label:mk ? `FUNN ${seg + 1}` : ''});
   if (!r || !r.ok) { console.warn('lydbølge', r && r.error); return null; }
   return 'file://' + encodeURI(r.path).replace(/#/g, '%23');
 };

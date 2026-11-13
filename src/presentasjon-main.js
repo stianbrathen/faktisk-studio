@@ -3,11 +3,12 @@
 //   presentation-read-file  Leser en lokal mediefil (bilde, video, lyd) som bytes,
 //                           så pluginen kan legge den inn i Keynote-fila. fetch()
 //                           kan ikke lese file://-adresser i rendereren.
-//   presentation-waveform   Lager lydbølge-video med ffmpeg: et ferdig tegnet bilde
-//                           av bølgen (fra pluginen, i palettens farger), en strek
-//                           som går over den, telleren «0:12 / 2:06» og lyden.
-//                           Med from/to blir det et utsnitt (ett funn). Resultatet
-//                           mellomlagres i userData/presentasjon-cache.
+//   presentation-waveform   Lager lydbølge-video: hvert bilde tegnes som SVG (sharp) og
+//                           kodes med ffmpeg sammen med lyden. Bølgen fylles ut der
+//                           lyden er spilt, stolpene ved streken går som en lydmåler,
+//                           og telleren viser «0:12 / 2:06». Med from/to blir det et
+//                           utsnitt (ett funn) med bånd og etikett. Mellomlagres i
+//                           userData/presentasjon-cache.
 //   presentation-keynote    Tar imot .pptx-fila pluginen har laget, åpner den i
 //                           Keynote og lagrer den som .key i dokumentets Eksport/
 //                           (eller der brukeren velger). .pptx-fila slettes. Går
@@ -29,7 +30,6 @@ let deps = null;   // { app, dialog, shell, findFfmpeg }
 const MEDIA = { '.png':'image/png', '.jpg':'image/jpeg', '.jpeg':'image/jpeg', '.gif':'image/gif', '.webp':'image/webp',
   '.heic':'image/heic', '.svg':'image/svg+xml', '.mp4':'video/mp4', '.m4v':'video/mp4', '.mov':'video/quicktime',
   '.webm':'video/webm', '.mp3':'audio/mpeg', '.m4a':'audio/mp4', '.aac':'audio/aac', '.wav':'audio/wav', '.ogg':'audio/ogg' };
-const FONTS = ['/System/Library/Fonts/Supplemental/Arial.ttf', '/System/Library/Fonts/Helvetica.ttc', '/Library/Fonts/Arial.ttf'];
 
 function toPath(p) {
   if (typeof p !== 'string') return '';
@@ -55,39 +55,86 @@ function readFile(e, p) {
   try { return { ok: true, bytes: fs.readFileSync(p), type }; } catch (x) { return { ok: false, error: 'Fant ikke fila: ' + p }; }
 }
 
+// Lydmåler: samme regler som i pluginen (liveBar/envAt i prototypen)
+const LIVE = { span: 9, dt: 0.03, block: 0.02 };
+const liveBar = (baseH, d, lvl, WH) => { const w = Math.exp(-((d / 4) ** 2)); return baseH * (1 - w) + Math.max(baseH * 0.35, 6 + WH * Math.min(1, lvl) * 0.95) * w; };
+const hex = (v, d) => (/^#?[0-9A-F]{6}$/i.test(v || '') ? '#' + String(v).replace('#', '') : d);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+// lydstyrke per 20 ms for hele klippet, normert mot 98-persentilen
+function envelope(ff, src) {
+  return new Promise((resolve) => {
+    const p = spawn(ff, ['-v', 'error', '-i', src, '-ac', '1', '-ar', '8000', '-f', 's16le', '-']);
+    const chunks = []; p.stdout.on('data', (d) => chunks.push(d)); p.on('error', () => resolve(null));
+    p.on('close', () => {
+      const b = Buffer.concat(chunks), n = Math.floor(b.length / 2), blk = Math.round(8000 * LIVE.block), v = [];
+      for (let i = 0; i < n; i += blk) { let s = 0, c = 0; for (let j = i; j < Math.min(n, i + blk); j += 2) { const x = b.readInt16LE(j * 2) / 32768; s += x * x; c++; } v.push(Math.sqrt(s / Math.max(1, c))); }
+      const ref = [...v].sort((a, c) => a - c)[Math.floor(v.length * 0.98)] || 1;
+      resolve(v.map((x) => Math.pow(Math.min(1, x / ref), 0.7)));
+    });
+  });
+}
+
+// Ett bilde i videoen som SVG: bølge (svak = ikke spilt), funnbånd, lydmåler ved streken, strek og teller
+function frameSvg(o, t, env) {
+  const W = 1660, H = 310, WY = 30, WH = 230, N = o.peaks.length, bw = W / N, k = t / o.dur * N;
+  const lvl = (tt) => env ? env[Math.max(0, Math.min(env.length - 1, Math.floor(tt / LIVE.block)))] || 0 : 0;
+  let s = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}"><rect width="${W}" height="${H}" fill="${o.c.flate}"/>`;
+  if (o.seg) {
+    const x0 = o.seg[0] / o.dur * W, x1 = Math.max(x0 + 8, o.seg[1] / o.dur * W);
+    s += `<rect x="${x0.toFixed(1)}" y="${WY - 6}" width="${(x1 - x0).toFixed(1)}" height="${WH + 12}" fill="${o.c.markering}" fill-opacity=".2" stroke="${o.c.markering}" stroke-width="3"/>`;
+    if (o.label) s += `<text x="${Math.min(W - 60, Math.max(60, (x0 + x1) / 2)).toFixed(1)}" y="19" text-anchor="middle" font-family="Helvetica, Arial, DejaVu Sans, sans-serif" font-weight="700" font-size="19" fill="${o.c.markering}">${esc(o.label)}</text>`;
+  }
+  let played = '', rest = '';
+  for (let i = 0; i < N; i++) {
+    const base = Math.max(4, o.peaks[i] * WH), d = i + 0.5 - k;
+    const hh = Math.abs(d) <= LIVE.span ? liveBar(base, d, lvl(t + d * LIVE.dt), WH) : base;
+    const r = `<rect x="${(i * bw + bw * 0.2).toFixed(1)}" y="${(WY + (WH - hh) / 2).toFixed(1)}" width="${(bw * 0.6).toFixed(1)}" height="${hh.toFixed(1)}" rx="${(bw * 0.3).toFixed(1)}"/>`;
+    if (d < 0) played += r; else rest += r;
+  }
+  s += `<g fill="${o.c.aksent}">${played}</g><g fill="${o.c.aksent}" fill-opacity=".3">${rest}</g>`;
+  s += `<rect x="${(k * bw - 2).toFixed(1)}" y="6" width="4" height="270" rx="2" fill="${o.c.tekst}"/>`;
+  s += `<text x="${W / 2}" y="298" text-anchor="middle" font-family="Helvetica, Arial, DejaVu Sans, sans-serif" font-size="24" fill="${o.c.dempet}">${fmt(t)} / ${fmt(o.dur)}</text></svg>`;
+  return s;
+}
+
 async function waveform(e, o) {
   const src = toPath(o && o.src);
   if (!src || !fs.existsSync(src)) return { ok: false, error: 'Fant ikke lydfila' };
-  const m = /^data:image\/png;base64,(.+)$/.exec((o && o.base) || '');
-  if (!m) return { ok: false, error: 'Mangler bildet av lydbølgen' };
+  const peaks = Array.isArray(o.peaks) ? o.peaks.slice(0, 2000).map((v) => Math.max(0, Math.min(1, Number(v) || 0))) : null;
+  if (!peaks || !peaks.length) return { ok: false, error: 'Mangler lydbølgen' };
   const dur = Number(o.dur) || 0, from = Math.max(0, Number(o.from) || 0);
-  const to = Math.min(dur || 1e9, o.to == null ? dur : Number(o.to)), len = Math.max(.5, to - from);
-  const W = 1660, H = 310;
-  const tekst = /^[0-9A-F]{6}$/i.test(o.tekst || '') ? o.tekst : '1D2733', dempet = /^[0-9A-F]{6}$/i.test(o.dempet || '') ? o.dempet : '5B6572';
+  const to = Math.min(dur || 1e9, o.to == null ? dur : Number(o.to)), len = Math.max(0.5, to - from);
+  const c = o.colors || {};
+  const opt = { peaks, dur, c: { flate: hex(c.flate, '#ECEAE4'), aksent: hex(c.aksent, '#2D4A68'), markering: hex(c.markering, '#B4472F'), tekst: hex(c.tekst, '#1D2733'), dempet: hex(c.dempet, '#5B6572') },
+    seg: Array.isArray(o.seg) ? o.seg.map(Number) : null, label: o.label ? String(o.label).slice(0, 40) : '' };
   const st = fs.statSync(src);
-  const key = crypto.createHash('sha256').update([src, st.size, st.mtimeMs, m[1].length, crypto.createHash('sha1').update(m[1] + ((o && o.played) || '')).digest('hex'), from, to, tekst, dempet, 3].join('|')).digest('hex').slice(0, 24);
+  const key = crypto.createHash('sha256').update(JSON.stringify([src, st.size, st.mtimeMs, opt, from, to, 4])).digest('hex').slice(0, 24);
   const dir = path.join(deps.app.getPath('userData'), 'presentasjon-cache');
   const out = path.join(dir, key + '.mp4');
   if (fs.existsSync(out)) return { ok: true, path: out, cached: true };
   fs.mkdirSync(dir, { recursive: true });
-  const base = path.join(os.tmpdir(), 'fk-bolge-' + key + '.png');
-  fs.writeFileSync(base, Buffer.from(m[1], 'base64'));
-  // spilt del: full bølge over den svake, avdekket fra venstre fram til streken
-  const pm = /^data:image\/png;base64,(.+)$/.exec((o && o.played) || ''), played = pm ? base.replace(/\.png$/, '-spilt.png') : null;
-  if (played) fs.writeFileSync(played, Buffer.from(pm[1], 'base64'));
-  progress(e, 'Lager lydbølge-video …');
-  const font = FONTS.find((f) => fs.existsSync(f));
-  const reveal = played ? `color=c=black:s=${W}x${H}:r=25[m0];color=c=white:s=${W}x${H}:r=25[m1];[m0][m1]overlay=x='(t+${from})/${dur}*${W}-${W}':eval=frame,format=gray[mask];[1:v][mask]alphamerge[dk];[0:v][dk]overlay=shortest=1[bg];` : '[0:v]null[bg];';
-  const head = reveal + `color=c=#${tekst}:s=4x270:r=25[ph];[bg][ph]overlay=x='(t+${from})/${dur}*${W}-2':y=6:eval=frame`;
-  const counter = font ? `,drawtext=fontfile=${font}:text='%{eif\\:floor((t+${from})/60)\\:d}\\:%{eif\\:mod(floor(t+${from})\\,60)\\:d\\:2} / ${fmt(dur).replace(':', '\\:')}':x=(w-text_w)/2:y=274:fontsize=24:fontcolor=#${dempet}` : '';
-  const args = (graph) => ['-v', 'error', '-y', '-loop', '1', '-framerate', '25', '-i', base, ...(played ? ['-loop', '1', '-framerate', '25', '-i', played] : []), '-ss', String(from), '-t', String(len), '-i', src,
-    '-filter_complex', graph + '[v]', '-map', '[v]', '-map', (played ? '2' : '1') + ':a?', '-t', String(len), '-s', `${W}x${H}`,
-    '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '26', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '96k', '-movflags', '+faststart', out];
-  const ff = deps.findFfmpeg();
-  let r = await run(ff, args(head + counter));
-  if (!r.ok && counter) r = await run(ff, args(head));   // ffmpeg uten drawtext: lag den uten teller
-  try { fs.unlinkSync(base); if (played) fs.unlinkSync(played); } catch (x) {}
-  if (!r.ok) { try { fs.unlinkSync(out); } catch (x) {} return { ok: false, error: r.error || 'ffmpeg feilet' }; }
+  let sharp; try { sharp = require('sharp'); } catch (x) { return { ok: false, error: 'sharp mangler' }; }
+  const ff = deps.findFfmpeg(), env = await envelope(ff, src);
+  const W = 1660, H = 310, FPS = 25, frames = Math.ceil(len * FPS);
+  const tmp = out + '.tmp.mp4';
+  const p = spawn(ff, ['-v', 'error', '-y', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', `${W}x${H}`, '-r', String(FPS), '-i', '-',
+    '-ss', String(from), '-t', String(len), '-i', src, '-map', '0:v', '-map', '1:a?', '-t', String(len),
+    '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '26', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '96k', '-movflags', '+faststart', '-f', 'mp4', tmp]);
+  let err = ''; p.stderr.on('data', (d) => { err = (err + d).slice(-2000); });
+  const done = new Promise((resolve) => { p.on('close', (code) => resolve(code)); p.on('error', () => resolve(-1)); });
+  p.stdin.on('error', () => {});
+  try {
+    for (let f = 0; f < frames; f++) {
+      const raw = await sharp(Buffer.from(frameSvg(opt, from + f / FPS, env))).removeAlpha().raw().toBuffer();
+      if (!p.stdin.write(raw)) await new Promise((r) => p.stdin.once('drain', r));
+      if (f % 50 === 0) progress(e, 'Lager lydbølge-video …', f / frames);
+    }
+  } catch (x) { err = x.message; }
+  p.stdin.end();
+  const code = await done;
+  if (code !== 0 || !fs.existsSync(tmp)) { try { fs.unlinkSync(tmp); } catch (x) {} return { ok: false, error: err.trim() || 'ffmpeg feilet' }; }
+  fs.renameSync(tmp, out);
   return { ok: true, path: out };
 }
 
