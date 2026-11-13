@@ -2709,4 +2709,6 @@ require('./src/bevis-index.js').register(ipcMain, { app, findFfmpeg });
 
 // Videoslider (Studio 0.7.14): de siste videoene fra en TikTok-profil, og valgte
 // videoer lastet ned med yt-dlp (fra bevissikringen) og lagt i Labrador — se src/tiktok-main.js
+// Presentasjon-pluginen: lese lokale medier, lydbølge-videoer (ffmpeg), Keynote via AppleScript
+require('./src/presentasjon-main.js').register(ipcMain, { app, dialog, shell, findFfmpeg });
 require('./src/tiktok-main.js').register(ipcMain, { app, findFfmpeg, labradorListFiles, labradorSafeName, labradorCookieHeader, labradorOrigin: LABRADOR_ORIGIN });

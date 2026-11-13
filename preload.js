@@ -229,6 +229,12 @@ contextBridge.exposeInMainWorld('faktisk', {
   },
 
   // TikTok-henting for Videoslider (Studio 0.7.13) — se src/tiktok-main.js
+  // Presentasjon
+  pathForFile: (file) => { try { return webUtils.getPathForFile(file); } catch (e) { return ''; } },
+  presentationReadFile: (p) => ipcRenderer.invoke('presentation-read-file', p),
+  presentationWaveform: (opts) => ipcRenderer.invoke('presentation-waveform', opts),
+  presentationKeynote: (opts) => ipcRenderer.invoke('presentation-keynote', opts),
+  onPresentationProgress: (cb) => { const h = (e, d) => cb(d); ipcRenderer.on('presentation-progress', h); return () => ipcRenderer.removeListener('presentation-progress', h); },
   tiktokList: (opts) => ipcRenderer.invoke('tiktok-list', opts),
   tiktokImport: (opts) => ipcRenderer.invoke('tiktok-import', opts),
   onTiktokProgress: (cb) => {

@@ -77,7 +77,7 @@ const GROUPS = [
     ['loop-illustrasjon','Loop-illustrasjon','Animert illustrasjon av bilder, logoer og ringer.','embed','animasjon toppbilde'],
   ]},
   { id: 'presentasjon', title: 'Presentasjon og video', sub: 'Lager filer på maskinen, til Keynote og Final Cut', items: [
-    ['presentasjon','Presentasjon','Lysbilder i Faktisk-stil som blir en ferdig Keynote.','fil','keynote foredrag undervisning sujo','soon'],
+    ['presentasjon','Presentasjon','Lysbilder i Faktisk-stil som blir en ferdig Keynote.','fil','keynote foredrag undervisning sujo case lydanalyse'],
     ['keynote-klipp','Keynote-klipp','Videoklipp med runde hjørner, klare for Keynote.','fil','keynote presentasjon mobil'],
     ['klippsamler','Klippsamler','Trim flere klipp og sett dem sammen til ett.','fil','sammensetting trim video'],
     ['teksting','Teksting','Transkriber tale og lag undertekster, helt lokalt.','fil','undertekster whisper srt transkripsjon'],
