@@ -120,7 +120,9 @@ textarea{min-height:88px;resize:vertical}
 .menuhead{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ui-mute);font-weight:600;padding:10px 10px 4px;border-top:1px solid var(--ui-line);margin-top:4px}
 .rng{display:grid;grid-template-columns:28px 1fr;align-items:center;gap:6px;font-size:12px;color:var(--ui-mute)}
 .group input[type=range]{width:100%;accent-color:var(--ui-accent)}
-.wave svg{display:block;fill:var(--aksent);opacity:.9}
+.wave svg{display:block;fill:var(--aksent);position:absolute;left:0;top:0}
+.wave .wbg{opacity:.3}
+.wave .wfg{opacity:.95}
 .bigov{position:absolute;inset:0;z-index:5}
 .segbtn{cursor:pointer}.segbtn:hover{filter:brightness(1.12)}
 .bigdim{position:absolute;inset:0;background:#0B0E13;opacity:0;transition:opacity .45s ease}
@@ -307,7 +309,7 @@ const TYPES = {
         {kind:'static',x:WX,y:570,w:200,h:36,text:'0:00',size:24,color:'dempet'},{kind:'static',x:WX+WW-200,y:570,w:200,h:36,text:fmtT(dur),size:24,color:'dempet',align:'right'}];
       const cards=[86,683,1280];
       (s.marks||[]).slice(0,3).forEach(([a,b],i)=>{const k=i+1,mx=WX+Math.min(1,a/dur)*WW,mw=Math.max(6,Math.min(1,(b-a)/dur)*WW);
-        out.push({kind:'mark',x:Math.round(mx),y:WY-12,w:Math.round(Math.min(mw,WX+WW-mx)),h:WH+24,build:k,a,b});
+        out.push({kind:'mark',x:Math.round(mx),y:WY-12,w:Math.round(Math.min(mw,WX+WW-mx)),h:WH+24,build:k,a,b,mi:i});
         out.push({kind:'num',x:Math.round(mx+Math.min(mw,WX+WW-mx)/2-22),y:WY-36,w:44,h:44,text:String(k),solid:'markering',fs:24,build:k,seg:i});
         const x=cards[i];
         out.push({kind:'rect',x,y:660,w:554,h:265,r:23,fill:'flate',build:k});
@@ -429,7 +431,7 @@ function giuffreSlides(){ return [
   mk('toklipp',{kicker:'PÅSTANDEN',tittel:'To lydklipp skal være Giuffre, tatt opp før hun døde',tekst1:'Klipp 1: Clinton (2:06)',tekst2:'Klipp 2: om Barack Obama (3:44)'},{build:'punkt',stor:true,def:{klipp1:{src:'media/giuffre-clinton.mp4',kind:'video'},klipp2:{src:'media/giuffre-obama.mp4',kind:'video'}},notes:'Klippene ligger inne i nedskalert versjon (uten lyd i prototypen). I Studio lages en kort sammenstilling med hovedanklagene i Klippsamler.'}),
   mk('tekst',{kicker:'KONTEKST',tittel:'Stemmer det med det hun har sagt før?',begrep1:'Det hun har sagt',forklaring1:'Giuffre har rettet direkte overgrepsanklager mot blant andre prins Andrew og Ehud Barak.',begrep2:'Det hun ikke har sagt',forklaring2:'Hun har aldri anklaget Barack Obama eller Clinton-ekteparet for overgrep. Om Bill Clinton har hun sagt at han var i Epsteins omgangskrets, men at han ikke forgrep seg på henne.'},{build:'punkt',notes:'Virginia Giuffre døde 25. april 2025, 41 år gammel. Kilde: Siljes casebeskrivelse, memoarene Nobody\'s Girl og rettsdokumenter.'}),
   mk('lyd',{kicker:'LYDANALYSE · KLIPP 1',tittel:'Hva lyden avslører','m1-tittel':'Ingen naturlige pauser','m1-tekst':'Over to minutter med jevn, flat framføring uten pauser.','m2-tittel':'Ingen hørbar pust','m2-tekst':'Et parti på 13 sekunder uten et eneste pust.','m3-tittel':'Brå kutt','m3-tekst':'Kutt til stillhet uten naturlig romklang.'},
-     {wave:'clinton',def:{lyd:{src:'media/giuffre-clinton.mp4',kind:'audio'},lydvideo:{src:'media/giuffre-clinton-lydbolge.mp4',palette:'akademisk'},lydseg:[{i:1,a:40,b:53,src:'media/giuffre-clinton-lyd-funn2.mp4'},{i:2,a:82,b:87,src:'media/giuffre-clinton-lyd-funn3.mp4'}]},marks:[[0,126.4],[40,53],[84,85]],build:'punkt',notes:'Lydbølgen er målt fra Clinton-klippet. I hele fila finnes ingen pause lenger enn et kvart sekund. Merke 2 og 3 står på omtrentlig plass: sett riktige tidskoder til høyre. Funnene er ekspertvurderinger gjengitt av PolitiFact (Siwei Lyu og Hafiz Malik).'}),
+     {wave:'clinton',def:{lyd:{src:'media/giuffre-clinton.mp4',kind:'audio'},lydvideo:{src:'media/giuffre-clinton-lydbolge-v2.mp4',palette:'akademisk'},lydseg:[{i:1,a:40,b:53,src:'media/giuffre-clinton-lyd-funn2-v2.mp4'},{i:2,a:82,b:87,src:'media/giuffre-clinton-lyd-funn3-v2.mp4'}]},marks:[[0,126.4],[40,53],[84,85]],build:'punkt',notes:'Lydbølgen er målt fra Clinton-klippet. I hele fila finnes ingen pause lenger enn et kvart sekund. Merke 2 og 3 står på omtrentlig plass: sett riktige tidskoder til høyre. Funnene er ekspertvurderinger gjengitt av PolitiFact (Siwei Lyu og Hafiz Malik).'}),
   mk('detektor',{kicker:'VERKTØY',tittel:'Hva sier deteksjonsverktøyene?','v1-navn':'DeepFake-O-Meter','v1-tekst':'University at Buffalo, fem modeller','v1-verdi':'4 av 5','v2-navn':'Northwestern University','v2-tekst':'83 deteksjonsalgoritmer','v2-verdi':'67 av 83','v3-navn':'ElevenLabs-klassifisereren','v3-tekst':'Kjenner igjen lyd laget med ElevenLabs','v3-verdi':'Svært trolig',kilde:'Kilde: PolitiFact, 26. februar 2026'},
      {steps:3,vals:[.8,.81,0],build:'punkt',notes:'Poenget: ingen enkeltverktøy avgjør. Flere uavhengige verktøy og ekspertvurderinger peker samme vei. ElevenLabs gir en vurdering, ikke en prosent, derfor ingen stolpe.'}),
   mk('spredning',{kicker:'SPREDNING',tittel:'Hvem spredte klippene?','kilde-navn':'The People\'s Voice','kilde-tekst':'@tpvsean. Kjent kilde til feilinformasjon. Kalte klippet et «nylig lekket opptak» av Giuffre.',p1:'X',k1:'@tpvsean legger ut klippet',n1:'Nov. 2025',p2:'TikTok',k2:'Lyden over et bilde av Epstein og Bill Clinton',n2:'24. feb. 2026',p3:'Instagram og Facebook',k3:'Delt videre. Ett innlegg sier stemmen er Giuffres',n3:'Feb. 2026'},
@@ -522,7 +524,7 @@ function renderSlide(slide, index, {editable=false, step=Infinity} = {}){
       d.textContent = e.text;
       if (e.pin !== undefined && editable) pinDrag(d, slide, e);
       if (e.seg !== undefined && lydSrc(slide)) { d.classList.add('segbtn'); d.setAttribute('role','button'); d.setAttribute('aria-label', `Spill av funn ${e.seg+1}`); d.title = `Spill av funn ${e.seg+1}`;
-        d.addEventListener('pointerdown', ev => ev.stopPropagation()); d.addEventListener('click', ev => { ev.stopPropagation(); const mk = (slide.marks||[])[e.seg]; if (mk) lydPlay(slide, ...segRange(slide, mk)); }); }
+        d.addEventListener('pointerdown', ev => ev.stopPropagation()); d.addEventListener('click', ev => { ev.stopPropagation(); const mk = (slide.marks||[])[e.seg]; if (mk) lydPlay(slide, ...segRange(slide, mk), e.seg); }); }
     } else if (e.kind === 'dot') {
       d = document.createElement('div'); d.className = 'el'; Object.assign(d.style, {borderRadius:'50%', background:'var(--aksent)', opacity:e.opacity});
     } else if (e.kind === 'logo') {
@@ -536,7 +538,7 @@ function renderSlide(slide, index, {editable=false, step=Infinity} = {}){
       d = waveEl(slide, e, editable);
     } else if (e.kind === 'mark') {
       d = document.createElement('div'); d.className = 'el';
-      d.className = 'el mark'; d.dataset.sid = slide.id; d.dataset.a = e.a; d.dataset.b = e.b;
+      d.className = 'el mark'; d.dataset.sid = slide.id; d.dataset.a = e.a; d.dataset.b = e.b; d.dataset.mi = e.mi;
       Object.assign(d.style, {borderRadius:'10px', pointerEvents:'none'});
     } else if (e.kind === 'svg') {
       d = document.createElement('div'); d.className = 'el'; d.style.pointerEvents = 'none';
@@ -607,7 +609,9 @@ function setMedia(slide, role, file){
 function waveEl(slide, e, editable){
   const d = document.createElement('div'); d.className = 'el wave';
   const {p} = waveFor(slide), n = p.length, bw = e.w / n;
-  d.innerHTML = `<svg width="${e.w}" height="${e.h}" viewBox="0 0 ${e.w} ${e.h}" aria-hidden="true">${p.map((v,i) => { const hh = Math.max(4, v*e.h); return `<rect x="${(i*bw+bw*.2).toFixed(1)}" y="${((e.h-hh)/2).toFixed(1)}" width="${(bw*.6).toFixed(1)}" height="${hh.toFixed(1)}" rx="${(bw*.3).toFixed(1)}"/>`; }).join('')}</svg>`;
+  const bars = p.map((v,i) => { const hh = Math.max(4, v*e.h); return `<rect x="${(i*bw+bw*.2).toFixed(1)}" y="${((e.h-hh)/2).toFixed(1)}" width="${(bw*.6).toFixed(1)}" height="${hh.toFixed(1)}" rx="${(bw*.3).toFixed(1)}"/>`; }).join('');
+  // to lag: svak bølge under, full bølge over som klippes til der lyden er kommet (spilt del lyser)
+  d.innerHTML = `<svg class="wbg" width="${e.w}" height="${e.h}" viewBox="0 0 ${e.w} ${e.h}" aria-hidden="true">${bars}</svg><svg class="wfg" width="${e.w}" height="${e.h}" viewBox="0 0 ${e.w} ${e.h}" aria-hidden="true">${bars}</svg>`;
   d.setAttribute('role','img'); d.setAttribute('aria-label','Lydbølge'); d.dataset.sid = slide.id;
   const src = lydSrc(slide);
   if (src) {
@@ -644,27 +648,30 @@ async function lydEnsure(slide){
   return a;
 }
 async function lydToggle(slide){
-  const a = await lydEnsure(slide); lyd.until = null;
+  const a = await lydEnsure(slide); lyd.until = null; lyd.seg = null;
   if (a.paused) a.play().catch(() => toast('Lyden kunne ikke spilles av her.')); else a.pause();
   cancelAnimationFrame(lyd.raf); lyd.raf = requestAnimationFrame(lydTick);
 }
 // korte funn får litt lyd før og etter, så man rekker å høre dem
 function segRange(slide, [a, b]){ const dur = waveFor(slide).dur; return b - a < 4 ? [Math.max(0, a - 2), Math.min(dur, b + 2)] : [a, b]; }
-async function lydPlay(slide, from, to){
-  const a = await lydEnsure(slide); a.currentTime = from; lyd.until = to;
+async function lydPlay(slide, from, to, seg = null){
+  const a = await lydEnsure(slide); a.currentTime = from; lyd.until = to; lyd.seg = seg;
   a.play().catch(() => toast('Lyden kunne ikke spilles av her.'));
   cancelAnimationFrame(lyd.raf); lyd.raf = requestAnimationFrame(lydTick);
 }
-function lydStop(){ if (lyd.audio) { lyd.audio.pause(); lyd.audio.removeAttribute('src'); lyd.audio.load(); } lyd.audio = null; lyd.sid = null; cancelAnimationFrame(lyd.raf); document.querySelectorAll('.wave.playing').forEach(w => w.classList.remove('playing')); document.querySelectorAll('.mark.on').forEach(m => m.classList.remove('on')); }
+function lydStop(){ if (lyd.audio) { lyd.audio.pause(); lyd.audio.removeAttribute('src'); lyd.audio.load(); } lyd.audio = null; lyd.sid = null; cancelAnimationFrame(lyd.raf); document.querySelectorAll('.wave.playing').forEach(w => w.classList.remove('playing')); document.querySelectorAll('.mark.on').forEach(m => m.classList.remove('on')); document.querySelectorAll('.wave .wfg').forEach(f => { f.style.clipPath = ''; }); lyd.seg = null; }
 function lydTick(){
   if (!lyd.audio) return;
   const waves = [...document.querySelectorAll(`.wave[data-sid="${lyd.sid}"]`)].filter(w => !w.closest('.thumb'));
   if (!waves.length) { lydStop(); return; }   // lysbildet er ikke lenger synlig
   if (lyd.until != null && lyd.audio.currentTime >= lyd.until && !lyd.audio.paused) { lyd.audio.pause(); lyd.until = null; }
   const t = lyd.audio.currentTime, dur = lyd.audio.duration || 1, on = !lyd.audio.paused;
-  waves.forEach(w => { w.classList.toggle('playing', on); const ph = w.querySelector('.playhead'); if (ph) ph.style.left = (t / dur * 100) + '%';
-    const tt = w.querySelector('.lydtid'); if (tt) tt.textContent = `${fmtT(t)} / ${fmtT(dur)}`; });
-  document.querySelectorAll(`.mark[data-sid="${lyd.sid}"]`).forEach(m => m.classList.toggle('on', (on || t > 0) && t >= +m.dataset.a && t <= +m.dataset.b + .3));
+  const pct = Math.min(100, t / dur * 100), seg = lyd.seg;
+  waves.forEach(w => { w.classList.toggle('playing', on); const ph = w.querySelector('.playhead'); if (ph) ph.style.left = pct + '%';
+    const fg = w.querySelector('.wfg'); if (fg) fg.style.clipPath = `inset(0 ${100 - pct}% 0 0)`;
+    const tt = w.querySelector('.lydtid'); if (tt) tt.textContent = (seg != null ? `Funn ${seg + 1} · ` : '') + `${fmtT(t)} / ${fmtT(dur)}`; });
+  // spilles ett funn, er det bare det som lyser; ellers lyser funnene streken er inne i
+  document.querySelectorAll(`.mark[data-sid="${lyd.sid}"]`).forEach(m => m.classList.toggle('on', seg != null ? +m.dataset.mi === seg : ((on || t > 0) && t >= +m.dataset.a && t <= +m.dataset.b + .3)));
   if (on) lyd.raf = requestAnimationFrame(lydTick);
 }
 const audiopick = Object.assign(document.createElement('input'), {type:'file', accept:'audio/*,video/*', hidden:true}); document.body.appendChild(audiopick);
@@ -937,7 +944,7 @@ function advance(dir){
   if (dir > 0 && play.step < max) { const a = states[play.step], st = states[play.step + 1]; play.step++; const cur = play.wrap.lastElementChild;
     if (a.big !== null) closeBig(cur);
     if (st.big !== null) openBig(cur, s, play.i, st.big);
-    if (st.audio !== undefined) { if (st.audio === 'all') lydPlay(s, 0, waveFor(s).dur + 1); else lydPlay(s, ...segRange(s, s.marks[st.audio])); }
+    if (st.audio !== undefined) { if (st.audio === 'all') lydPlay(s, 0, waveFor(s).dur + 1); else lydPlay(s, ...segRange(s, s.marks[st.audio]), st.audio); }
     if (st.build === a.build) return;
     const nl = renderSlide(s, play.i, {step:st.build});
     const showing = [...nl.querySelectorAll(':scope > .el')]; const curTx = [...cur.querySelectorAll(':scope > .el')];
@@ -977,6 +984,25 @@ async function localUrl(url){
   if (!url || !url.startsWith('file://') || !EXPORT_HOOKS.readFile) return url;
   if (!localCache[url]) localCache[url] = EXPORT_HOOKS.readFile(url).then(r => URL.createObjectURL(new Blob([r.bytes], {type:r.type})));
   return localCache[url];
+}
+// Bildet bak lydbølge-videoen (1660 × 310, bølgen i y 30–260): played=false gir svak bølge (ikke spilt),
+// seg = [fra, til] markerer ett funn med bånd og etikett øverst.
+function waveBasePng(s, pal, o = {}){
+  const W = 1660, H = 310, WY = 30, WH = 230, c = document.createElement('canvas'); c.width = W; c.height = H;
+  const g = c.getContext('2d'), {p, dur} = waveFor(s), bw = W / p.length;
+  g.fillStyle = pal.flate; g.fillRect(0, 0, W, H);
+  if (o.seg) {
+    const x0 = o.seg[0] / dur * W, x1 = Math.max(x0 + 8, o.seg[1] / dur * W);
+    g.fillStyle = pal.markering; g.globalAlpha = .2; g.fillRect(x0, WY - 6, x1 - x0, WH + 12); g.globalAlpha = 1;
+    g.strokeStyle = pal.markering; g.lineWidth = 3; g.strokeRect(x0 + 1.5, WY - 4.5, x1 - x0 - 3, WH + 9);
+    if (o.label) { g.font = '700 19px "Haas Grot Text", Inter, Helvetica, Arial, sans-serif'; const tw = g.measureText(o.label).width;
+      g.fillStyle = pal.markering; g.fillText(o.label, Math.max(0, Math.min(W - tw, (x0 + x1) / 2 - tw / 2)), 19); }
+  }
+  g.fillStyle = pal.aksent; g.globalAlpha = o.played === false ? .3 : 1;
+  p.forEach((v, i) => { const hh = Math.max(4, v*WH), x = i*bw + bw*.2, w = bw*.6, y = WY + (WH-hh)/2;
+    g.beginPath(); g.roundRect ? g.roundRect(x, y, w, hh, w/2) : g.rect(x, y, w, hh); g.fill(); });
+  g.globalAlpha = 1;
+  return c.toDataURL('image/png');
 }
 async function urlToDataUrl(url){ url = await localUrl(url); const res = await fetch(url); if (!res.ok) throw new Error('Fant ikke ' + url); return blobToB64(await res.blob()); }
 function loadImg(src){ return new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = src; }); }
@@ -1060,7 +1086,7 @@ async function exportPptx(doc, slides, {onProgress} = {}){
           const u = await EXPORT_HOOKS.waveVideo(s, pal, 0, null);
           if (u) { lv = {src:u}; const dur = waveFor(s).dur;
             for (const [i, mk] of (s.marks || []).slice(0, 3).entries()) { if (mk[1] - mk[0] >= dur * .9) continue;
-              const [a, b] = segRange(s, mk), su = await EXPORT_HOOKS.waveVideo(s, pal, a, b); if (su) segList.push({i, a, b, src:su}); } }
+              const [a, b] = segRange(s, mk), su = await EXPORT_HOOKS.waveVideo(s, pal, a, b, i); if (su) segList.push({i, a, b, src:su}); } }
         }
         if (lv) {
           const p = await videoPoster(lv.src);

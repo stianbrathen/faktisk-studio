@@ -111,18 +111,11 @@ a = h.index("makeBtn.addEventListener('click', async () => {")
 b = h.index('\n});\n', a) + 4
 h = h[:a] + r"""// Studio: les lokale filer og lag lydbølge-videoer i valgt palett
 EXPORT_HOOKS.readFile = async (url) => { const r = await window.faktisk.presentationReadFile(url); if (!r || !r.ok) throw new Error(r && r.error || 'Kunne ikke lese ' + url); return r; };
-function waveBasePng(s, pal){
-  const W = 1660, H = 310, WY = 30, WH = 230, c = document.createElement('canvas'); c.width = W; c.height = H;
-  const g = c.getContext('2d'); g.fillStyle = pal.flate; g.fillRect(0, 0, W, H); g.fillStyle = pal.aksent;
-  const {p} = waveFor(s), bw = W / p.length;
-  p.forEach((v, i) => { const hh = Math.max(4, v*WH), x = i*bw + bw*.2, w = bw*.6, y = WY + (WH-hh)/2, r = w/2;
-    g.beginPath(); g.roundRect ? g.roundRect(x, y, w, hh, r) : g.rect(x, y, w, hh); g.fill(); });
-  return c.toDataURL('image/png');
-}
-EXPORT_HOOKS.waveVideo = async (s, pal, from, to) => {
+EXPORT_HOOKS.waveVideo = async (s, pal, from, to, seg) => {
   if (!window.faktisk.presentationWaveform) return null;
   const src = lydSrc(s); if (!src || !src.startsWith('file:')) return null;
-  const r = await window.faktisk.presentationWaveform({src, base:waveBasePng(s, pal), dur:waveFor(s).dur, from, to,
+  const mk = seg != null && s.marks[seg], o = mk ? {seg:mk, label:`FUNN ${seg + 1}`} : {};
+  const r = await window.faktisk.presentationWaveform({src, base:waveBasePng(s, pal, {...o, played:false}), played:waveBasePng(s, pal, o), dur:waveFor(s).dur, from, to,
     tekst:exHex('tekst', pal), dempet:exHex('dempet', pal)});
   if (!r || !r.ok) { console.warn('lydbølge', r && r.error); return null; }
   return 'file://' + encodeURI(r.path).replace(/#/g, '%23');

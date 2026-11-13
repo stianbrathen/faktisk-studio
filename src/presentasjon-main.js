@@ -65,24 +65,28 @@ async function waveform(e, o) {
   const W = 1660, H = 310;
   const tekst = /^[0-9A-F]{6}$/i.test(o.tekst || '') ? o.tekst : '1D2733', dempet = /^[0-9A-F]{6}$/i.test(o.dempet || '') ? o.dempet : '5B6572';
   const st = fs.statSync(src);
-  const key = crypto.createHash('sha256').update([src, st.size, st.mtimeMs, m[1].length, crypto.createHash('sha1').update(m[1]).digest('hex'), from, to, tekst, dempet, 2].join('|')).digest('hex').slice(0, 24);
+  const key = crypto.createHash('sha256').update([src, st.size, st.mtimeMs, m[1].length, crypto.createHash('sha1').update(m[1] + ((o && o.played) || '')).digest('hex'), from, to, tekst, dempet, 3].join('|')).digest('hex').slice(0, 24);
   const dir = path.join(deps.app.getPath('userData'), 'presentasjon-cache');
   const out = path.join(dir, key + '.mp4');
   if (fs.existsSync(out)) return { ok: true, path: out, cached: true };
   fs.mkdirSync(dir, { recursive: true });
   const base = path.join(os.tmpdir(), 'fk-bolge-' + key + '.png');
   fs.writeFileSync(base, Buffer.from(m[1], 'base64'));
+  // spilt del: full bølge over den svake, avdekket fra venstre fram til streken
+  const pm = /^data:image\/png;base64,(.+)$/.exec((o && o.played) || ''), played = pm ? base.replace(/\.png$/, '-spilt.png') : null;
+  if (played) fs.writeFileSync(played, Buffer.from(pm[1], 'base64'));
   progress(e, 'Lager lydbølge-video …');
   const font = FONTS.find((f) => fs.existsSync(f));
-  const head = `color=c=#${tekst}:s=4x270:r=25[ph];[0:v][ph]overlay=x='(t+${from})/${dur}*${W}-2':y=6:eval=frame`;
+  const reveal = played ? `color=c=black:s=${W}x${H}:r=25[m0];color=c=white:s=${W}x${H}:r=25[m1];[m0][m1]overlay=x='(t+${from})/${dur}*${W}-${W}':eval=frame,format=gray[mask];[1:v][mask]alphamerge[dk];[0:v][dk]overlay=shortest=1[bg];` : '[0:v]null[bg];';
+  const head = reveal + `color=c=#${tekst}:s=4x270:r=25[ph];[bg][ph]overlay=x='(t+${from})/${dur}*${W}-2':y=6:eval=frame`;
   const counter = font ? `,drawtext=fontfile=${font}:text='%{eif\\:floor((t+${from})/60)\\:d}\\:%{eif\\:mod(floor(t+${from})\\,60)\\:d\\:2} / ${fmt(dur).replace(':', '\\:')}':x=(w-text_w)/2:y=274:fontsize=24:fontcolor=#${dempet}` : '';
-  const args = (graph) => ['-v', 'error', '-y', '-loop', '1', '-framerate', '25', '-i', base, '-ss', String(from), '-t', String(len), '-i', src,
-    '-filter_complex', graph + '[v]', '-map', '[v]', '-map', '1:a?', '-t', String(len), '-s', `${W}x${H}`,
+  const args = (graph) => ['-v', 'error', '-y', '-loop', '1', '-framerate', '25', '-i', base, ...(played ? ['-loop', '1', '-framerate', '25', '-i', played] : []), '-ss', String(from), '-t', String(len), '-i', src,
+    '-filter_complex', graph + '[v]', '-map', '[v]', '-map', (played ? '2' : '1') + ':a?', '-t', String(len), '-s', `${W}x${H}`,
     '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '26', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '96k', '-movflags', '+faststart', out];
   const ff = deps.findFfmpeg();
   let r = await run(ff, args(head + counter));
   if (!r.ok && counter) r = await run(ff, args(head));   // ffmpeg uten drawtext: lag den uten teller
-  try { fs.unlinkSync(base); } catch (x) {}
+  try { fs.unlinkSync(base); if (played) fs.unlinkSync(played); } catch (x) {}
   if (!r.ok) { try { fs.unlinkSync(out); } catch (x) {} return { ok: false, error: r.error || 'ffmpeg feilet' }; }
   return { ok: true, path: out };
 }
