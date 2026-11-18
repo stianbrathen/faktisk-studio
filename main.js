@@ -2765,5 +2765,7 @@ require('./src/bevis-index.js').register(ipcMain, { app, findFfmpeg });
 // videoer lastet ned med yt-dlp (fra bevissikringen) og lagt i Labrador — se src/tiktok-main.js
 // Presentasjon-pluginen: lese lokale medier, lydbølge-videoer (ffmpeg), Keynote via AppleScript
 require('./src/presentasjon-main.js').register(ipcMain, { app, dialog, shell, findFfmpeg });
+// Admin: betatilgang m.m. for den som har plugin-registeret klonet (se src/admin-main.js)
+require('./src/admin-main.js').register(ipcMain, { app, dialog, mainWindow: () => mainWindow, whoAmI: labradorWhoAmI, betaHash });
 require('./src/presentasjon-blokker.js').register(ipcMain, { app, dialog, shell, documentInfo: () => docs.info() });
 require('./src/tiktok-main.js').register(ipcMain, { app, findFfmpeg, labradorListFiles, labradorSafeName, labradorCookieHeader, labradorOrigin: LABRADOR_ORIGIN });

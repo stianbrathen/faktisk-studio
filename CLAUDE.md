@@ -167,3 +167,9 @@ Malsynk (register + zip i GitHub Releases, ikke plugin-bundles), tre nivåer Kje
 - Filtreres i `list-plugins`, `registry-fetch` og `open-plugin`. I dev (`npm start`) vises alt. Forsiden merker betaplugins «Beta».
 - Tilgang: `node scripts/beta-tilgang.js <plugin> legg-til|fjern <e-post> …` og `… slipp` når den er klar for alle. Husk at registeret må få med `beta`/`betaUsers` (release-plugin.sh i plugin-repoet må kopiere feltene — ikke kontrollert).
 - Skjuler, beskytter ikke: koden ligger i app.asar og i registeret.
+
+## Admin (18.11.2026, ikke sluppet)
+- `src/admin-main.js` + `src/admin.html`. Admin = plugin-registeret (faktiskorg-studio-plugins) er klonet på maskinen (standard `~/Dokumenter lokalt/Faktisk prosjekter/faktiskorg-studio-plugins`, kan velges; userData/admin.json). Samme regel som i Final Cut-forslaget: ingen egen innlogging, GitHub-skrivetilgang avgjør. Knappen «Admin» i topplinja vises bare da.
+- Seksjoner: Betatilgang (gi/fjerne/slippe; endrer registry.json lokalt, «Publiser» = git pull --rebase, add registry.json, commit, push), Plugins (oversikt), Final Cut-maler (plassholder for godkjenning/malsynk — templates-registry.json kan ligge i samme repo).
+- E-postadresser for betalistene lagres bare lokalt (userData/admin-kjente.json, sjekksum → adresse).
+- En plugin som ikke er i registry.json ennå kan ikke styres herfra: første entry legges inn manuelt (release-plugin.sh krever det), med `beta`/`betaUsers` fra manifestet. release-plugin.sh beholder feltene ved senere releaser (endrer bare version/bundleUrl/changelog/sha256).

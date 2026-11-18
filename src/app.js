@@ -493,6 +493,9 @@ document.getElementById('fullscreenBtn').addEventListener('click', async () => {
   await window.faktisk.toggleFullscreen();
 });
 
+// Admin vises bare når plugin-registeret er klonet på maskinen (src/admin-main.js)
+(async () => { const b = document.getElementById('adminBtn'); if (!b || !window.faktisk.adminStatus) return;
+  try { const s = await window.faktisk.adminStatus(); if (s && s.admin) { b.hidden = false; b.addEventListener('click', () => window.faktisk.openAdmin()); } } catch (e) {} })();
 document.getElementById('myProjectsBtn').addEventListener('click', () => {
   openMyProjectsModal();
 });

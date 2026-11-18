@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin · Faktisk Studio</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .adm { display:grid; grid-template-columns: 220px minmax(0,1fr); gap: 24px; padding: 24px; max-width: 1200px; margin: 0 auto; }
+  .adm-nav { display:flex; flex-direction:column; gap:6px; }
+  .adm-nav button { all: unset; cursor:pointer; padding: 10px 12px; border-radius: 9px; font: 600 14px/1.2 var(--font-bold, -apple-system, sans-serif); color:#111316; }
+  .adm-nav button[aria-current="page"] { background: var(--faktisk-blue); color:#fff; }
+  .adm-nav button:disabled { opacity:.5; cursor:default; }
+  .adm-nav small { display:block; font-weight:400; opacity:.7; margin-top:2px; }
+  .adm-main { display:flex; flex-direction:column; gap:16px; min-width:0; }
+  .adm-card { background:#fff; color:#111316; border-radius: 12px; padding: 16px 18px; display:flex; flex-direction:column; gap:10px; }
+  .adm-card h2 { margin:0; font: 700 18px/1.2 -apple-system, sans-serif; }
+  .adm-card h3 { margin:0; font: 700 15px/1.2 -apple-system, sans-serif; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .adm-mute { color:#5A5F68; font: 400 13px/1.4 -apple-system, sans-serif; }
+  .adm-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .adm-tag { font: 700 10.5px/1 -apple-system, sans-serif; letter-spacing:.06em; text-transform:uppercase; padding:4px 6px; border-radius:4px; background:#E3E5E9; }
+  .adm-tag.beta { background:#FF7A45; color:#2A1206; }
+  .adm-people { display:flex; flex-wrap:wrap; gap:6px; }
+  .adm-person { display:inline-flex; gap:6px; align-items:center; background:#F1F2F4; border-radius:999px; padding:5px 6px 5px 11px; font: 400 13px/1 -apple-system, sans-serif; }
+  .adm-person button { all:unset; cursor:pointer; width:20px; height:20px; border-radius:50%; display:grid; place-items:center; background:#E3E5E9; }
+  .adm input[type=email], .adm input[type=text] { border:1px solid #CFD3DA; border-radius:8px; padding:8px 10px; font: 400 14px -apple-system, sans-serif; min-width: 260px; }
+  .adm-btn { border:0; border-radius:8px; padding:8px 12px; font: 600 13px -apple-system, sans-serif; cursor:pointer; background:#E3E5E9; color:#111316; }
+  .adm-btn.primary { background: var(--faktisk-blue); color:#fff; }
+  .adm-btn:disabled { opacity:.5; cursor:default; }
+  .adm-bar { position: sticky; bottom: 0; background:#111316; color:#fff; border-radius:12px; padding:12px 16px; display:flex; gap:12px; align-items:center; }
+  .adm-bar[hidden] { display:none; }
+  .adm-table { width:100%; border-collapse: collapse; font: 400 13px/1.35 -apple-system, sans-serif; }
+  .adm-table th, .adm-table td { text-align:left; padding:7px 8px; border-bottom:1px solid #E3E5E9; vertical-align: top; }
+  .adm-table th { font-weight:700; color:#5A5F68; }
+  .adm pre { white-space: pre-wrap; font: 12px/1.4 ui-monospace, Menlo, monospace; background:#F1F2F4; border-radius:8px; padding:10px; margin:0; max-height:200px; overflow:auto; }
+  .adm :focus-visible { outline: 3px solid #FFD166; outline-offset: 2px; }
+</style>
+</head>
+<body>
+<div class="studio">
+  <header class="topbar">
+    <div class="faktisk-logo" role="img" aria-label="Faktisk Studio"></div>
+    <span class="topbar__version" id="appVersion"></span>
+    <div class="topbar__title" role="img" aria-label="Admin"></div>
+    <div class="topbar__actions"><button class="btn-primary" id="backBtn">Malside</button></div>
+  </header>
+  <div class="adm">
+    <nav class="adm-nav" aria-label="Admin">
+      <button data-s="beta" aria-current="page">Betatilgang<small>Hvem ser plugins under utvikling</small></button>
+      <button data-s="plugins">Plugins<small>Versjoner i registeret</small></button>
+      <button data-s="maler" disabled>Final Cut-maler<small>Kommer: godkjenning og malsynk</small></button>
+      <div class="adm-mute" id="who" style="margin-top:14px"></div>
+    </nav>
+    <main class="adm-main" id="main"><div class="adm-card">Henter …</div></main>
+  </div>
+</div>
+<script>
+(function () {
+  const F = window.faktisk, main = document.getElementById('main');
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  document.getElementById('backBtn').onclick = () => F.goHome();
+  F.appVersion && F.appVersion().then((v) => { document.getElementById('appVersion').textContent = v; }).catch(() => {});
+  let section = 'beta', reg = null, status = null;
+
+  document.querySelectorAll('.adm-nav button[data-s]').forEach((b) => b.onclick = () => {
+    if (b.disabled) return; section = b.dataset.s;
+    document.querySelectorAll('.adm-nav button[data-s]').forEach((x) => { if (x === b) x.setAttribute('aria-current', 'page'); else x.removeAttribute('aria-current'); });
+    draw();
+  });
+
+  async function load() {
+    status = await F.adminStatus();
+    document.getElementById('who').innerHTML = status.user ? `Logget inn i Labrador som<br><b>${esc(status.user.email)}</b>` : 'Ikke logget inn i Labrador';
+    if (!status.admin) { main.innerHTML = `<div class="adm-card"><h2>Fant ikke plugin-registeret</h2><p class="adm-mute">Admin bruker en klone av faktiskorg-studio-plugins på maskinen, og endringer publiseres med din GitHub-tilgang.</p><div><button class="adm-btn primary" id="pick">Velg mappa …</button></div></div>`;
+      document.getElementById('pick').onclick = async () => { const r = await F.adminChooseRepo(); if (r.ok) load(); }; return; }
+    reg = await F.adminRegistry(); draw();
+  }
+
+  function bar() {
+    if (!reg || !reg.ok) return '';
+    const parts = [];
+    if (reg.changed) parts.push('Registeret har endringer som ikke er publisert.');
+    if (reg.ahead) parts.push(`${reg.ahead} innsending(er) er ikke pushet.`);
+    if (reg.behind) parts.push(`GitHub har ${reg.behind} nyere innsending(er) – de hentes før publisering.`);
+    if (!reg.changed && !reg.ahead) return '';
+    return `<div class="adm-bar"><span style="flex:1">${parts.join(' ')}</span><input type="text" id="msg" value="Betatilgang oppdatert" aria-label="Melding"><button class="adm-btn primary" id="pub">Publiser</button></div><div id="pubOut"></div>`;
+  }
+
+  function draw() {
+    if (!reg) return;
+    if (!reg.ok) { main.innerHTML = `<div class="adm-card">${esc(reg.error)}</div>`; return; }
+    if (section === 'plugins') {
+      main.innerHTML = `<div class="adm-card"><h2>Plugins i registeret</h2><p class="adm-mute">${esc(reg.repo)}</p>
+        <table class="adm-table"><thead><tr><th>Plugin</th><th>Versjon</th><th>Krever Studio</th><th>Siste endring</th></tr></thead><tbody>
+        ${reg.plugins.map((p) => `<tr><td><b>${esc(p.name)}</b>${p.beta ? ' <span class="adm-tag beta">Beta</span>' : ''}<br><span class="adm-mute">${esc(p.id)}</span></td><td>${esc(p.version)}</td><td>${esc(p.minStudioVersion || '')}</td><td>${esc(p.changelog || '')}</td></tr>`).join('')}
+        </tbody></table></div>${bar()}`;
+      wirePublish(); return;
+    }
+    const betas = reg.plugins.filter((p) => p.beta), others = reg.plugins.filter((p) => !p.beta);
+    main.innerHTML = `<div class="adm-card"><h2>Betatilgang</h2><p class="adm-mute">En betaplugin vises bare for personene på lista, når de er logget inn i Labrador i Studio. Adressene lagres bare på denne maskinen; i registeret står sjekksummer. Endringene gjelder når du har publisert, og når brukerens Studio har hentet registeret (innen en halvtime).</p></div>
+      ${betas.map(card).join('') || '<div class="adm-card adm-mute">Ingen plugins er i beta.</div>'}
+      <div class="adm-card"><h3>Sett en plugin i beta</h3><div class="adm-row"><select id="newBeta">${others.map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}</select><button class="adm-btn" id="makeBeta">Gjør til beta</button></div>
+        <p class="adm-mute">Plugins som ikke er publisert i registeret ennå (som Presentasjon), får tilgangslista fra manifestet ved første release (scripts/beta-tilgang.js i Studio-repoet).</p></div>
+      ${bar()}`;
+    main.querySelectorAll('[data-add]').forEach((b) => b.onclick = () => {
+      const id = b.dataset.add, inp = main.querySelector(`[data-in="${id}"]`), p = reg.plugins.find((x) => x.id === id);
+      const emails = inp.value.split(/[\s,;]+/).filter(Boolean); if (!emails.length) return;
+      save(id, true, p.betaUsers.map((u) => u.hash), emails);
+    });
+    main.querySelectorAll('[data-del]').forEach((b) => b.onclick = () => {
+      const [id, hash] = b.dataset.del.split('|'), p = reg.plugins.find((x) => x.id === id);
+      save(id, true, p.betaUsers.map((u) => u.hash).filter((h) => h !== hash), []);
+    });
+    main.querySelectorAll('[data-release]').forEach((b) => b.onclick = () => {
+      if (!b.dataset.armed) { b.dataset.armed = 1; b.textContent = 'Klikk igjen: synlig for alle'; return; }
+      save(b.dataset.release, false, [], []);
+    });
+    const mk = document.getElementById('makeBeta'); if (mk) mk.onclick = () => { const id = document.getElementById('newBeta').value; if (id) save(id, true, [], []); };
+    wirePublish();
+  }
+
+  function card(p) {
+    return `<div class="adm-card"><h3>${esc(p.name)} <span class="adm-tag beta">Beta</span> <span class="adm-mute">${esc(p.version)}</span></h3>
+      <div class="adm-people">${p.betaUsers.map((u) => `<span class="adm-person">${esc(u.email || 'ukjent (' + u.hash.slice(0, 8) + '…)')}<button title="Fjern" aria-label="Fjern ${esc(u.email || 'person')}" data-del="${esc(p.id)}|${u.hash}">×</button></span>`).join('') || '<span class="adm-mute">Ingen har tilgang ennå.</span>'}</div>
+      <div class="adm-row"><input type="email" data-in="${esc(p.id)}" placeholder="navn@faktisk.no (flere med komma)"><button class="adm-btn" data-add="${esc(p.id)}">Gi tilgang</button><span style="flex:1"></span><button class="adm-btn" data-release="${esc(p.id)}">Slipp til alle</button></div></div>`;
+  }
+
+  async function save(id, beta, keepHashes, emails) {
+    const r = await F.adminBetaSet({ id, beta, keepHashes, emails });
+    if (!r.ok) { alertBox(r.error); return; }
+    reg = await F.adminRegistry(); draw();
+  }
+  function alertBox(t) { const d = document.createElement('div'); d.className = 'adm-card'; d.style.background = '#FFE9E1'; d.textContent = t; main.prepend(d); }
+  function wirePublish() {
+    const b = document.getElementById('pub'); if (!b) return;
+    b.onclick = async () => { b.disabled = true; b.textContent = 'Publiserer …';
+      const r = await F.adminPublish({ message: document.getElementById('msg').value });
+      const out = document.getElementById('pubOut');
+      if (r.ok) { reg = await F.adminRegistry(); draw(); const d = document.createElement('div'); d.className = 'adm-card'; d.textContent = 'Publisert til GitHub.'; main.prepend(d); }
+      else { b.disabled = false; b.textContent = 'Publiser'; out.innerHTML = `<div class="adm-card"><b>Publisering feilet</b><pre>${esc((r.steps || []).map((s) => '$ ' + s.cmd + '\n' + (s.out || '') + (s.err ? '\n' + s.err : '')).join('\n\n') || r.error)}</pre></div>`; } };
+  }
+  load();
+})();
+</script>
+</body>
+</html>
