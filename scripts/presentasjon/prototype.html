@@ -60,6 +60,8 @@ header.top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-block
 .add-wrap{padding:10px;border-top:1px solid var(--ui-line);position:relative}
 .add-wrap .btn{width:100%;justify-content:center}
 .typemenu{position:absolute;left:10px;right:10px;bottom:52px;background:var(--ui-raise);border:1px solid var(--ui-line);border-radius:10px;padding:6px;display:grid;gap:2px;z-index:5;box-shadow:0 12px 30px rgba(0,0,0,.45);max-height:calc(100vh - 180px);overflow-y:auto;overscroll-behavior:contain}
+.chips{display:flex;flex-wrap:wrap;gap:4px}.chips button{display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:0;padding:2px;cursor:pointer;color:var(--ui-mute);font-size:11px}
+.chips button i{width:22px;height:22px;border-radius:50%;box-shadow:inset 0 0 0 1px rgba(255,255,255,.18)}.chips button[aria-pressed=true]{color:var(--ui-fg)}.chips button[aria-pressed=true] i{outline:2px solid var(--ui-accent);outline-offset:2px}
 .typemenu button{text-align:left;background:none;border:0;border-radius:6px;padding:7px 9px;cursor:pointer}
 .typemenu button:hover{background:#25302e}
 .typemenu small{color:var(--ui-mute);display:block;font-size:11.5px}
@@ -99,6 +101,7 @@ header.top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-block
 
 /* Inspektør */
 .insp{overflow:auto;padding:0 14px 14px;display:flex;flex-direction:column;gap:16px;min-height:0}
+#inspDoc{flex:none}
 .group{display:flex;flex-direction:column;gap:8px}
 .group > label,.group .lbl{font-size:12px;color:var(--ui-mute)}
 .seg{display:flex;flex-wrap:wrap;gap:4px;background:var(--ui-bg);border:1px solid var(--ui-line);border-radius:8px;padding:3px}
@@ -211,6 +214,18 @@ const PALETTES = {
   'faktisk-lys':  {name:'Faktisk lys',  c:{bakgrunn:'#FFFFFF',flate:'#F1F2F4','flate-2':'#E3E5E9',tekst:'#111316',dempet:'#5A5F68',aksent:'#0050FC',markering:'#E8501E'}},
   'faktisk-mork': {name:'Faktisk mørk', c:{bakgrunn:'#06102E',flate:'#0D1A47','flate-2':'#16265F',tekst:'#FFFFFF',dempet:'#AEBBE3',aksent:'#6F9BFF',markering:'#FF7A45'}},
   'akademisk':    {name:'Akademisk',    c:{bakgrunn:'#F7F6F3',flate:'#ECEAE4','flate-2':'#DEDBD3',tekst:'#1D2733',dempet:'#5B6572',aksent:'#2D4A68',markering:'#B4472F'}},
+  // Sprek: Faktisk-blå er basen, og hvert lysbilde kan få en farge fra serien (kapitler roterer av seg selv).
+  // Kjølige, digitale toner rundt blåfargen – ikke de jordnære kremtonene til Zetland/Demo Demo.
+  'faktisk-sprek': {name:'Faktisk sprek', c:{bakgrunn:'#F4F6FB',flate:'#E6EBF7','flate-2':'#D3DCF2',tekst:'#0A1230',dempet:'#4E5876',aksent:'#0050FC',markering:'#E5326E'},
+    auto:['blaa','lime','rosa','natt','is','fiol'],
+    series:{
+      blaa:{name:'Blå',     c:{bakgrunn:'#0050FC',flate:'#1A63FF','flate-2':'#3C7BFF',tekst:'#FFFFFF',dempet:'#CFDCFF',aksent:'#D9F65A',markering:'#FFB3D1'}},
+      natt:{name:'Natt',    c:{bakgrunn:'#071338',flate:'#0F1F52','flate-2':'#1A2D6B',tekst:'#FFFFFF',dempet:'#A9B6E0',aksent:'#7FA6FF',markering:'#FF8FB8'}},
+      is:  {name:'Is',      c:{bakgrunn:'#CFDDFF',flate:'#BCCEFB','flate-2':'#A7BEF6',tekst:'#071338',dempet:'#34426E',aksent:'#0047E0',markering:'#C4235C'}},
+      lime:{name:'Lime',    c:{bakgrunn:'#D9F65A',flate:'#CBEA44','flate-2':'#B9DA2E',tekst:'#071338',dempet:'#3A4418',aksent:'#0047E0',markering:'#C4235C'}},
+      rosa:{name:'Rosa',    c:{bakgrunn:'#FFC2DA',flate:'#FFADCD','flate-2':'#F997BE',tekst:'#071338',dempet:'#5A2E45',aksent:'#0040C9',markering:'#B0174F'}},
+      fiol:{name:'Fiolett', c:{bakgrunn:'#4B2FD6',flate:'#5A40E0','flate-2':'#6B54EA',tekst:'#FFFFFF',dempet:'#D3CBFF',aksent:'#D9F65A',markering:'#FFB3D1'}},
+    }},
   'farge':        {name:'Farge',        c:{bakgrunn:'#1C1A3A',flate:'#29265A','flate-2':'#37336F',tekst:'#FFFFFF',dempet:'#C3BEE6',aksent:'#7EE3C8',markering:'#FFB23E'}},
 };
 const GRADER = ['Svært sannsynlig','Sannsynlig','Plausibelt / uklart','Lite sannsynlig','Svært lite sannsynlig','Ikke verifiserbart'];
@@ -510,13 +525,28 @@ function save(){ MEM[deck] = {doc, slides}; try { localStorage.setItem(keyFor(de
 /* ---------- tegning ---------- */
 const ICON_IMG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 17-5-5-9 8"/></svg>';
 function ctxFor(index){ const chapters = slides.filter(s=>s.type==='kapittel').length; let ci = -1; for (let i=0;i<=index;i++) if (slides[i].type==='kapittel') ci++; return {chapters, chapterIndex:ci}; }
-function paletteVars(el){ const c = PALETTES[doc.palette].c; for (const k in c) el.style.setProperty('--'+k, c[k]); }
+// fargen til ett lysbilde: paletten, eller en farge fra serien når paletten har en (s.farge: '' = auto, 'lys' = grunnfargen)
+function slideColorKey(s, index){
+  const p = PALETTES[doc.palette]; if (!p.series) return null;
+  if (s.farge === 'lys') return null; if (s.farge && p.series[s.farge]) return s.farge;
+  if (s.type === 'kapittel') return p.auto[(Math.max(0, ctxFor(index).chapterIndex) + 1) % p.auto.length];   // forsiden har den første
+  if (s.type === 'tittel' || s.type === 'avslutning') return p.auto[0];
+  return null;
+}
+function slidePal(s, index){
+  const p = PALETTES[doc.palette], k = s ? slideColorKey(s, index) : null; if (!k) return p.c;
+  const c = {...p.c, ...p.series[k].c};
+  // kapittel tegnes på «aksent» med tekst i «bakgrunn»: da skal seriefargen være flaten og teksten dens tekstfarge
+  if (TYPES[s.type] && TYPES[s.type].bg === 'aksent') { c.aksent = p.series[k].c.bakgrunn; c.bakgrunn = p.series[k].c.tekst; }
+  return c;
+}
+function paletteVars(el, s, index){ const c = slidePal(s, index); for (const k in c) el.style.setProperty('--'+k, c[k]); }
 
 function renderSlide(slide, index, {editable=false, step=Infinity} = {}){
   const t = TYPES[slide.type];
   const root = document.createElement('div');
   root.className = 'slide' + (editable ? ' edit' : '');
-  paletteVars(root);
+  paletteVars(root, slide, index);
   if (t.bg) root.style.background = `var(--${t.bg})`;
   const els = t.build(slide, doc, ctxFor(index));
   for (let e of els) {
@@ -790,7 +820,8 @@ function drawInspector(){
   const pg = document.createElement('div'); pg.className = 'group'; pg.innerHTML = '<span class="lbl">Palett</span>';
   const sw = document.createElement('div'); sw.className = 'swatches';
   for (const [k, p] of Object.entries(PALETTES)) { const b = document.createElement('button'); b.type = 'button'; b.className = 'pal'; b.setAttribute('aria-pressed', String(k===doc.palette));
-    b.innerHTML = `<div class="bar">${['bakgrunn','flate','tekst','aksent','markering'].map(r=>`<i style="background:${p.c[r]}"></i>`).join('')}</div><span>${p.name}</span>`;
+    const cols = p.series ? [p.c.bakgrunn, ...Object.values(p.series).map(x => x.c.bakgrunn)] : ['bakgrunn','flate','tekst','aksent','markering'].map(r => p.c[r]);
+    b.innerHTML = `<div class="bar">${cols.map(c=>`<i style="background:${c}"></i>`).join('')}</div><span>${p.name}</span>`;
     b.addEventListener('click', () => { doc.palette = k; save(); drawAll(); }); sw.appendChild(b); }
   pg.appendChild(sw); inspDoc.appendChild(pg);
   inspDoc.appendChild(seg('Avsender', [['sujo','Faktisk + SUJO'],['faktisk','Bare Faktisk']], doc.sender, v => { doc.sender = v; save(); drawAll(); }));
@@ -799,6 +830,17 @@ function drawInspector(){
   const s = slides[sel], t = TYPES[s.type];
   const head = document.createElement('div'); head.className = 'group';
   head.innerHTML = `<span class="typename">${t.name}</span><span class="lbl">${t.desc}</span>`; insp.appendChild(head);
+  const PS = PALETTES[doc.palette].series;
+  if (PS) {
+    const g = document.createElement('div'); g.className = 'group'; g.innerHTML = '<span class="lbl">Farge på lysbildet</span>';
+    const row = document.createElement('div'); row.className = 'chips'; row.setAttribute('role', 'group'); row.setAttribute('aria-label', 'Farge på lysbildet');
+    const cur = s.farge || '', autoK = (() => { const f = s.farge; s.farge = ''; const k = slideColorKey(s, sel); s.farge = f; return k; })();
+    const opts = [['', 'Auto', autoK ? PS[autoK].c.bakgrunn : PALETTES[doc.palette].c.bakgrunn], ['lys', 'Lys', PALETTES[doc.palette].c.bakgrunn], ...Object.entries(PS).map(([k, v]) => [k, v.name, v.c.bakgrunn])];
+    for (const [v, txt, col] of opts) { const b = document.createElement('button'); b.type = 'button'; b.title = txt + (v === '' ? (autoK ? ` (${PS[autoK].name})` : ' (lys)') : '');
+      b.setAttribute('aria-pressed', String(v === cur)); b.innerHTML = `<i style="background:${col}"></i><span>${txt}</span>`;
+      b.addEventListener('click', () => { s.farge = v; save(); drawAll(); }); row.appendChild(b); }
+    g.appendChild(row); insp.appendChild(g);
+  }
   if (s.type === 'steg' || s.type === 'detalj') {
     insp.appendChild(seg('Bygg', [['ingen','Alt på en gang'],['punkt',s.type==='steg'?'Ett steg per klikk':'Én metode per klikk']], s.build, v => { s.build = v; save(); drawAll(); }));
   }
@@ -1039,14 +1081,14 @@ async function videoPoster(url){
 }
 
 async function exportPptx(doc, slides, {onProgress} = {}){
-  const pal = PALETTES[doc.palette].c;
+  const pal = PALETTES[doc.palette].c, palDoc = pal;
   const pptx = new PptxGenJS();
   pptx.defineLayout({name:'FHD', width:1920*PX, height:1080*PX}); pptx.layout = 'FHD';
   pptx.title = doc.title; pptx.company = 'Faktisk';
   const logoCache = {}, meta = [];   // meta: per lysbilde {names:{navn:bygg}, in, media:{navn:{srcRect,r}}}
 
   for (let si = 0; si < slides.length; si++) {
-    const s = slides[si], t = TYPES[s.type];
+    const s = slides[si], t = TYPES[s.type], pal = typeof slidePal === 'function' ? slidePal(s, si) : palDoc;
     onProgress && onProgress(si + 1, slides.length);
     // «Vis stort»: lysbildet deles i flere Keynote-lysbilder, og hvert bilde/klipp glir opp i stor størrelse og tilbake
     for (const seg of await exportSegments(s, si, t.build(s, doc, ctxFor(si)))) {
