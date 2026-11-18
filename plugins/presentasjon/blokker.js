@@ -18,6 +18,11 @@
   const row = document.createElement('div'); row.className = 'blk-row';
   row.innerHTML = '<button class="btn small" id="blkSaveBtn" type="button">Lagre i biblioteket…</button><button class="btn small" id="blkInsertBtn" type="button">Bibliotek…</button>';
   wrap.appendChild(row);
+  // typemenyen skal åpne seg rett over «+ Nytt lysbilde» og kunne rulles når den er høyere enn plassen over
+  { const am = document.getElementById('typemenu'), ab = document.getElementById('addBtn');
+    const place = () => { if (matchMedia('(max-width: 720px)').matches) { am.style.bottom = am.style.maxHeight = ''; return; }
+      am.style.bottom = (wrap.clientHeight - ab.offsetTop + 6) + 'px'; am.style.maxHeight = Math.max(180, ab.getBoundingClientRect().top - Math.max(12, document.getElementById('list').getBoundingClientRect().top) - 6) + 'px'; };
+    ab.addEventListener('click', place, true); window.addEventListener('resize', () => { if (!am.hidden) place(); }); }
 
   const css = document.createElement('style');
   css.textContent = `
