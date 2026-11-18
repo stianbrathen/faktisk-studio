@@ -739,7 +739,7 @@ function lydTick(){
     const tt = w.querySelector('.lydtid'); if (tt) tt.textContent = (seg != null ? `Funn ${seg + 1} · ` : '') + `${fmtT(t)} / ${fmtT(dur)}`; });
   if (lyd.env) waves.forEach(w => liveBars(w, t, dur, lyd.env, on || t > 0));
   // spilles ett funn, er det bare det som lyser; ellers lyser funnene streken er inne i
-  document.querySelectorAll(`.mark[data-sid="${lyd.sid}"], .card[data-sid="${lyd.sid}"]`).forEach(m => m.classList.toggle('on', seg != null ? +m.dataset.mi === seg : ((on || t > 0) && +m.dataset.b - +m.dataset.a < dur * .9 && t >= +m.dataset.a && t <= +m.dataset.b + .3)));
+  document.querySelectorAll(`.mark[data-sid="${lyd.sid}"], .card[data-sid="${lyd.sid}"]`).forEach(m => m.classList.toggle('on', seg != null ? +m.dataset.mi === seg : ((on || t > 0) && (+m.dataset.b - +m.dataset.a < dur * .9 ? t >= +m.dataset.a && t <= +m.dataset.b + .3 : m.classList.contains('card')))));   // funn over hele klippet: bare boksen lyser, ikke hele bølgen
   if (on) lyd.raf = requestAnimationFrame(lydTick);
 }
 const audiopick = Object.assign(document.createElement('input'), {type:'file', accept:'audio/*,video/*', hidden:true}); document.body.appendChild(audiopick);
@@ -1103,7 +1103,7 @@ async function exportPptx(doc, slides, {onProgress} = {}){
     const s = slides[si], t = TYPES[s.type], pal = typeof slidePal === 'function' ? slidePal(s, si) : palDoc;
     onProgress && onProgress(si + 1, slides.length);
     // «Vis stort»: lysbildet deles i flere Keynote-lysbilder, og hvert bilde/klipp glir opp i stor størrelse og tilbake
-    for (const seg of await exportSegments(s, si, t.build(s, doc, ctxFor(si)))) {
+    for (const seg of await exportSegments(s, si, t.build(s, doc, ctxFor(si)), (msg) => onProgress && onProgress(si + 1, slides.length, msg))) {
     const sl = pptx.addSlide();
     sl.background = {color: seg.kind === 'big' ? BIG_BG : exHex(t.bg || 'bakgrunn', pal)};
     if (s.notes && seg.first) sl.addNotes(s.notes);
@@ -1147,32 +1147,26 @@ async function exportPptx(doc, slides, {onProgress} = {}){
       } else if (e.kind === 'media') {
         await addMedia(sl, s, e, name, m, pal, pptx);
       } else if (e.kind === 'wave') {
-        // ferdig lydbølge-video (med lyd og strek som går) når den finnes for denne paletten
-        let lv = s.def && s.def.lydvideo; if (lv && lv.palette && lv.palette !== doc.palette) lv = null;
-        let segList = lv ? (s.def.lydseg || []) : [];
-        if (!lv && EXPORT_HOOKS.waveVideo && lydSrc(s)) {   // Studio lager videoene for valgt palett
-          onProgress && onProgress(si + 1, slides.length, 'Lager lydbølge-video …');
-          const u = await EXPORT_HOOKS.waveVideo(s, pal, 0, null);
-          if (u) { lv = {src:u}; const dur = waveFor(s).dur;
-            for (const [i, mk] of (s.marks || []).slice(0, 3).entries()) { if (mk[1] - mk[0] >= dur * .9) continue;
-              const [a, b] = segRange(s, mk), su = await EXPORT_HOOKS.waveVideo(s, pal, a, b, i); if (su) segList.push({i, a, b, src:su}); } }
+        // Lydvideoene (laget i Studio for paletten): oversikten bygger inn boksene, så får hele lyden og hvert funn
+        // sitt eget Keynote-lysbilde der klippet starter av seg selv og boksen er markert.
+        // (Flere filmer oppå hverandre på samme lysbilde ble feil i Keynote: bare den øverste syntes.)
+        const lyd = seg.lyd;
+        if (lyd && seg.kind === 'normal') {   // oversikten: stillbilde av bølgen, boksene bygges inn
+          const q = await videoPoster(lyd.lv.src);
+          if (q) { sl.addImage({x:e.x*PX, y:(e.y-30)*PX, w:e.w*PX, h:310*PX, objectName:name(e, 'lydbilde'), data:q.data}); continue; }
         }
-        if (lv) {
-          const p = await videoPoster(lv.src);
-          if (p) { const nm = name(e, 'lydvideo'); m.names[nm] = 0; m.videos[nm] = {dur:Math.round(p.dur*1000), last:true};
-            sl.addMedia({x:e.x*PX, y:(e.y-30)*PX, w:e.w*PX, h:310*PX, objectName:nm, type:'video', data:(await urlToDataUrl(lv.src)).replace(/^data:/, ''), cover:p.data.replace(/^data:/, ''), extn:'mp4'});
-            // korte klipp av hvert funn, spilles ett og ett på klikkene etter hele lyden
-            for (const sg of segList) {
-              const mk = (s.marks || [])[sg.i]; if (!mk || mk[0] < sg.a - .5 || mk[1] > sg.b + .5) continue;
-              const q = await videoPoster(sg.src); if (!q) continue;
-              const sn = `lydfunn-${sg.i+1}`; m.names[sn] = 0; m.videos[sn] = {dur:Math.round(q.dur*1000), seg:sg.i+1, twoClick:s.segMode === 'toklikk'};
-              // ramme rundt boksen til funnet, synlig mens det spilles
-              const card = !s.noFrame && seg.els.find(x => x.card && x.mi === sg.i);
-              if (card) { const fn = `lydramme-${sg.i+1}`; m.names[fn] = 0; m.videos[sn].frame = fn;
-                late.push(() => sl.addShape(pptx.ShapeType.roundRect, {x:card.x*PX, y:card.y*PX, w:card.w*PX, h:card.h*PX, rectRadius:card.r*PX, objectName:fn, fill:{type:'none'}, line:{color:exHex('markering', pal), width:PT(10)}})); }   // legges øverst etter boksene
-              sl.addMedia({x:e.x*PX, y:(e.y-30)*PX, w:e.w*PX, h:310*PX, objectName:sn, type:'video', data:(await urlToDataUrl(sg.src)).replace(/^data:/, ''), cover:q.data.replace(/^data:/, ''), extn:'mp4'});
+        if (lyd && seg.kind === 'funn') {
+          const q = await videoPoster(seg.sg.src);
+          if (q) {
+            const nm = seg.sg.i < 0 ? 'lydvideo' : `lydfunn-${seg.sg.i+1}`; m.names[nm] = 0;
+            m.videos[nm] = {dur:Math.round(q.dur*1000), seg:1, auto:true};   // starter av seg selv når lysbildet vises
+            for (const fi of seg.sg.frames) {   // ramme rundt boksen til funnet (står fast på dette lysbildet)
+              const card = !s.noFrame && seg.els.find(x => x.card && x.mi === fi);
+              if (card) late.push(() => sl.addShape(pptx.ShapeType.roundRect, {x:card.x*PX, y:card.y*PX, w:card.w*PX, h:card.h*PX, rectRadius:card.r*PX, objectName:`lydramme-${fi+1}`, fill:{type:'none'}, line:{color:exHex('markering', pal), width:PT(10)}}));
             }
-            continue; }
+            sl.addMedia({x:e.x*PX, y:(e.y-30)*PX, w:e.w*PX, h:310*PX, objectName:nm, type:'video', data:(await urlToDataUrl(seg.sg.src)).replace(/^data:/, ''), cover:q.data.replace(/^data:/, ''), extn:'mp4'});
+            continue;
+          }
         }
         // lydbølgen som enkle søyler, så den kan endres i Keynote
         const {p} = waveFor(s), N = 120, bw = e.w / N, nm = name(e, 'lydbolge');
@@ -1246,8 +1240,33 @@ async function mediaAspect(s, e){
   if (med.kind === 'video') { const p = await videoPoster(med.url); return p ? p.nw / p.nh : e.w / e.h; }
   try { const im = await loadImg(med.url); return im.naturalWidth / im.naturalHeight; } catch (err) { return e.w / e.h; }
 }
-async function exportSegments(s, si, all){
+// lydvideoene for et lydlysbilde: hele lyden og ett klipp per funn (fra eksempelet, eller laget av Studio)
+async function lydVideos(s, si, onProgress){
+  if (s.type !== 'lyd') return null;
+  const pal = typeof slidePal === 'function' ? slidePal(s, si) : PALETTES[doc.palette].c;
+  let lv = s.def && s.def.lydvideo; if (lv && lv.palette && lv.palette !== doc.palette) lv = null;
+  let segList = lv ? (s.def.lydseg || []) : [];
+  if (!lv && EXPORT_HOOKS.waveVideo && lydSrc(s)) {
+    onProgress && onProgress('Lager lydbølge-video …');
+    const u = await EXPORT_HOOKS.waveVideo(s, pal, 0, null);
+    if (u) { lv = {src:u}; const dur = waveFor(s).dur;
+      for (const [i, mk] of (s.marks || []).slice(0, 3).entries()) { if (mk[1] - mk[0] >= dur * .9) continue;
+        const [a, b] = segRange(s, mk), su = await EXPORT_HOOKS.waveVideo(s, pal, a, b, i); if (su) segList.push({i, a, b, src:su}); } }
+  }
+  if (!lv) return null;
+  segList = segList.filter(sg => { const mk = (s.marks || [])[sg.i]; return mk && mk[0] >= sg.a - .5 && mk[1] <= sg.b + .5; });
+  return {lv, segList};
+}
+async function exportSegments(s, si, all, onProgress){
   const tag = all.map((e, i) => s.stor ? {...e, match:e.match || `el-${i}`} : e);
+  const lyd = await lydVideos(s, si, onProgress);
+  if (lyd) {   // oversikten (boksene bygges inn, så spilles hele lyden), deretter ett lysbilde per funn
+    const max = Math.max(0, ...tag.map(e => e.build || 0)), segs = [{kind:'normal', first:true, from:0, els:tag, lyd}];
+    const dur = waveFor(s).dur, hele = (s.marks || []).slice(0, 3).map((mk, i) => mk[1] - mk[0] >= dur * .9 ? i : -1).filter(i => i >= 0);
+    segs.push({kind:'funn', first:false, from:max, els:tag, lyd, sg:{i:-1, src:lyd.lv.src, frames:hele}});   // hele lyden; funn som dekker hele klippet markeres
+    for (const sg of lyd.segList) segs.push({kind:'funn', first:false, from:max, els:tag, lyd, sg:{...sg, frames:[sg.i]}});
+    return segs;
+  }
   if (!s.stor) return [{kind:'normal', first:true, from:0, els:tag}];
   const punkt = s.build === 'punkt', max = punkt ? Math.max(0, ...tag.map(e => e.build || 0)) : 0;
   const states = playStates(s, si), segs = []; let from = 0, first = true;
