@@ -55,10 +55,12 @@ a = h.index("const STORE = 'studio-presentasjon-v1';")
 b = h.index('\n', h.index('function save(){ MEM[deck]')) + 1
 h = h[:a] + r"""const PLUGIN_ID = 'presentasjon', STORE = 'studio-presentasjon-v1';   // STORE: bare for «Skjul»-valget på merknaden
 let deck = 'sujo1', doc, slides, sel = 0;
-function freshDoc(d){ return {title:DECKS[d].name, palette:'akademisk', sender:'sujo'}; }
+// en ny presentasjon i Studio starter tom: ett tittellysbilde, Faktisk-palett
+DECKS.tom = {name:'Ny presentasjon', slides:()=>[mk('tittel',{})]};
+function freshDoc(d){ return d === 'tom' ? {title:'', palette:'faktisk-lys', sender:'faktisk'} : {title:DECKS[d].name, palette:'akademisk', sender:'sujo'}; }
 // eksemplene i prototypen har medier på nett; i Studio legger man inn egne filer
 function loadDeck(d){ deck = d; sel = 0; doc = freshDoc(d); slides = DECKS[d].slides(); slides.forEach(s => { delete s.def; }); }
-loadDeck('sujo1');
+loadDeck('tom');
 const keepImg = img => { const o = {}; for (const k in img || {}) if (img[k] && /^file:/.test(img[k].url || '')) o[k] = {...img[k]}; return o; };
 let saveT = 0, restoring = false;
 function save(){

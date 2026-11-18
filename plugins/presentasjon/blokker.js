@@ -118,9 +118,16 @@
       <div class="blk-tabs" role="group" aria-label="Hvilke"><button class="btn small" data-l="alle" aria-pressed="true">Alle</button><button class="btn small" data-l="faktisk" aria-pressed="false">Faktisk</button><button class="btn small" data-l="delt" aria-pressed="false">Delt</button><button class="btn small" data-l="mine" aria-pressed="false">Mine</button>
         <span style="flex:1"></span><input type="text" id="blkQ" placeholder="Søk" style="max-width:220px"></div>
       <div class="blk-list" id="blkList"></div>
-      <div class="blk-foot"><div class="blk-where" id="blkWhere"></div><span class="sp"></span><button class="btn small" type="button" id="blkImport">Importer fil…</button><button class="btn" type="button" id="blkClose">Lukk</button></div>`);
+      <div class="blk-foot"><div class="blk-where" id="blkWhere"></div><span class="sp"></span><button class="btn small" type="button" id="blkBlank">Ny tom presentasjon</button><button class="btn small" type="button" id="blkImport">Importer fil…</button><button class="btn" type="button" id="blkClose">Lukk</button></div>`);
     const list = d.querySelector('#blkList');
     d.querySelector('#blkClose').onclick = () => d.close();
+    d.querySelector('#blkBlank').onclick = async (e) => {
+      const info = F.documentInfo ? await F.documentInfo() : null;
+      if (!arm(e.currentTarget, info ? `Klikk igjen: tømmer «${info.name || 'dokumentet'}»` : 'Klikk igjen: tømmer lysbildene')) return;
+      deck = 'tom'; doc = freshDoc('tom'); slides = DECKS.tom.slides(); sel = 0;
+      document.getElementById('docTitle').value = doc.title; save(); drawAll(); d.close();
+      toast('Ny tom presentasjon. Bruk Lagre som… hvis du vil beholde den forrige.');
+    };
     d.querySelectorAll('.blk-tabs button').forEach((b) => b.onclick = () => { level = b.dataset.l; d.querySelectorAll('.blk-tabs button').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); draw(); });
     d.querySelector('#blkQ').oninput = (e) => { q = e.target.value.toLowerCase(); draw(); };
     d.querySelector('#blkImport').onclick = async () => {
