@@ -1328,7 +1328,7 @@ makeBtn.addEventListener('click', async () => {
     const blob = await exportPptx(doc, slides, {onProgress:(i, n, msg) => { makeBtn.textContent = msg || `Lager … ${i}/${n}`; }});
     makeBtn.textContent = 'Lagrer …';
     const info = window.faktisk.documentInfo ? await window.faktisk.documentInfo() : null;
-    const r = await window.faktisk.presentationKeynote({bytes:new Uint8Array(await blob.arrayBuffer()), title:doc.title, folder:info && info.folder});
+    const r = await window.faktisk.presentationKeynote({bytes:new Uint8Array(await blob.arrayBuffer()), title:doc.title, folder:info && info.folder, saveAsKey:true});
     if (r.canceled) return;
     if (!r.ok) throw new Error(r.error || 'ukjent feil');
     const name = r.path.split('/').pop();

@@ -155,10 +155,10 @@ const SCRIPT = `on run argv
   end tell
 end run`;
 
-// «Lag Keynote»: lagre .pptx i Eksport/ og åpne den i Keynote uten å vente på Keynote.
-// Keynote viser ofte importvarsler; AppleScript-lagring som .key kunne da henge i minutter
-// (Studio 0.8.1). Brukeren lagrer som Keynote-fil med ⌘S. AppleScript-veien (saveAsKey)
-// er beholdt for senere «Ferdigstill i Keynote» (klipp med runde hjørner), med kort tidsfrist.
+// «Lag Keynote»: lagre .pptx i Eksport/. Med saveAsKey prøver Studio å la Keynote lagre den
+// som .key (AppleScript) i maks 20 s; svarer ikke Keynote (importvarsel, tillatelse som ikke er
+// gitt ennå), åpnes .pptx-fila i Keynote og brukeren lagrer med ⌘S. I 0.8.1 ventet Studio i
+// 3 minutter og knappen ble stående på «Åpner i Keynote».
 async function keynote(e, o) {
   const bytes = o && o.bytes;
   if (!bytes || !bytes.length) return { ok: false, error: 'Ingen fil å lagre' };
@@ -178,7 +178,7 @@ async function keynote(e, o) {
   if (asKey) {
     progress(e, 'Lagrer som Keynote-fil …');
     const key = target.replace(/\.pptx$/, '.key');
-    const err = await new Promise((resolve) => execFile('osascript', ['-e', SCRIPT, target, key], { timeout: 45000 }, (x, so, se) => resolve(x ? (se || x.message) : null)));
+    const err = await new Promise((resolve) => execFile('osascript', ['-e', SCRIPT, target, key], { timeout: 20000 }, (x, so, se) => resolve(x ? (se || x.message) : null)));
     if (!err && fs.existsSync(key)) { try { fs.unlinkSync(target); } catch (x) {} return { ok: true, path: key, key: true }; }
     // Keynote svarte ikke (importvarsel, tillatelse): fila er åpnet, brukeren lagrer selv
   }
