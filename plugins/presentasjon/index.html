@@ -328,11 +328,11 @@ const TYPES = {
         {kind:'rect',x:86,y:290,w:1748,h:330,r:23,fill:'flate'},{kind:'wave',x:WX,y:WY,w:WW,h:WH,role:'lyd'},
         {kind:'static',x:WX,y:570,w:200,h:36,text:'0:00',size:24,color:'dempet'},{kind:'static',x:WX+WW-200,y:570,w:200,h:36,text:fmtT(dur),size:24,color:'dempet',align:'right'}];
       const cards=[86,683,1280];
-      (s.marks||[]).slice(0,3).forEach(([a,b],i)=>{const k=i+1,mx=WX+Math.min(1,a/dur)*WW,mw=Math.max(6,Math.min(1,(b-a)/dur)*WW);
-        out.push({kind:'mark',x:Math.round(mx),y:WY-12,w:Math.round(Math.min(mw,WX+WW-mx)),h:WH+24,build:k,a,b,mi:i});
+      (s.marks||[]).slice(0,3).forEach(([a,b],i)=>{const k=i+1,[pa,pb]=b-a<dur*.9?segRange(s,[a,b]):[a,b],mx=WX+Math.min(1,pa/dur)*WW,mw=Math.max(6,Math.min(1,(pb-pa)/dur)*WW);   // markeringen = det som spilles
+        out.push({kind:'mark',x:Math.round(mx),y:WY-12,w:Math.round(Math.min(mw,WX+WW-mx)),h:WH+24,build:k,a:pa,b:pb,mi:i});
         out.push({kind:'num',x:Math.round(mx+Math.min(mw,WX+WW-mx)/2-22),y:WY-36,w:44,h:44,text:String(k),solid:'markering',fs:24,build:k,seg:i});
         const x=cards[i];
-        out.push({kind:'rect',x,y:660,w:554,h:265,r:23,fill:'flate',build:k,card:true,mi:i,a,b});
+        out.push({kind:'rect',x,y:660,w:554,h:265,r:23,fill:'flate',build:k,card:true,mi:i,a:pa,b:pb});
         out.push({kind:'num',x:x+44,y:698,w:52,h:52,text:String(k),solid:'markering',fs:26,build:k,seg:i});
         out.push(T('m'+k+'-tittel',x+116,694,394,50,{size:34,weight:700,color:'tekst'},{ph:'Funn '+k,build:k}));
         out.push({kind:'static',x:x+116,y:744,w:394,h:34,text:fmtT(a)+(b-a>1?'–'+fmtT(b):''),size:24,color:'markering',build:k});
@@ -467,7 +467,7 @@ async function loadAudio(slide, file){
 /* ---------- case: lydklippene av Virginia Giuffre ---------- */
 function giuffreSlides(){ return [
   mk('kapittel',{kicker:'CASE',tittel:'Lydklippene av Virginia Giuffre',tekst:'Påstanden · kontekst · lydanalyse · verktøy · spredning'},{notes:'Et case om lydverifisering. Lyd er vanskelig å vise på lysbilder, derfor egne grafikktyper: lydbølge med merkede funn, verktøyresultater og spredning.'}),
-  mk('toklipp',{kicker:'PÅSTANDEN',tittel:'To lydklipp skal være Giuffre, tatt opp før hun døde',tekst1:'Klipp 1: Clinton (2:06)',tekst2:'Klipp 2: om Barack Obama (3:44)'},{build:'punkt',stor:true,def:{klipp1:{src:'media/giuffre-clinton.mp4',kind:'video'},klipp2:{src:'media/giuffre-obama.mp4',kind:'video'}},notes:'Klippene ligger inne i nedskalert versjon (uten lyd i prototypen). I Studio lages en kort sammenstilling med hovedanklagene i Klippsamler.'}),
+  mk('toklipp',{kicker:'PÅSTANDEN',tittel:'To lydklipp skal være Giuffre, tatt opp før hun døde',tekst1:'Klipp 1: Clinton (2:06)',tekst2:'Klipp 2: om Barack Obama (3:44)'},{build:'punkt',stor:true,kant:'tynn',skygge:true,def:{klipp1:{src:'media/giuffre-clinton.mp4',kind:'video'},klipp2:{src:'media/giuffre-obama.mp4',kind:'video'}},notes:'Klippene ligger inne i nedskalert versjon (uten lyd i prototypen). I Studio lages en kort sammenstilling med hovedanklagene i Klippsamler.'}),
   mk('tekst',{kicker:'KONTEKST',tittel:'Stemmer det med det hun har sagt før?',begrep1:'Det hun har sagt',forklaring1:'Giuffre har rettet direkte overgrepsanklager mot blant andre prins Andrew og Ehud Barak.',begrep2:'Det hun ikke har sagt',forklaring2:'Hun har aldri anklaget Barack Obama eller Clinton-ekteparet for overgrep. Om Bill Clinton har hun sagt at han var i Epsteins omgangskrets, men at han ikke forgrep seg på henne.'},{build:'punkt',notes:'Virginia Giuffre døde 25. april 2025, 41 år gammel. Kilde: Siljes casebeskrivelse, memoarene Nobody\'s Girl og rettsdokumenter.'}),
   mk('lyd',{kicker:'LYDANALYSE · KLIPP 1',tittel:'Hva lyden avslører','m1-tittel':'Ingen naturlige pauser','m1-tekst':'Over to minutter med jevn, flat framføring uten pauser.','m2-tittel':'Ingen hørbar pust','m2-tekst':'Et parti på 13 sekunder uten et eneste pust.','m3-tittel':'Brå kutt','m3-tekst':'Kutt til stillhet uten naturlig romklang.'},
      {wave:'clinton',def:{lyd:{src:'media/giuffre-clinton.mp4',kind:'audio'},lydvideo:{src:'media/giuffre-clinton-lydbolge-v3.mp4',palette:'akademisk'},lydseg:[{i:1,a:40,b:53,src:'media/giuffre-clinton-lyd-funn2-v3.mp4'},{i:2,a:82,b:87,src:'media/giuffre-clinton-lyd-funn3-v3.mp4'}]},marks:[[0,126.4],[40,53],[84,85]],build:'punkt',notes:'Lydbølgen er målt fra Clinton-klippet. I hele fila finnes ingen pause lenger enn et kvart sekund. Merke 2 og 3 står på omtrentlig plass: sett riktige tidskoder til høyre. Funnene er ekspertvurderinger gjengitt av PolitiFact (Siwei Lyu og Hafiz Malik).'}),
@@ -612,6 +612,7 @@ function renderSlide(slide, index, {editable=false, step=Infinity} = {}){
       d.innerHTML = `<svg width="1920" height="1080" viewBox="0 0 1920 1080" style="position:absolute;left:0;top:0;overflow:visible" aria-hidden="true">${e.paths.map(p => `<path d="${p.d}" fill="${p.fill ? `var(--${p.fill})` : 'none'}" stroke="${p.stroke ? `var(--${p.stroke})` : 'none'}" stroke-width="${p.sw||0}" stroke-linecap="round" ${p.dash ? `stroke-dasharray="${p.dash}"` : ''}/>`).join('')}</svg>`;
       e = {...e, x:0, y:0, w:1920, h:1080};
     }
+    if (slide.type === 'lyd' && e.build) d.dataset.k = e.build;
     Object.assign(d.style, {left:e.x+'px', top:e.y+'px', width:e.w+'px', height:e.h+'px'});
     if (slide.build==='punkt' && e.build && e.build > step) d.style.visibility = 'hidden';
     if (e.match) d.dataset.match = e.match;
@@ -711,6 +712,14 @@ function waveEl(slide, e, editable){
 let audioTarget = null;
 /* ---------- avspilling av lyd i lydanalysen ---------- */
 const lyd = {audio:null, sid:null, raf:0};
+// under avspilling vises bare funnet som spilles (hele lyden: funnene som gjelder hele klippet, ellers alle)
+function lydKeep(s, audio){
+  const ms = (s.marks || []).slice(0, 3), dur = waveFor(s).dur;
+  if (audio === 'all') { const hele = ms.map((mk, i) => mk[1] - mk[0] >= dur * .9 ? i + 1 : 0).filter(Boolean); return hele.length ? hele : ms.map((_, i) => i + 1); }
+  return [audio + 1];
+}
+function lydFocus(layer, s, audio){ const keep = audio === undefined ? null : lydKeep(s, audio);
+  layer.querySelectorAll('[data-k]').forEach(el => { el.style.transition = 'opacity .35s ease'; el.style.opacity = keep && !keep.includes(+el.dataset.k) ? '0' : ''; }); }
 function lydSrc(s){ if (s.img && s.img.lyd) return s.img.lyd.url; if (s.def && s.def.lyd) return s.def.lyd.src; return null; }
 // lyden hentes som blob, så man kan hoppe fritt i den
 const lydBlobs = {};
@@ -1045,6 +1054,7 @@ function advance(dir){
   if (dir > 0 && play.step < max) { const a = states[play.step], st = states[play.step + 1]; play.step++; const cur = play.wrap.lastElementChild;
     if (a.big !== null) closeBig(cur);
     if (st.big !== null) openBig(cur, s, play.i, st.big);
+    if (s.type === 'lyd') lydFocus(cur, s, st.audio);
     if (st.audio !== undefined) { if (st.audio === 'all') lydPlay(s, 0, waveFor(s).dur + 1); else lydPlay(s, ...segRange(s, s.marks[st.audio]), st.audio); }
     if (st.build === a.build) return;
     const nl = renderSlide(s, play.i, {step:st.build});
@@ -1280,8 +1290,9 @@ async function exportSegments(s, si, all, onProgress){
   if (lyd) {   // oversikten (boksene bygges inn, så spilles hele lyden), deretter ett lysbilde per funn
     const max = Math.max(0, ...tag.map(e => e.build || 0)), segs = [{kind:'normal', first:true, from:0, els:tag, lyd}];
     const dur = waveFor(s).dur, hele = (s.marks || []).slice(0, 3).map((mk, i) => mk[1] - mk[0] >= dur * .9 ? i : -1).filter(i => i >= 0);
-    segs.push({kind:'funn', first:false, from:max, els:tag, lyd, sg:{i:-1, src:lyd.lv.src, frames:hele}});   // hele lyden; funn som dekker hele klippet markeres
-    for (const sg of lyd.segList) segs.push({kind:'funn', first:false, from:max, els:tag, lyd, sg:{...sg, frames:[sg.i]}});
+    const only = audio => { const keep = lydKeep(s, audio); return tag.filter(e => !e.build || keep.includes(e.build)); };   // bare funnet som spilles vises
+    segs.push({kind:'funn', first:false, from:max, els:only('all'), lyd, sg:{i:-1, src:lyd.lv.src, frames:hele}});   // hele lyden; funn som dekker hele klippet markeres
+    for (const sg of lyd.segList) segs.push({kind:'funn', first:false, from:max, els:only(sg.i), lyd, sg:{...sg, frames:[sg.i]}});
     return segs;
   }
   if (!s.stor) return [{kind:'normal', first:true, from:0, els:tag}];
@@ -1415,7 +1426,7 @@ EXPORT_HOOKS.waveVideo = async (s, pal, from, to, seg) => {
   const src = lydSrc(s); if (!src || !src.startsWith('file:')) return null;
   const mk = seg != null && s.marks[seg], c = {}; for (const k of ['flate','aksent','markering','tekst','dempet']) c[k] = pal[k];
   const r = await window.faktisk.presentationWaveform({src, peaks:waveFor(s).p, dur:waveFor(s).dur, from, to, colors:c,
-    seg:mk ? mk : null, label:mk ? `FUNN ${seg + 1}` : ''});
+    seg:null, label:''});   // markeringen ligger på lysbildet
   if (!r || !r.ok) { console.warn('lydbølge', r && r.error); return null; }
   return 'file://' + encodeURI(r.path).replace(/#/g, '%23');
 };
