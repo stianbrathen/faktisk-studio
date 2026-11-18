@@ -1126,9 +1126,9 @@ async function exportPptx(doc, slides, {onProgress} = {}){
             for (const sg of segList) {
               const mk = (s.marks || [])[sg.i]; if (!mk || mk[0] < sg.a - .5 || mk[1] > sg.b + .5) continue;
               const q = await videoPoster(sg.src); if (!q) continue;
-              const sn = `lydfunn-${sg.i+1}`; m.names[sn] = 0; m.videos[sn] = {dur:Math.round(q.dur*1000), seg:sg.i+1};
+              const sn = `lydfunn-${sg.i+1}`; m.names[sn] = 0; m.videos[sn] = {dur:Math.round(q.dur*1000), seg:sg.i+1, twoClick:s.segMode === 'toklikk'};
               // ramme rundt boksen til funnet, synlig mens det spilles
-              const card = seg.els.find(x => x.card && x.mi === sg.i);
+              const card = !s.noFrame && seg.els.find(x => x.card && x.mi === sg.i);
               if (card) { const fn = `lydramme-${sg.i+1}`; m.names[fn] = 0; m.videos[sn].frame = fn;
                 late.push(() => sl.addShape(pptx.ShapeType.roundRect, {x:card.x*PX, y:card.y*PX, w:card.w*PX, h:card.h*PX, rectRadius:card.r*PX, objectName:fn, fill:{type:'none'}, line:{color:exHex('markering', pal), width:PT(10)}})); }   // legges øverst etter boksene
               sl.addMedia({x:e.x*PX, y:(e.y-30)*PX, w:e.w*PX, h:310*PX, objectName:sn, type:'video', data:(await urlToDataUrl(sg.src)).replace(/^data:/, ''), cover:q.data.replace(/^data:/, ''), extn:'mp4'});
@@ -1265,7 +1265,12 @@ function buildTiming(groups, vids, nextId, slideXml, growIds = new Set()){
   }
   if (last.length) { steps.push({fade:[], play:last, stop:playing}); playing = last; }   // lydbølgen spilles til slutt, når alle funn er vist
   let lit = null;   // rammen rundt boksen til funnet som spilles
-  for (const id of segv) { const f = vids[id].frameId; steps.push({fade:f ? [id, f] : [id], play:[id], stop:playing, out:lit ? [lit] : [], auto:vids[id].auto && !steps.length}); playing = [id]; lit = f; }
+  // Keynote dropper innbyggingen hvis den står i samme gruppe som «start film»; derfor kommer
+  // klippet først inn, og filmen starter etter innbyggingen (afterEffect) på samme klikk
+  for (const id of segv) { const f = vids[id].frameId;
+    if (vids[id].twoClick) { steps.push({fade:f ? [id, f] : [id], play:[], stop:playing, out:lit ? [lit] : []}); steps.push({fade:[], play:[id], stop:[]}); }
+    else steps.push({fade:f ? [id, f] : [id], play:[id], stop:playing, out:lit ? [lit] : [], chain:true, auto:vids[id].auto && !steps.length});
+    playing = [id]; lit = f; }
   if (!steps.length && !Object.keys(vids).length) return '';
   const wrap = (presetID, cls, node, inner, sub = 0, delay = 0) => `<p:par><p:cTn id="${nextId()}" presetID="${presetID}" presetClass="${cls}" presetSubtype="${sub}" fill="hold"${cls === 'entr' ? ' grpId="0"' : cls === 'exit' ? ' grpId="1"' : ''} nodeType="${node}"><p:stCondLst><p:cond delay="${delay}"/></p:stCondLst><p:childTnLst>${inner}</p:childTnLst></p:cTn></p:par>`;
   // vanlige figurer tones inn; stolper (grow) tegnes fra venstre litt etter
@@ -1283,9 +1288,12 @@ function buildTiming(groups, vids, nextId, slideXml, growIds = new Set()){
     st.stop.forEach(id => parts.push(cmd(id, node(), false)));
     (st.out || []).forEach(id => parts.push(hide(id, node())));
     st.fade.forEach(id => parts.push(fade(id, node())));
-    st.play.forEach(id => parts.push(cmd(id, node(), true)));
+    const after = [];
+    if (st.chain && parts.length) st.play.forEach(id => after.push(cmd(id, after.length ? 'withEffect' : 'afterEffect', true)));
+    else st.play.forEach(id => parts.push(cmd(id, node(), true)));
+    const inner = (list, delay) => `<p:par><p:cTn id="${nextId()}" fill="hold"><p:stCondLst><p:cond delay="${delay}"/></p:stCondLst><p:childTnLst>${list.join('')}</p:childTnLst></p:cTn></p:par>`;
     return `<p:par><p:cTn id="${nextId()}" fill="hold"><p:stCondLst><p:cond delay="${st.auto ? 0 : 'indefinite'}"/>${st.auto ? '<p:cond evt="onBegin" delay="0"><p:tn val="2"/></p:cond>' : ''}</p:stCondLst><p:childTnLst>`
-      + `<p:par><p:cTn id="${nextId()}" fill="hold"><p:stCondLst><p:cond delay="0"/></p:stCondLst><p:childTnLst>${parts.join('')}</p:childTnLst></p:cTn></p:par></p:childTnLst></p:cTn></p:par>`;
+      + inner(parts, 0) + (after.length ? inner(after, 500) : '') + `</p:childTnLst></p:cTn></p:par>`;
   }).join('');
   const media = Object.keys(vids).map(id => `<p:video><p:cMediaNode vol="80000"><p:cTn id="${nextId()}" fill="hold"><p:stCondLst><p:cond delay="indefinite"/></p:stCondLst></p:cTn>${tgt(id)}</p:cMediaNode></p:video>`).join('');
   // tekstfigurer som bygges må stå i bldLst
@@ -1348,3 +1356,4 @@ function drawAll(){ if (lyd.sid && (!slides[sel] || slides[sel].id !== lyd.sid))
 drawAll();
 if (window.faktisk && window.faktisk.stateLoad) restore();
 </script>
+<script src="blokker.js"></script>

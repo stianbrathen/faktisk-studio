@@ -143,6 +143,9 @@ document.getElementById('homeBtn').addEventListener('click', () => window.faktis
 k = h.rindex('\ndrawAll();\n')
 h = h[:k] + '\ndrawAll();\nif (window.faktisk && window.faktisk.stateLoad) restore();\n' + h[k + len('\ndrawAll();\n'):]
 
+# blokker (bare i Studio): eget skript etter resten
+h = h.rstrip() + '\n<script src="blokker.js"></script>\n'
+
 assert 'localStorage' not in h.split('/* ---------- tilstand')[1].split('/* ---------- tegning')[0]
 open(dst, 'w', encoding='utf-8').write(h)
 print('ok', dst, len(h))
