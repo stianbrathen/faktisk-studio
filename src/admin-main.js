@@ -109,4 +109,4 @@ function register(ipcMain, d) {
   ipcMain.handle('open-admin', guard(() => { deps.mainWindow().loadFile(path.join(__dirname, 'admin.html')); return { ok: true }; }));
 }
 
-module.exports = { register, _test: { isRepo, repoPath, betaSet, registry, setDeps: (x) => { deps = x; } } };
+module.exports = { register, isAdmin: () => !!(deps && repoPath()), _test: { isRepo, repoPath, betaSet, registry, setDeps: (x) => { deps = x; } } };

@@ -1326,14 +1326,14 @@ makeBtn.addEventListener('click', async () => {
   makeBtn.disabled = true; const label = makeBtn.textContent;
   try {
     const blob = await exportPptx(doc, slides, {onProgress:(i, n, msg) => { makeBtn.textContent = msg || `Lager … ${i}/${n}`; }});
-    makeBtn.textContent = 'Åpner i Keynote …';
+    makeBtn.textContent = 'Lagrer …';
     const info = window.faktisk.documentInfo ? await window.faktisk.documentInfo() : null;
     const r = await window.faktisk.presentationKeynote({bytes:new Uint8Array(await blob.arrayBuffer()), title:doc.title, folder:info && info.folder});
     if (r.canceled) return;
     if (!r.ok) throw new Error(r.error || 'ukjent feil');
     const name = r.path.split('/').pop();
-    toast(r.fallback ? `Studio fikk ikke styre Keynote, så «${name}» er åpnet i Keynote. Velg Arkiv › Lagre der for å få en Keynote-fil.`
-                     : `«${name}» er lagret${info ? ' i Eksport-mappa' : ''} og åpnet i Keynote.`);
+    toast(/\.key$/.test(name) ? `«${name}» er lagret${info ? ' i Eksport-mappa' : ''} og åpnet i Keynote.`
+      : `«${name}» er lagret${info ? ' i Eksport-mappa' : ''} og åpnes i Keynote. Trykk ⌘S i Keynote for å lagre den som Keynote-fil.`);
   } catch (err) { console.error(err); toast('Keynote-fila kunne ikke lages: ' + err.message); }
   finally { makeBtn.disabled = false; makeBtn.textContent = label; }
 });

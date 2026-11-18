@@ -155,30 +155,35 @@ const SCRIPT = `on run argv
   end tell
 end run`;
 
+// «Lag Keynote»: lagre .pptx i Eksport/ og åpne den i Keynote uten å vente på Keynote.
+// Keynote viser ofte importvarsler; AppleScript-lagring som .key kunne da henge i minutter
+// (Studio 0.8.1). Brukeren lagrer som Keynote-fil med ⌘S. AppleScript-veien (saveAsKey)
+// er beholdt for senere «Ferdigstill i Keynote» (klipp med runde hjørner), med kort tidsfrist.
 async function keynote(e, o) {
   const bytes = o && o.bytes;
   if (!bytes || !bytes.length) return { ok: false, error: 'Ingen fil å lagre' };
+  const asKey = !!o.saveAsKey;
   let target;
   const folder = toPath(o.folder);
   if (folder && fs.existsSync(folder)) {
     const dir = path.join(folder, 'Eksport'); fs.mkdirSync(dir, { recursive: true });
-    target = nextName(dir, o.title, '.key');
+    target = nextName(dir, o.title, '.pptx');
   } else {
-    const res = await deps.dialog.showSaveDialog({ title: 'Lagre Keynote-presentasjonen', defaultPath: path.join(deps.app.getPath('documents'), (o.title || 'Presentasjon') + '.key'),
-      filters: [{ name: 'Keynote', extensions: ['key'] }] });
+    const res = await deps.dialog.showSaveDialog({ title: 'Lagre presentasjonen', defaultPath: path.join(deps.app.getPath('documents'), (o.title || 'Presentasjon') + '.pptx'),
+      filters: [{ name: 'Presentasjon (åpnes i Keynote)', extensions: ['pptx'] }] });
     if (res.canceled || !res.filePath) return { ok: false, canceled: true };
-    target = res.filePath.endsWith('.key') ? res.filePath : res.filePath + '.key';
+    target = res.filePath.endsWith('.pptx') ? res.filePath : res.filePath + '.pptx';
   }
-  const tmp = path.join(os.tmpdir(), 'fk-presentasjon-' + Date.now() + '.pptx');
-  fs.writeFileSync(tmp, Buffer.from(bytes));
-  progress(e, 'Åpner i Keynote …');
-  const err = await new Promise((resolve) => execFile('osascript', ['-e', SCRIPT, tmp, target], { timeout: 180000 }, (x, so, se) => resolve(x ? (se || x.message) : null)));
-  if (!err && fs.existsSync(target)) { try { fs.unlinkSync(tmp); } catch (x) {} return { ok: true, path: target }; }
-  // Reserve: legg .pptx-fila ved siden av og åpne den i Keynote
-  const pptx = target.replace(/\.key$/, '.pptx');
-  try { fs.copyFileSync(tmp, pptx); fs.unlinkSync(tmp); } catch (x) { return { ok: false, error: x.message }; }
-  execFile('open', ['-a', 'Keynote', pptx], () => {});
-  return { ok: true, path: pptx, fallback: true, error: String(err || '').trim().slice(0, 300) };
+  fs.writeFileSync(target, Buffer.from(bytes));
+  if (asKey) {
+    progress(e, 'Lagrer som Keynote-fil …');
+    const key = target.replace(/\.pptx$/, '.key');
+    const err = await new Promise((resolve) => execFile('osascript', ['-e', SCRIPT, target, key], { timeout: 45000 }, (x, so, se) => resolve(x ? (se || x.message) : null)));
+    if (!err && fs.existsSync(key)) { try { fs.unlinkSync(target); } catch (x) {} return { ok: true, path: key, key: true }; }
+    // Keynote svarte ikke (importvarsel, tillatelse): fila er åpnet, brukeren lagrer selv
+  }
+  execFile('open', ['-a', 'Keynote', target], () => {});
+  return { ok: true, path: target, opened: true };
 }
 
 function register(ipcMain, d) {

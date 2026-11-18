@@ -199,6 +199,8 @@ function betaAllowed(p, reg) {
   const beta = r && 'beta' in r ? r.beta : p.beta;
   if (!beta) return true;
   if (!app.isPackaged) return true;
+  // admin (plugin-registeret klonet her) ser alltid betaplugins
+  try { if (require('./src/admin-main.js').isAdmin()) return true; } catch (e) {}
   const users = (r && Array.isArray(r.betaUsers) ? r.betaUsers : p.betaUsers) || [];
   return !!(studioUser && studioUser.email && users.includes(betaHash(studioUser.email)));
 }
