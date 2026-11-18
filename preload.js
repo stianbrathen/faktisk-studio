@@ -233,6 +233,7 @@ contextBridge.exposeInMainWorld('faktisk', {
   pathForFile: (file) => { try { return webUtils.getPathForFile(file); } catch (e) { return ''; } },
   presentationReadFile: (p) => ipcRenderer.invoke('presentation-read-file', p),
   presentationWaveform: (opts) => ipcRenderer.invoke('presentation-waveform', opts),
+  presentationFitVideo: (opts) => ipcRenderer.invoke('presentation-fit-video', opts),
   presentationKeynote: (opts) => ipcRenderer.invoke('presentation-keynote', opts),
   studioUser: (force) => ipcRenderer.invoke('studio-user', force),
   adminStatus: () => ipcRenderer.invoke('admin-status'),

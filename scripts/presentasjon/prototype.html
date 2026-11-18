@@ -1053,7 +1053,7 @@ const P_NS = 'xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/mai
 function exHex(name, pal){ return (pal[name] || name || '#000000').replace('#','').toUpperCase(); }
 function blobToB64(blob){ return new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = no; r.readAsDataURL(blob); }); }
 // I Studio fyller pluginen inn disse: lese lokale filer (file://) og lage lydbølge-videoer
-const EXPORT_HOOKS = {readFile:null, waveVideo:null};
+const EXPORT_HOOKS = {readFile:null, waveVideo:null, fitVideo:null};
 const localCache = {};
 async function localUrl(url){
   if (!url || !url.startsWith('file://') || !EXPORT_HOOKS.readFile) return url;
@@ -1270,6 +1270,13 @@ async function addMedia(sl, s, e, name, m, pal, pptx){
   const pct = v => Math.round(v * 100000);
   m.pics[nm] = {src:[pct(ox/w), pct(oy/h), pct((w-e.w-ox)/w), pct((h-e.h-oy)/h)], adj:round};
   const b = {x:e.x*PX, y:e.y*PX, w:e.w*PX, h:e.h*PX, objectName:nm};
+  // I Studio: klippet beskjæres til feltet og får runde hjørner malt i fargen bak, fordi Keynote ikke runder video
+  if (med.kind === 'video' && EXPORT_HOOKS.fitVideo) {
+    const under = e.bigVideo ? '#' + String(BIG_BG).replace('#', '') : (pal[e.under || 'bakgrunn'] || pal.bakgrunn);
+    const fu = await EXPORT_HOOKS.fitVideo({src:med.url, w:e.w, h:e.h, crop:[ox/sc, oy/sc, e.w/sc, e.h/sc], radius:e.round ? 0 : (e.w < 1920 ? 23 : 0), ellipse:!!e.round, bg:under});
+    const fp = fu && await videoPoster(fu);
+    if (fp) { m.pics[nm] = {src:[0, 0, 0, 0], adj:0}; data = await urlToDataUrl(fu); poster = fp.data; }
+  }
   if (med.kind === 'video') sl.addMedia({...b, type:'video', data:data.replace(/^data:/, ''), cover:poster.replace(/^data:/, ''), extn:'mp4'});
   else sl.addImage({...b, data});
 }

@@ -9,6 +9,8 @@
 //                           og telleren viser «0:12 / 2:06». Med from/to blir det et
 //                           utsnitt (ett funn) med bånd og etikett. Mellomlagres i
 //                           userData/presentasjon-cache.
+//   presentation-fit-video  Beskjærer et klipp til feltet i lysbildet og maler runde hjørner
+//                           i bakgrunnsfargen (Keynote runder ikke hjørner på video)
 //   presentation-keynote    Tar imot .pptx-fila pluginen har laget, åpner den i
 //                           Keynote og lagrer den som .key i dokumentets Eksport/
 //                           (eller der brukeren velger). .pptx-fila slettes. Går
@@ -138,6 +140,43 @@ async function waveform(e, o) {
   return { ok: true, path: out };
 }
 
+// Klipp til et lysbildefelt: beskjært og skalert til feltet, med runde hjørner malt i fargen bak
+// (Keynote tegner ikke runde hjørner på video, så hjørnene bakes inn i selve klippet)
+const even = (v) => Math.max(2, Math.round(v / 2) * 2);
+function holePath(W, H, r, ellipse) {
+  if (ellipse) { const rx = W / 2, ry = H / 2; return `M0 ${ry}A${rx} ${ry} 0 1 0 ${W} ${ry}A${rx} ${ry} 0 1 0 0 ${ry}Z`; }
+  r = Math.max(0, Math.min(r, W / 2, H / 2));
+  return `M${r} 0H${W - r}A${r} ${r} 0 0 1 ${W} ${r}V${H - r}A${r} ${r} 0 0 1 ${W - r} ${H}H${r}A${r} ${r} 0 0 1 0 ${H - r}V${r}A${r} ${r} 0 0 1 ${r} 0Z`;
+}
+async function fitVideo(e, o) {
+  const src = toPath(o && o.src);
+  if (!src || !fs.existsSync(src)) return { ok: false, error: 'Fant ikke klippet' };
+  const W = even(Number(o.w) || 0), H = even(Number(o.h) || 0);
+  if (W < 16 || H < 16 || W > 3840 || H > 2160) return { ok: false, error: 'Ugyldig størrelse' };
+  const cr = (Array.isArray(o.crop) ? o.crop : []).map((v) => Math.max(0, Math.floor(Number(v) || 0)));
+  if (cr.length !== 4 || cr[2] < 2 || cr[3] < 2) return { ok: false, error: 'Ugyldig utsnitt' };
+  const r = Math.max(0, Number(o.radius) || 0), ellipse = !!o.ellipse, bg = hex(o.bg, '#000000');
+  const st = fs.statSync(src);
+  const key = crypto.createHash('sha256').update(JSON.stringify([src, st.size, st.mtimeMs, W, H, cr, r, ellipse, bg, 2])).digest('hex').slice(0, 24);
+  const dir = path.join(deps.app.getPath('userData'), 'presentasjon-cache');
+  const out = path.join(dir, key + '-klipp.mp4');
+  if (fs.existsSync(out)) return { ok: true, path: out, cached: true };
+  fs.mkdirSync(dir, { recursive: true });
+  let sharp; try { sharp = require('sharp'); } catch (x) { return { ok: false, error: 'sharp mangler' }; }
+  const mask = out + '.hjorner.png', tmp = out + '.tmp.mp4';
+  await sharp(Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}"><path fill="${bg}" fill-rule="evenodd" d="M0 0H${W}V${H}H0Z${holePath(W, H, r, ellipse)}"/></svg>`)).png().toFile(mask);
+  progress(e, 'Tilpasser klipp …', 0);
+  const [cx, cy, cw, ch] = cr;
+  const res = await run(deps.findFfmpeg(), ['-v', 'error', '-y', '-i', src, '-i', mask, '-filter_complex',
+    // hjørnene legges på i RGB og merkes BT.709, så fargen blir den samme som lysbildets bakgrunn i Keynote
+    `[0:v]crop=${cw}:${ch}:${cx}:${cy},scale=${W}:${H}:flags=lanczos,setsar=1,format=gbrp[v];[1:v]format=gbrap[m];[v][m]overlay=0:0:format=gbrp,scale=out_color_matrix=bt709:out_range=tv,format=yuv420p[o]`,
+    '-map', '[o]', '-map', '0:a?', '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-color_range', 'tv', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18', '-c:a', 'aac', '-b:a', '160k', '-movflags', '+faststart', '-f', 'mp4', tmp]);
+  try { fs.unlinkSync(mask); } catch (x) {}
+  if (!res.ok || !fs.existsSync(tmp)) { try { fs.unlinkSync(tmp); } catch (x) {} return { ok: false, error: res.error || 'ffmpeg feilet' }; }
+  fs.renameSync(tmp, out);
+  return { ok: true, path: out };
+}
+
 function nextName(dir, title, ext) {
   const safe = (title || 'Presentasjon').replace(/[\\/:*?"<>|]/g, '-').trim() || 'Presentasjon';
   for (let n = 1; n < 1000; n++) { const p = path.join(dir, `${safe} v${n}${ext}`); if (!fs.existsSync(p)) return p; }
@@ -190,7 +229,8 @@ function register(ipcMain, d) {
   deps = d;
   ipcMain.handle('presentation-read-file', (e, p) => readFile(e, p));
   ipcMain.handle('presentation-waveform', (e, o) => waveform(e, o));
+  ipcMain.handle('presentation-fit-video', (e, o) => fitVideo(e, o));
   ipcMain.handle('presentation-keynote', (e, o) => keynote(e, o));
 }
 
-module.exports = { register, _test: { toPath, fmt, nextName, waveform, setDeps: (x) => { deps = x; } } };
+module.exports = { register, _test: { toPath, fmt, nextName, waveform, fitVideo, setDeps: (x) => { deps = x; } } };

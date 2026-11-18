@@ -122,6 +122,12 @@ EXPORT_HOOKS.waveVideo = async (s, pal, from, to, seg) => {
   if (!r || !r.ok) { console.warn('lydbølge', r && r.error); return null; }
   return 'file://' + encodeURI(r.path).replace(/#/g, '%23');
 };
+EXPORT_HOOKS.fitVideo = async (o) => {
+  if (!window.faktisk.presentationFitVideo || !o.src || !o.src.startsWith('file:')) return null;
+  const r = await window.faktisk.presentationFitVideo(o);
+  if (!r || !r.ok) { console.warn('klipp', r && r.error); return null; }
+  return 'file://' + encodeURI(r.path).replace(/#/g, '%23');
+};
 makeBtn.addEventListener('click', async () => {
   if (!window.faktisk || !window.faktisk.presentationKeynote) { toast('«Lag Keynote» krever en nyere versjon av Faktisk Studio.'); return; }
   makeBtn.disabled = true; const label = makeBtn.textContent;
