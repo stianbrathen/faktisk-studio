@@ -160,3 +160,10 @@ Endringer i plugin-koden må pushes til **`faktiskorg-studio-plugins`-repoen**, 
 
 ## Forslag: Final Cut-maler i Studio (12.11.2026, ikke påbegynt)
 Malsynk (register + zip i GitHub Releases, ikke plugin-bundles), tre nivåer Kjerne/Delt/Mine, Grafikk-plugin med FCPXML, UUID-vakt i release. Se `Claude-overforing faktisk.no/kunnskapsbase/fcp_maler_i_studio.md`.
+
+## Betaplugins (18.11.2026, ikke sluppet)
+- `"beta": true` + `"betaUsers": [sha256(...)]` i manifestet/registeret: pluginen vises bare for dem på lista. Hash = sha256 av `'faktisk-studio-beta:' + e-post med små bokstaver` (adressene står aldri i klartekst i det åpne registeret). Registerets felt vinner over manifestets.
+- Hvem som er logget inn: `labradorWhoAmI()` i main.js leser `"User": { id, email, … }` fra Labradors `/dashboard` (HTML med innebygd konfig) med Studios Labrador-innlogging. Mellomlagres i userData/studio-user.json. Oppdateres etter innlogging og ved `labrador-status`.
+- Filtreres i `list-plugins`, `registry-fetch` og `open-plugin`. I dev (`npm start`) vises alt. Forsiden merker betaplugins «Beta».
+- Tilgang: `node scripts/beta-tilgang.js <plugin> legg-til|fjern <e-post> …` og `… slipp` når den er klar for alle. Husk at registeret må få med `beta`/`betaUsers` (release-plugin.sh i plugin-repoet må kopiere feltene — ikke kontrollert).
+- Skjuler, beskytter ikke: koden ligger i app.asar og i registeret.

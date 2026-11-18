@@ -234,6 +234,7 @@ contextBridge.exposeInMainWorld('faktisk', {
   presentationReadFile: (p) => ipcRenderer.invoke('presentation-read-file', p),
   presentationWaveform: (opts) => ipcRenderer.invoke('presentation-waveform', opts),
   presentationKeynote: (opts) => ipcRenderer.invoke('presentation-keynote', opts),
+  studioUser: (force) => ipcRenderer.invoke('studio-user', force),
   presentationBlocksSettings: () => ipcRenderer.invoke('presentation-blocks-settings'),
   presentationBlocksChoose: (level) => ipcRenderer.invoke('presentation-blocks-choose', level),
   presentationBlocksList: () => ipcRenderer.invoke('presentation-blocks-list'),

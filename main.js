@@ -162,14 +162,59 @@ function scanPluginsDir(dir, sourceLabel) {
   return found;
 }
 
+// ============================================================
+//  Betaplugins: bare for utvalgte personer i en utviklingsperiode
+// ============================================================
+// En plugin med "beta": true vises bare for dem som står i "betaUsers" (sha256 av
+// 'faktisk-studio-beta:' + e-post med små bokstaver, så adressene ikke står i klartekst
+// i det åpne registeret). Hvem som er logget inn, leses fra Labrador: dashbord-siden
+// inneholder brukerobjektet ("User": { id, email, … }). Lista i registeret vinner over
+// den i manifestet, så tilgang kan gis og tas uten ny Studio-versjon.
+// I utvikling (npm start) vises alt. NB: dette skjuler, det beskytter ikke koden.
+const studioUserFile = path.join(app.getPath('userData'), 'studio-user.json');
+let studioUser = null, studioUserAt = 0;
+try { studioUser = JSON.parse(fs.readFileSync(studioUserFile, 'utf-8')); } catch (e) {}
+async function labradorWhoAmI(force) {
+  if (!force && studioUserAt && Date.now() - studioUserAt < 10 * 60 * 1000) return studioUser;
+  try {
+    const res = await labradorRequest('/dashboard', { headers: { 'X-Requested-With': '' } });
+    if (res.status === 200) {
+      const m = /"User"\s*:\s*\{[^{}]*?"email"\s*:\s*"([^"]+)"/.exec(res.body);
+      const id = /"User"\s*:\s*\{\s*"id"\s*:\s*(\d+)/.exec(res.body);
+      studioUser = m ? { email: m[1].toLowerCase(), id: id ? Number(id[1]) : null, checkedAt: new Date().toISOString() } : null;
+    } else if (res.status === 301 || res.status === 302) studioUser = null;   // ikke innlogget
+    studioUserAt = Date.now();
+    if (studioUser) fs.writeFileSync(studioUserFile, JSON.stringify(studioUser, null, 2), 'utf-8');
+    else { try { fs.unlinkSync(studioUserFile); } catch (e) {} }
+  } catch (e) { /* uten nett: bruk sist kjente */ }
+  return studioUser;
+}
+const betaHash = (email) => crypto.createHash('sha256').update('faktisk-studio-beta:' + String(email).trim().toLowerCase()).digest('hex');
+function registryEntries() {
+  try { const r = JSON.parse(fs.readFileSync(registryCacheFile, 'utf-8')).registry || {};
+    return Array.isArray(r.plugins) ? r.plugins : Array.isArray(r) ? r : Object.values(r.plugins || {}); } catch (e) { return []; }
+}
+function betaAllowed(p, reg) {
+  const r = (reg || registryEntries()).find((x) => x && x.id === p.id);
+  const beta = r && 'beta' in r ? r.beta : p.beta;
+  if (!beta) return true;
+  if (!app.isPackaged) return true;
+  const users = (r && Array.isArray(r.betaUsers) ? r.betaUsers : p.betaUsers) || [];
+  return !!(studioUser && studioUser.email && users.includes(betaHash(studioUser.email)));
+}
+
 ipcMain.handle('list-plugins', async () => {
   const builtin = scanPluginsDir(builtinPluginsDir, 'builtin');
   const user = scanPluginsDir(userPluginsDir, 'user');
   const byId = new Map();
   for (const p of builtin) byId.set(p.id, p);
   for (const p of user) byId.set(p.id, p);
-  return Array.from(byId.values());
+  const all = Array.from(byId.values());
+  if (all.some((p) => p.beta)) await Promise.race([labradorWhoAmI(false), new Promise((r) => setTimeout(r, 4000))]);
+  const reg = registryEntries();
+  return all.filter((p) => betaAllowed(p, reg));
 });
+ipcMain.handle('studio-user', async (e, force) => ({ ok: true, user: await labradorWhoAmI(!!force), dev: !app.isPackaged }));
 
 function pluginEntryFor(pluginId) {
   // I dev (npm start) skal repo-versjonen alltid vinne over installerte
@@ -188,6 +233,8 @@ function pluginEntryFor(pluginId) {
 }
 
 ipcMain.handle('open-plugin', async (e, pluginId) => {
+  const mf = [path.join(userPluginsDir, pluginId, 'manifest.json'), path.join(builtinPluginsDir, pluginId, 'manifest.json')].find((p) => fs.existsSync(p));
+  try { if (mf && !betaAllowed({ id: pluginId, ...JSON.parse(fs.readFileSync(mf, 'utf-8')) })) return { ok: false, error: 'Pluginen er i beta og ikke åpnet for deg ennå' }; } catch (x) {}
   const found = pluginEntryFor(pluginId);
   if (!found) return { ok: false, error: 'Plugin finnes ikke: ' + pluginId };
   docs.onLeave(); // åpnet fra forsiden: nytt arbeid, ikke et dokument
@@ -392,7 +439,7 @@ async function labradorListFiles() {
 let labradorLoginWin = null;
 
 ipcMain.handle('labrador-status', async () => {
-  try { return await labradorListFiles(); }
+  try { const st = await labradorListFiles(); if (st && st.loggedIn && !studioUser) labradorWhoAmI(true); return st; }
   catch (err) { return { ok: false, loggedIn: false, error: err.message }; }
 });
 
@@ -434,6 +481,7 @@ ipcMain.handle('labrador-connect', async () => {
         const st = await labradorListFiles();
         if (st.loggedIn) {
           await persistLabradorSession(); // overlev app-restart
+          labradorWhoAmI(true);           // betaplugins: hvem er logget inn
           if (labradorLoginWin && !labradorLoginWin.isDestroyed()) {
             labradorLoginWin.close(); // trigger 'closed' → resolve
           }
@@ -2591,6 +2639,12 @@ function compareVersions(a, b) {
   return 0;
 }
 
+async function hideBeta(registry) {
+  const list = registry && (Array.isArray(registry.plugins) ? registry.plugins : null);
+  if (!list || !list.some((p) => p && p.beta)) return registry;
+  await Promise.race([labradorWhoAmI(false), new Promise((r) => setTimeout(r, 4000))]);
+  return { ...registry, plugins: list.filter((p) => betaAllowed(p, list)) };
+}
 ipcMain.handle('registry-fetch', async (e, force) => {
   try {
     const now = Date.now();
@@ -2598,7 +2652,7 @@ ipcMain.handle('registry-fetch', async (e, force) => {
       try {
         const cache = JSON.parse(fs.readFileSync(registryCacheFile, 'utf-8'));
         if (cache.cachedAt && now - cache.cachedAt < 30 * 60 * 1000) {
-          return { ok: true, registry: cache.registry, fromCache: true };
+          return { ok: true, registry: await hideBeta(cache.registry), fromCache: true };
         }
       } catch (e) {}
     }
@@ -2608,7 +2662,7 @@ ipcMain.handle('registry-fetch', async (e, force) => {
     const cacheBuster = REGISTRY_URL + (REGISTRY_URL.includes('?') ? '&' : '?') + 't=' + Date.now();
     const registry = await httpGetJson(cacheBuster);
     fs.writeFileSync(registryCacheFile, JSON.stringify({ cachedAt: now, registry }, null, 2), 'utf-8');
-    return { ok: true, registry, fromCache: false };
+    return { ok: true, registry: await hideBeta(registry), fromCache: false };
   } catch (err) {
     if (fs.existsSync(registryCacheFile)) {
       try {

@@ -51,6 +51,7 @@
 .hub-tag { font: 10.5px/1 var(--font-bold); letter-spacing: .06em; text-transform: uppercase; padding: 4px 6px; border-radius: 4px; background: rgba(255,255,255,.18); }
 .hub-tag--fil { background: #FFD166; color: #3A2C00; }
 .hub-tag--soon { background: rgba(0,0,0,.25); }
+.hub-tag--beta { background: #FF7A45; color: #2A1206; }
 .hub-card--soon, .hub-row--soon { background: #5B6D9A; cursor: default; }
 .hub-card--soon .hub-card__art { background: #4E5F8B; }
 .hub-star { position: absolute; top: 8px; right: 8px; width: 30px; height: 30px; border-radius: 8px; border: 0; background: rgba(0,0,0,.18); color: #fff; cursor: pointer; display: grid; place-items: center; opacity: 0; transition: opacity .12s; font-size: 15px; }

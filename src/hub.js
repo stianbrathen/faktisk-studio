@@ -38,7 +38,7 @@
       return byId.has(it[0]) || it[5] === 'soon';
     }).map(it => {
       const p = byId.get(it[0]);
-      return { id: it[0], name: (p && p.name) || it[1], desc: it[2], kind: it[3], kw: it[4], soon: !p && it[5] === 'soon' };
+      return { id: it[0], name: (p && p.name) || it[1], desc: it[2], kind: it[3], kw: it[4], soon: !p && it[5] === 'soon', beta: !!(p && p.beta) };
     }) }));
     const rest = installed.filter(p => !known.has(p.id)).map(p => ({
       id: p.id, name: p.name || p.id, desc: (p.description || '').split(/(?<=\.)\s/)[0], kind: p.media === 'labrador' ? 'embed' : 'fil', kw: p.category || '',
@@ -104,7 +104,7 @@
       wrap.className = ui.view === 'liste' ? 'hub-list' : 'hub-grid';
       if (closed) wrap.hidden = true;
       for (const it of list) {
-        const tags = `<span class="hub-tag ${TAG[it.kind] ? TAG[it.kind][1].replace('tag--', 'hub-tag--') : ''}">${esc((TAG[it.kind] || ['Verktøy'])[0])}</span>${it.soon ? ' <span class="hub-tag hub-tag--soon">Kommer</span>' : ''}`;
+        const tags = `<span class="hub-tag ${TAG[it.kind] ? TAG[it.kind][1].replace('tag--', 'hub-tag--') : ''}">${esc((TAG[it.kind] || ['Verktøy'])[0])}</span>${it.soon ? ' <span class="hub-tag hub-tag--soon">Kommer</span>' : ''}${it.beta ? ' <span class="hub-tag hub-tag--beta">Beta</span>' : ''}`;
         const el = document.createElement('div');
         el.tabIndex = 0; el.setAttribute('role', 'button');
         el.title = it.desc;
