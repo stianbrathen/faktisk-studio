@@ -127,8 +127,9 @@
     const list = d.querySelector('#blkList');
     d.querySelector('#blkClose').onclick = () => d.close();
     d.querySelector('#blkBlank').onclick = async (e) => {
-      const info = F.documentInfo ? await F.documentInfo() : null;
-      if (!arm(e.currentTarget, info ? `Klikk igjen: tømmer «${info.name || 'dokumentet'}»` : 'Klikk igjen: tømmer lysbildene')) return;
+      const btn = e.currentTarget;   // må hentes før await: etterpå er currentTarget null
+      const info = F.documentInfo ? await F.documentInfo().catch(() => null) : null;
+      if (!arm(btn, info ? `Klikk igjen: tømmer «${info.name || 'dokumentet'}»` : 'Klikk igjen: tømmer lysbildene')) return;
       deck = 'tom'; doc = freshDoc('tom'); slides = DECKS.tom.slides(); sel = 0;
       document.getElementById('docTitle').value = doc.title; save(); drawAll(); d.close();
       toast('Ny tom presentasjon. Bruk Lagre som… hvis du vil beholde den forrige.');
