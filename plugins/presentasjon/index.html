@@ -59,6 +59,7 @@ header.top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-block
 .add-wrap{padding:10px;border-top:1px solid var(--ui-line);position:relative}
 .add-wrap .btn{width:100%;justify-content:center}
 .typemenu{position:absolute;left:10px;right:10px;bottom:52px;background:var(--ui-raise);border:1px solid var(--ui-line);border-radius:10px;padding:6px;display:grid;gap:2px;z-index:5;box-shadow:0 12px 30px rgba(0,0,0,.45);max-height:calc(100vh - 180px);overflow-y:auto;overscroll-behavior:contain}
+.el.media .kant{position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:2}
 .chips{display:flex;flex-wrap:wrap;gap:4px}.chips button{display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:0;padding:2px;cursor:pointer;color:var(--ui-mute);font-size:11px}
 .chips button i{width:22px;height:22px;border-radius:50%;box-shadow:inset 0 0 0 1px rgba(255,255,255,.18)}.chips button[aria-pressed=true]{color:var(--ui-fg)}.chips button[aria-pressed=true] i{outline:2px solid var(--ui-accent);outline-offset:2px}
 .typemenu button{text-align:left;background:none;border:0;border-radius:6px;padding:7px 9px;cursor:pointer}
@@ -596,6 +597,10 @@ function renderSlide(slide, index, {editable=false, step=Infinity} = {}){
     } else if (e.kind === 'media') {
       d = mediaEl(slide, e, editable);
       if (e.round) d.style.borderRadius = '50%';
+      if (d.classList.contains('has') && (KANT[slide.kant] || slide.skygge)) {
+        if (slide.skygge) d.style.boxShadow = `0 ${SKYGGE.y}px ${SKYGGE.blur}px rgba(0,0,0,${SKYGGE.alpha})`;
+        if (KANT[slide.kant]) { const k = document.createElement('i'); k.className = 'kant'; k.style.boxShadow = `inset 0 0 0 ${KANT[slide.kant]}px #fff`; d.appendChild(k); }
+      }
     } else if (e.kind === 'wave') {
       d = waveEl(slide, e, editable);
     } else if (e.kind === 'mark') {
@@ -874,6 +879,10 @@ function drawInspector(){
     const se = document.createElement('select'); se.id = 'gradeSel'; GRADER.forEach((n,i) => { const o = document.createElement('option'); o.value = i+1; o.textContent = n; if (i+1===s.grade) o.selected = true; se.appendChild(o); });
     se.addEventListener('change', () => { s.grade = +se.value; save(); drawAll(); }); g.appendChild(se); insp.appendChild(g);
   }
+  if (t.build(s, doc, ctxFor(sel)).some(e => e.kind === 'media')) {
+    insp.appendChild(seg('Hvit kant rundt bilder og klipp', [['','Ingen'],['tynn','Tynn'],['tykk','Tykk']], s.kant || '', v => { s.kant = v; save(); drawAll(); }));
+    insp.appendChild(seg('Skygge', [['','Av'],['på','På']], s.skygge ? 'på' : '', v => { s.skygge = v === 'på'; save(); drawAll(); }));
+  }
   if (t.build(s, doc, ctxFor(sel)).some(e => e.kind === 'media')) insp.appendChild(seg('Bilder og klipp i avspilling', [['','Bare i lysbildet'],['stor','Også stort, ett og ett']], s.stor ? 'stor' : '', v => { s.stor = v === 'stor'; save(); drawAll(); toast(s.stor ? 'Under avspilling gir neste klikk hvert bilde eller klipp i stor størrelse, med teksten under. Klikket etter går tilbake.' : 'Bilder og klipp vises bare i lysbildet.'); }));
   if (t.buildLabel) insp.appendChild(seg('Bygg', [['ingen','Alt på en gang'],['punkt',t.buildLabel]], s.build, v => { s.build = v; save(); drawAll(); }));
   const COUNT = {detektor:[[2,3,4],'Antall verktøy'], spredning:[[2,3,4],'Antall ledd'], kart:[[2,3,4,5],'Antall steder'], tidslinje:[[3,4,5,6],'Antall hendelser']}[s.type];
@@ -1071,6 +1080,9 @@ function exHex(name, pal){ return (pal[name] || name || '#000000').replace('#','
 function blobToB64(blob){ return new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = no; r.readAsDataURL(blob); }); }
 // I Studio fyller pluginen inn disse: lese lokale filer (file://) og lage lydbølge-videoer
 const EXPORT_HOOKS = {readFile:null, waveVideo:null, fitVideo:null};
+// hvit kant og skygge rundt bilder og klipp (valg per lysbilde); mål i px på 1920×1080
+const KANT = {tynn:4, tykk:10};
+const SKYGGE = {y:14, blur:36, alpha:.3, pad:64};
 const localCache = {};
 async function localUrl(url){
   if (!url || !url.startsWith('file://') || !EXPORT_HOOKS.readFile) return url;
@@ -1286,13 +1298,29 @@ async function addMedia(sl, s, e, name, m, pal, pptx){
   const z = med.z || 1, sc = Math.max(e.w/nw, e.h/nh) * z, w = nw*sc, h = nh*sc, ox = (w-e.w)*(med.x ?? .5), oy = (h-e.h)*(med.y ?? .5);
   const pct = v => Math.round(v * 100000);
   m.pics[nm] = {src:[pct(ox/w), pct(oy/h), pct((w-e.w-ox)/w), pct((h-e.h-oy)/h)], adj:round};
-  const b = {x:e.x*PX, y:e.y*PX, w:e.w*PX, h:e.h*PX, objectName:nm};
+  let b = {x:e.x*PX, y:e.y*PX, w:e.w*PX, h:e.h*PX, objectName:nm};
+  const kant = KANT[s.kant] || 0, skygge = !!s.skygge, pad = skygge ? SKYGGE.pad : 0;
+  const padBox = () => ({x:(e.x-pad)*PX, y:(e.y-pad)*PX, w:(e.w+2*pad)*PX, h:(e.h+2*pad)*PX, objectName:nm});
+  if (med.kind !== 'video' && (kant || skygge)) {   // bildet tegnes ferdig med runde hjørner, kant og skygge (PNG med gjennomsiktighet)
+    const im = await loadImg(data), Q = Math.min(2, 4096 / (e.w + 2*pad)), c = document.createElement('canvas');
+    c.width = Math.round((e.w + 2*pad) * Q); c.height = Math.round((e.h + 2*pad) * Q);
+    const g = c.getContext('2d'); g.scale(Q, Q); g.translate(pad, pad);
+    const r = e.round ? 0 : (e.w < 1920 ? 23 : 0), shape = () => { g.beginPath(); if (e.round) g.ellipse(e.w/2, e.h/2, e.w/2, e.h/2, 0, 0, Math.PI*2); else g.roundRect(0, 0, e.w, e.h, r); };
+    if (skygge) { g.save(); g.shadowColor = `rgba(0,0,0,${SKYGGE.alpha})`; g.shadowBlur = SKYGGE.blur * Q; g.shadowOffsetY = SKYGGE.y * Q; shape(); g.fillStyle = '#000'; g.fill(); g.restore(); }
+    g.save(); shape(); g.clip(); g.drawImage(im, ox/sc, oy/sc, e.w/sc, e.h/sc, 0, 0, e.w, e.h);
+    if (kant) { shape(); g.lineWidth = kant * 2; g.strokeStyle = '#FFFFFF'; g.stroke(); }
+    g.restore();
+    m.pics[nm] = {src:[0, 0, 0, 0], adj:0};
+    sl.addImage({...padBox(), data:c.toDataURL('image/png')});
+    return;
+  }
   // I Studio: klippet beskjæres til feltet og får runde hjørner malt i fargen bak, fordi Keynote ikke runder video
   if (med.kind === 'video' && EXPORT_HOOKS.fitVideo) {
     const under = e.bigVideo ? '#' + String(BIG_BG).replace('#', '') : (pal[e.under || 'bakgrunn'] || pal.bakgrunn);
-    const fu = await EXPORT_HOOKS.fitVideo({src:med.url, w:e.w, h:e.h, crop:[ox/sc, oy/sc, e.w/sc, e.h/sc], radius:e.round ? 0 : (e.w < 1920 ? 23 : 0), ellipse:!!e.round, bg:under});
+    const fu = await EXPORT_HOOKS.fitVideo({src:med.url, w:e.w, h:e.h, crop:[ox/sc, oy/sc, e.w/sc, e.h/sc], radius:e.round ? 0 : (e.w < 1920 ? 23 : 0), ellipse:!!e.round, bg:under,
+      kant, skygge:skygge ? SKYGGE : null});
     const fp = fu && await videoPoster(fu);
-    if (fp) { m.pics[nm] = {src:[0, 0, 0, 0], adj:0}; data = await urlToDataUrl(fu); poster = fp.data; }
+    if (fp) { m.pics[nm] = {src:[0, 0, 0, 0], adj:0}; data = await urlToDataUrl(fu); poster = fp.data; if (pad) b = padBox(); }
   }
   if (med.kind === 'video') sl.addMedia({...b, type:'video', data:data.replace(/^data:/, ''), cover:poster.replace(/^data:/, ''), extn:'mp4'});
   else sl.addImage({...b, data});

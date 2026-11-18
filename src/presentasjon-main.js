@@ -156,20 +156,32 @@ async function fitVideo(e, o) {
   const cr = (Array.isArray(o.crop) ? o.crop : []).map((v) => Math.max(0, Math.floor(Number(v) || 0)));
   if (cr.length !== 4 || cr[2] < 2 || cr[3] < 2) return { ok: false, error: 'Ugyldig utsnitt' };
   const r = Math.max(0, Number(o.radius) || 0), ellipse = !!o.ellipse, bg = hex(o.bg, '#000000');
+  // hvit kant (inni feltet) og skygge (utenfor: klippet får en marg i bakgrunnsfargen der skyggen tegnes)
+  const kant = Math.max(0, Math.min(40, Number(o.kant) || 0));
+  const sk = o.skygge && typeof o.skygge === 'object' ? { y: Number(o.skygge.y) || 0, blur: Number(o.skygge.blur) || 0, alpha: Math.min(1, Number(o.skygge.alpha) || 0), pad: even(Number(o.skygge.pad) || 0) } : null;
+  const P = sk ? sk.pad : 0, TW = W + 2 * P, TH = H + 2 * P;
   const st = fs.statSync(src);
-  const key = crypto.createHash('sha256').update(JSON.stringify([src, st.size, st.mtimeMs, W, H, cr, r, ellipse, bg, 2])).digest('hex').slice(0, 24);
+  const key = crypto.createHash('sha256').update(JSON.stringify([src, st.size, st.mtimeMs, W, H, cr, r, ellipse, bg, kant, sk, 4])).digest('hex').slice(0, 24);
   const dir = path.join(deps.app.getPath('userData'), 'presentasjon-cache');
   const out = path.join(dir, key + '-klipp.mp4');
   if (fs.existsSync(out)) return { ok: true, path: out, cached: true };
   fs.mkdirSync(dir, { recursive: true });
   let sharp; try { sharp = require('sharp'); } catch (x) { return { ok: false, error: 'sharp mangler' }; }
   const mask = out + '.hjorner.png', tmp = out + '.tmp.mp4';
-  await sharp(Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}"><path fill="${bg}" fill-rule="evenodd" d="M0 0H${W}V${H}H0Z${holePath(W, H, r, ellipse)}"/></svg>`)).png().toFile(mask);
+  // laget som legges over klippet: bakgrunnsfarge (med skygge) rundt et hull i feltets form, og kanten innerst i hullet
+  const hole = holePath(W, H, r, ellipse);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${TW}" height="${TH}"><defs>
+    <mask id="ute"><rect width="${TW}" height="${TH}" fill="#fff"/><path transform="translate(${P} ${P})" d="${hole}" fill="#000"/></mask>
+    <clipPath id="inne"><path transform="translate(${P} ${P})" d="${hole}"/></clipPath>
+    ${sk ? `<filter id="sk" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="${sk.blur / 2}"/></filter>` : ''}</defs>
+    <g mask="url(#ute)"><rect width="${TW}" height="${TH}" fill="${bg}"/>${sk ? `<path transform="translate(${P} ${P + sk.y})" d="${hole}" fill="#000" fill-opacity="${sk.alpha}" filter="url(#sk)"/>` : ''}</g>
+    ${kant ? `<g clip-path="url(#inne)"><path transform="translate(${P} ${P})" d="${hole}" fill="none" stroke="#fff" stroke-width="${kant * 2}"/></g>` : ''}</svg>`;
+  await sharp(Buffer.from(svg)).png().toFile(mask);
   progress(e, 'Tilpasser klipp …', 0);
   const [cx, cy, cw, ch] = cr;
   const res = await run(deps.findFfmpeg(), ['-v', 'error', '-y', '-i', src, '-i', mask, '-filter_complex',
     // hjørnene legges på i RGB og merkes BT.709, så fargen blir den samme som lysbildets bakgrunn i Keynote
-    `[0:v]crop=${cw}:${ch}:${cx}:${cy},scale=${W}:${H}:flags=lanczos,setsar=1,format=gbrp[v];[1:v]format=gbrap[m];[v][m]overlay=0:0:format=gbrp,scale=out_color_matrix=bt709:out_range=tv,format=yuv420p[o]`,
+    `[0:v]crop=${cw}:${ch}:${cx}:${cy},scale=${W}:${H}:flags=lanczos,setsar=1,format=gbrp${P ? `,pad=${TW}:${TH}:${P}:${P}:color=${bg}` : ''}[v];[1:v]format=gbrap[m];[v][m]overlay=0:0:format=gbrp,scale=out_color_matrix=bt709:out_range=tv,format=yuv420p[o]`,
     '-map', '[o]', '-map', '0:a?', '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-color_range', 'tv', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18', '-c:a', 'aac', '-b:a', '160k', '-movflags', '+faststart', '-f', 'mp4', tmp]);
   try { fs.unlinkSync(mask); } catch (x) {}
   if (!res.ok || !fs.existsSync(tmp)) { try { fs.unlinkSync(tmp); } catch (x) {} return { ok: false, error: res.error || 'ffmpeg feilet' }; }
