@@ -67,7 +67,10 @@
       "gatekeeperAssess": false,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
-      "identity": null
+      "identity": null,
+      "extendInfo": {
+        "NSAppleEventsUsageDescription": "Faktisk Studio åpner presentasjoner i Keynote og lagrer dem som Keynote-filer."
+      }
     },
     "fileAssociations": [
       {
