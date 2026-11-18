@@ -250,6 +250,8 @@ contextBridge.exposeInMainWorld('faktisk', {
   presentationBlocksImport: (files) => ipcRenderer.invoke('presentation-blocks-import', files),
   presentationBlocksReveal: (p) => ipcRenderer.invoke('presentation-blocks-reveal', p),
   presentationBlocksTrash: (p) => ipcRenderer.invoke('presentation-blocks-trash', p),
+  presentationBlocksPublish: (p) => ipcRenderer.invoke('presentation-blocks-publish', p),
+  presentationBlocksUnpublish: (p) => ipcRenderer.invoke('presentation-blocks-unpublish', p),
   onPresentationProgress: (cb) => { const h = (e, d) => cb(d); ipcRenderer.on('presentation-progress', h); return () => ipcRenderer.removeListener('presentation-progress', h); },
   tiktokList: (opts) => ipcRenderer.invoke('tiktok-list', opts),
   tiktokImport: (opts) => ipcRenderer.invoke('tiktok-import', opts),

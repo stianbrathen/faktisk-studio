@@ -871,7 +871,7 @@ function drawInspector(){
   const del = document.createElement('button'); del.type = 'button'; del.className = 'btn small'; del.textContent = 'Slett lysbilde'; del.disabled = slides.length < 2;
   del.addEventListener('click', () => { slides.splice(sel, 1); sel = Math.max(0, sel-1); save(); drawAll(); toast('Lysbildet er slettet.'); });
   row.append(dup, del); insp.appendChild(row);
-  const rs = document.createElement('button'); rs.type = 'button'; rs.className = 'btn small'; rs.textContent = 'Tilbakestill til eksempelet'; rs.style.alignSelf = 'flex-start';
+  const rs = document.createElement('button'); rs.type = 'button'; rs.className = 'btn small'; rs.textContent = 'Tilbakestill til eksempelet'; rs.style.alignSelf = 'flex-start'; rs.hidden = true;
   rs.addEventListener('click', () => { if (rs.dataset.armed) { slides = DECKS[deck].slides(); sel = 0; doc = freshDoc(deck); document.getElementById('docTitle').value = doc.title; save(); drawAll(); toast('Eksempelet er lastet inn på nytt.'); }
     else { rs.dataset.armed = '1'; rs.textContent = 'Klikk igjen for å tilbakestille'; setTimeout(() => { rs.textContent = 'Tilbakestill til eksempelet'; delete rs.dataset.armed; }, 3000); } });
   insp.appendChild(rs);

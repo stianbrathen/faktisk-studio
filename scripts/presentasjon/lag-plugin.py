@@ -143,6 +143,9 @@ document.getElementById('homeBtn').addEventListener('click', () => window.faktis
 k = h.rindex('\ndrawAll();\n')
 h = h[:k] + '\ndrawAll();\nif (window.faktisk && window.faktisk.stateLoad) restore();\n' + h[k + len('\ndrawAll();\n'):]
 
+# «Tilbakestill til eksempelet» gir ikke mening i Studio (eksemplene ligger i biblioteket)
+rep("rs.textContent = 'Tilbakestill til eksempelet'; rs.style.alignSelf = 'flex-start';", "rs.textContent = 'Tilbakestill til eksempelet'; rs.style.alignSelf = 'flex-start'; rs.hidden = true;")
+
 # blokker (bare i Studio): eget skript etter resten
 h = h.rstrip() + '\n<script src="blokker.js"></script>\n'
 

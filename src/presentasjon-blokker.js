@@ -5,9 +5,14 @@
 // der alt er lagret UKOMPRIMERT (STORE): blokk.json + medier/<n>-<filnavn>. Pluginen pakker
 // fila med JSZip; her trengs bare en liten zip-leser, så Studio ikke får nye avhengigheter.
 //
-// To nivåer (et tredje, «Faktisk», kommer sammen med malsynk for Final Cut-malene):
-//   Mine  – en mappe på maskinen, standard ~/Faktisk blokker
-//   Delt  – en mappe flere har tilgang til (Google Drive, iCloud, Dropbox), valgt av brukeren
+// Tre nivåer (samme tanke som for Final Cut-malene):
+//   Mine    – en mappe på maskinen, standard ~/Faktisk blokker
+//   Delt    – en mappe flere har tilgang til (Google Drive o.l.), valgt av brukeren
+//   Faktisk – det godkjente biblioteket: en mappe på Faktisks Google Drive som bare admin
+//             skriver til (Drive-rettighetene gjør jobben). Studio leser den; bare admin
+//             (plugin-registeret klonet, se admin-main.js) får «Publiser til Faktisk».
+// En fil kan være en blokk (settes inn) eller en hel presentasjon (kind 'presentasjon',
+// med tittel, palett og avsender) som man starter en ny presentasjon fra.
 // Innstillingene ligger i userData/presentasjon-blokker.json.
 //
 //   presentation-blocks-settings     les innstillinger (+ standardmappe)
@@ -20,6 +25,8 @@
 //   presentation-blocks-import       kopier .faktiskblokk-filer inn i Mine
 //   presentation-blocks-reveal       vis i Finder
 //   presentation-blocks-trash        legg i papirkurven (bare Mine)
+//   presentation-blocks-publish      admin: kopier til Faktisk (erstatter samme fil)
+//   presentation-blocks-unpublish    admin: fjern fra Faktisk (papirkurven)
 
 'use strict';
 
@@ -28,14 +35,15 @@ const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 
-let deps = null;   // { app, dialog, shell, documentInfo }
+let deps = null;   // { app, dialog, shell, documentInfo, isAdmin }
+const isAdmin = () => { try { return !!(deps.isAdmin && deps.isAdmin()); } catch (e) { return false; } };
 const EXT = '.faktiskblokk';
 
 function settingsFile() { return path.join(deps.app.getPath('userData'), 'presentasjon-blokker.json'); }
 function defaultMine() { return path.join(os.homedir(), 'Faktisk blokker'); }
 function readSettings() {
   let s = {}; try { s = JSON.parse(fs.readFileSync(settingsFile(), 'utf-8')) || {}; } catch (e) {}
-  return { mine: s.mine || defaultMine(), delt: s.delt || null };
+  return { mine: s.mine || defaultMine(), delt: s.delt || null, faktisk: s.faktisk || null };
 }
 function writeSettings(s) { fs.writeFileSync(settingsFile(), JSON.stringify(s, null, 2), 'utf-8'); }
 
@@ -80,6 +88,7 @@ function listDir(dir, level) {
       const { m } = readManifest(p), st = fs.statSync(p);
       out.push({ path: p, level, file: f, name: m.name || f.slice(0, -EXT.length), description: m.description || '',
         savedAt: m.savedAt || st.mtime.toISOString(), id: m.id || null, palette: m.palette || '', size: st.size,
+        kind: m.kind === 'presentasjon' ? 'presentasjon' : 'blokk', version: m.version || null,
         slides: m.slides.map((s) => ({ type: s.type, title: (s.f && (s.f.tittel || s.f.sak || s.f.utsagn)) || '' })) });
     } catch (e) { out.push({ path: p, level, file: f, name: f.slice(0, -EXT.length), error: e.message, slides: [] }); }
   }
@@ -124,15 +133,16 @@ function load(o) {
   }
   const fix = (v) => (typeof v === 'string' && v.startsWith('blokk:') && map[v.slice(6)] ? 'file://' + encodeURI(map[v.slice(6)]).replace(/#/g, '%23') : v);
   const walk = (v) => Array.isArray(v) ? v.map(walk) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, walk(x)])) : fix(v);
-  return { ok: true, block: { name: m.name, id: m.id, savedAt: m.savedAt, palette: m.palette, slides: walk(m.slides) } };
+  return { ok: true, block: { name: m.name, id: m.id, savedAt: m.savedAt, palette: m.palette, sender: m.sender, kind: m.kind || 'blokk', doc: m.doc || null, slides: walk(m.slides) } };
 }
 
 async function choose(level) {
   const s = readSettings();
-  const res = await deps.dialog.showOpenDialog({ title: level === 'delt' ? 'Velg delt mappe for blokker' : 'Velg mappe for mine blokker',
-    defaultPath: (level === 'delt' ? s.delt : s.mine) || os.homedir(), properties: ['openDirectory', 'createDirectory'] });
+  const key = ['delt', 'faktisk'].includes(level) ? level : 'mine';
+  const res = await deps.dialog.showOpenDialog({ title: { delt: 'Velg delt mappe for blokker', faktisk: 'Velg Faktisk-biblioteket (mappa på Faktisks Google Drive)', mine: 'Velg mappe for mine blokker' }[key],
+    defaultPath: s[key] || os.homedir(), properties: ['openDirectory', 'createDirectory'] });
   if (res.canceled || !res.filePaths || !res.filePaths[0]) return { ok: false, canceled: true, settings: s };
-  s[level === 'delt' ? 'delt' : 'mine'] = res.filePaths[0]; writeSettings(s);
+  s[key] = res.filePaths[0]; writeSettings(s);
   return { ok: true, settings: s };
 }
 
@@ -141,7 +151,7 @@ function register(ipcMain, d) {
   const guard = (fn) => async (e, a) => { try { return await fn(a); } catch (err) { return { ok: false, error: err.message }; } };
   ipcMain.handle('presentation-blocks-settings', guard(() => ({ ok: true, settings: readSettings() })));
   ipcMain.handle('presentation-blocks-choose', guard((level) => choose(level)));
-  ipcMain.handle('presentation-blocks-list', guard(() => { const s = readSettings(); return { ok: true, settings: s, blocks: [...listDir(s.mine, 'mine'), ...listDir(s.delt, 'delt')] }; }));
+  ipcMain.handle('presentation-blocks-list', guard(() => { const s = readSettings(); return { ok: true, settings: s, admin: isAdmin(), blocks: [...listDir(s.faktisk, 'faktisk'), ...listDir(s.delt, 'delt'), ...listDir(s.mine, 'mine')] }; }));
   ipcMain.handle('presentation-blocks-save', guard((o) => save(o)));
   ipcMain.handle('presentation-blocks-load', guard((o) => load(o)));
   ipcMain.handle('presentation-blocks-share', guard((p) => {
@@ -154,6 +164,18 @@ function register(ipcMain, d) {
     for (const f of files || []) { if (!String(f).endsWith(EXT)) continue; readManifest(f);
       const t = uniquePath(s.mine, path.basename(f, EXT), EXT); fs.copyFileSync(f, t); done.push(t); }
     return { ok: true, paths: done };
+  }));
+  ipcMain.handle('presentation-blocks-publish', guard((p) => {
+    const s = readSettings(); if (!isAdmin()) return { ok: false, error: 'Bare admin kan publisere til Faktisk-biblioteket' };
+    if (!s.faktisk || !fs.existsSync(s.faktisk)) return { ok: false, error: 'Velg mappa for Faktisk-biblioteket først' };
+    readManifest(p);   // bare gyldige blokker
+    const target = path.join(s.faktisk, path.basename(p));
+    fs.copyFileSync(p, target); return { ok: true, path: target };
+  }));
+  ipcMain.handle('presentation-blocks-unpublish', guard(async (p) => {
+    const s = readSettings(); if (!isAdmin()) return { ok: false, error: 'Bare admin kan fjerne fra Faktisk-biblioteket' };
+    if (!s.faktisk || path.dirname(p) !== s.faktisk) return { ok: false, error: 'Fila ligger ikke i Faktisk-biblioteket' };
+    await deps.shell.trashItem(p); return { ok: true };
   }));
   ipcMain.handle('presentation-blocks-reveal', guard((p) => { deps.shell.showItemInFolder(p); return { ok: true }; }));
   ipcMain.handle('presentation-blocks-trash', guard(async (p) => {

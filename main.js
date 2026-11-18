@@ -2769,5 +2769,5 @@ require('./src/bevis-index.js').register(ipcMain, { app, findFfmpeg });
 require('./src/presentasjon-main.js').register(ipcMain, { app, dialog, shell, findFfmpeg });
 // Admin: betatilgang m.m. for den som har plugin-registeret klonet (se src/admin-main.js)
 require('./src/admin-main.js').register(ipcMain, { app, dialog, mainWindow: () => mainWindow, whoAmI: labradorWhoAmI, betaHash });
-require('./src/presentasjon-blokker.js').register(ipcMain, { app, dialog, shell, documentInfo: () => docs.info() });
+require('./src/presentasjon-blokker.js').register(ipcMain, { app, dialog, shell, documentInfo: () => docs.info(), isAdmin: () => require('./src/admin-main.js').isAdmin() });
 require('./src/tiktok-main.js').register(ipcMain, { app, findFfmpeg, labradorListFiles, labradorSafeName, labradorCookieHeader, labradorOrigin: LABRADOR_ORIGIN });

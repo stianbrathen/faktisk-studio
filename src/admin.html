@@ -48,6 +48,7 @@
     <nav class="adm-nav" aria-label="Admin">
       <button data-s="beta" aria-current="page">Betatilgang<small>Hvem ser plugins under utvikling</small></button>
       <button data-s="plugins">Plugins<small>Versjoner i registeret</small></button>
+      <button data-s="bibliotek">Bibliotek<small>Presentasjoner og blokker for alle</small></button>
       <button data-s="maler" disabled>Final Cut-maler<small>Kommer: godkjenning og malsynk</small></button>
       <div class="adm-mute" id="who" style="margin-top:14px"></div>
     </nav>
@@ -89,6 +90,7 @@
   function draw() {
     if (!reg) return;
     if (!reg.ok) { main.innerHTML = `<div class="adm-card">${esc(reg.error)}</div>`; return; }
+    if (section === 'bibliotek') { drawLibrary(); return; }
     if (section === 'plugins') {
       main.innerHTML = `<div class="adm-card"><h2>Plugins i registeret</h2><p class="adm-mute">${esc(reg.repo)}</p>
         <table class="adm-table"><thead><tr><th>Plugin</th><th>Versjon</th><th>Krever Studio</th><th>Siste endring</th></tr></thead><tbody>
@@ -123,6 +125,23 @@
     return `<div class="adm-card"><h3>${esc(p.name)} <span class="adm-tag beta">Beta</span> <span class="adm-mute">${esc(p.version)}</span></h3>
       <div class="adm-people">${p.betaUsers.map((u) => `<span class="adm-person">${esc(u.email || 'ukjent (' + u.hash.slice(0, 8) + '…)')}<button title="Fjern" aria-label="Fjern ${esc(u.email || 'person')}" data-del="${esc(p.id)}|${u.hash}">×</button></span>`).join('') || '<span class="adm-mute">Ingen har tilgang ennå.</span>'}</div>
       <div class="adm-row"><input type="email" data-in="${esc(p.id)}" placeholder="navn@faktisk.no (flere med komma)"><button class="adm-btn" data-add="${esc(p.id)}">Gi tilgang</button><span style="flex:1"></span><button class="adm-btn" data-release="${esc(p.id)}">Slipp til alle</button></div></div>`;
+  }
+
+  // ---------- Bibliotek: Faktisk-nivået i Presentasjon (mappe på Faktisks Google Drive) ----------
+  async function drawLibrary() {
+    if (!F.presentationBlocksList) { main.innerHTML = '<div class="adm-card">Krever Presentasjon-pluginen.</div>'; return; }
+    main.innerHTML = '<div class="adm-card">Henter biblioteket …</div>';
+    const r = await F.presentationBlocksList(); if (section !== 'bibliotek') return;
+    if (!r.ok) { main.innerHTML = `<div class="adm-card">${esc(r.error)}</div>`; return; }
+    const s = r.settings, f = r.blocks.filter((b) => b.level === 'faktisk'), other = r.blocks.filter((b) => b.level !== 'faktisk' && !b.error);
+    const row = (b, act) => `<tr><td><b>${esc(b.name)}</b>${b.kind === 'presentasjon' ? ' <span class="adm-tag">Presentasjon</span>' : ''}<br><span class="adm-mute">${esc(b.description || '')}</span></td><td>${b.slides.length}</td><td>${esc(new Date(b.savedAt).toLocaleDateString('nb-NO'))}</td><td>${act}</td></tr>`;
+    main.innerHTML = `<div class="adm-card"><h2>Bibliotek</h2><p class="adm-mute">Faktisk-nivået i Presentasjon: ferdige presentasjoner og blokker med alle medier, i en mappe på Faktisks Google Drive som bare admin skriver til. Alle som har mappa (via Drive) og har valgt den i Presentasjon › Bibliotek, ser innholdet.</p>
+      <div class="adm-row"><span>Mappe: <b>${s.faktisk ? esc(s.faktisk.replace(/^\/Users\/[^/]+/, '~')) : 'ikke valgt'}</b></span><button class="adm-btn" id="libPick">${s.faktisk ? 'Endre…' : 'Velg mappe…'}</button></div></div>
+      <div class="adm-card"><h3>I Faktisk-biblioteket</h3>${f.length ? `<table class="adm-table"><thead><tr><th>Navn</th><th>Lysbilder</th><th>Lagret</th><th></th></tr></thead><tbody>${f.map((b) => row(b, `<button class="adm-btn" data-un="${esc(b.path)}">Fjern…</button>`)).join('')}</tbody></table>` : '<p class="adm-mute">Tomt.</p>'}</div>
+      <div class="adm-card"><h3>Kan publiseres (Delt og Mine)</h3>${other.length ? `<table class="adm-table"><thead><tr><th>Navn</th><th>Lysbilder</th><th>Lagret</th><th></th></tr></thead><tbody>${other.map((b) => row(b, s.faktisk ? `<button class="adm-btn primary" data-pub="${esc(b.path)}">Publiser</button>` : '')).join('')}</tbody></table>` : '<p class="adm-mute">Ingenting i Delt eller Mine.</p>'}</div>`;
+    document.getElementById('libPick').onclick = async () => { const x = await F.presentationBlocksChoose('faktisk'); if (x.ok) drawLibrary(); };
+    main.querySelectorAll('[data-pub]').forEach((b) => b.onclick = async () => { const x = await F.presentationBlocksPublish(b.dataset.pub); if (!x.ok) alertBox(x.error); else drawLibrary(); });
+    main.querySelectorAll('[data-un]').forEach((b) => b.onclick = async () => { if (!b.dataset.armed) { b.dataset.armed = 1; b.textContent = 'Klikk igjen'; return; } const x = await F.presentationBlocksUnpublish(b.dataset.un); if (!x.ok) alertBox(x.error); else drawLibrary(); });
   }
 
   async function save(id, beta, keepHashes, emails) {
