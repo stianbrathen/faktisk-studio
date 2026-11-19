@@ -11,6 +11,7 @@
 //                           userData/presentasjon-cache.
 //   presentation-fit-video  Beskjærer et klipp til feltet i lysbildet og maler runde hjørner
 //                           i bakgrunnsfargen (Keynote runder ikke hjørner på video)
+//   presentation-fonts-install  Legger fritt lisensierte fonter fra pluginen i ~/Library/Fonts
 //   presentation-keynote    Tar imot .pptx-fila pluginen har laget, åpner den i
 //                           Keynote og lagrer den som .key i dokumentets Eksport/
 //                           (eller der brukeren velger). .pptx-fila slettes. Går
@@ -190,6 +191,26 @@ async function fitVideo(e, o) {
   return { ok: true, path: out };
 }
 
+// Installerer fonter som pluginen har med seg (bare fritt lisensierte, som Newsreader) i ~/Library/Fonts.
+// Godtar bare .ttf/.otf med riktig filsignatur, inntil 5 MB, og overskriver aldri en fil som finnes.
+function installFonts(e, o) {
+  const files = Array.isArray(o && o.files) ? o.files.slice(0, 8) : [];
+  if (!files.length) return { ok: false, error: 'Ingen fonter' };
+  const dir = path.join(require('os').homedir(), 'Library', 'Fonts'), installed = [];
+  try { fs.mkdirSync(dir, { recursive: true }); } catch (x) { return { ok: false, error: x.message }; }
+  for (const f of files) {
+    const name = String(f && f.name || '');
+    if (!/^[\w .-]{1,80}\.(ttf|otf)$/i.test(name)) return { ok: false, error: 'Ugyldig filnavn: ' + name };
+    const buf = Buffer.from(String(f.data || ''), 'base64');
+    const sig = buf.slice(0, 4).toString('hex');
+    if (buf.length < 1000 || buf.length > 5e6 || !['00010000', '4f54544f', '74727565'].includes(sig)) return { ok: false, error: 'Ikke en font: ' + name };
+    const target = path.join(dir, name);
+    if (fs.existsSync(target)) continue;
+    try { fs.writeFileSync(target, buf); installed.push(name); } catch (x) { return { ok: false, error: x.message }; }
+  }
+  return { ok: true, installed };
+}
+
 function nextName(dir, title, ext) {
   const safe = (title || 'Presentasjon').replace(/[\\/:*?"<>|]/g, '-').trim() || 'Presentasjon';
   for (let n = 1; n < 1000; n++) { const p = path.join(dir, `${safe} v${n}${ext}`); if (!fs.existsSync(p)) return p; }
@@ -243,6 +264,7 @@ function register(ipcMain, d) {
   ipcMain.handle('presentation-read-file', (e, p) => readFile(e, p));
   ipcMain.handle('presentation-waveform', (e, o) => waveform(e, o));
   ipcMain.handle('presentation-fit-video', (e, o) => fitVideo(e, o));
+  ipcMain.handle('presentation-fonts-install', (e, o) => installFonts(e, o));
   ipcMain.handle('presentation-keynote', (e, o) => keynote(e, o));
 }
 

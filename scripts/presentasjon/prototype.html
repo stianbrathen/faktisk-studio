@@ -84,6 +84,7 @@ header.top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-block
 .hj-note{color:var(--ui-mute);font-style:italic}
 .hj-tilbake{display:inline-block;margin:12px 0 0;color:var(--ui-mute);text-decoration:none;font-size:13px}
 .hj-lenke{color:inherit;text-decoration:underline}
+.fontvarsel{border:1px solid var(--ui-warn);border-radius:10px;padding:10px 12px;background:color-mix(in srgb, var(--ui-warn) 8%, transparent)}
 .chips{display:flex;flex-wrap:wrap;gap:4px}.chips button{display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:0;padding:2px;cursor:pointer;color:var(--ui-mute);font-size:11px}
 .chips button i{width:22px;height:22px;border-radius:50%;box-shadow:inset 0 0 0 1px rgba(255,255,255,.18)}.chips button[aria-pressed=true]{color:var(--ui-fg)}.chips button[aria-pressed=true] i{outline:2px solid var(--ui-accent);outline-offset:2px}
 .typemenu button{text-align:left;background:none;border:0;border-radius:6px;padding:7px 9px;cursor:pointer}
@@ -994,8 +995,43 @@ async function prepLogo(file){
   g.putImageData(d, 0, 0); const o = document.createElement('canvas'); o.width = cw; o.height = ch; o.getContext('2d').drawImage(c, x0, y0, cw, ch, 0, 0, cw, ch);
   return {id:Date.now().toString(36), name:file.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ').trim().slice(0, 40), src:o.toDataURL('image/png'), ar:+(cw / ch).toFixed(3), dens:+(sum / (cw * ch)).toFixed(3)};
 }
+/* ---------- fonter: Keynote-fila bruker Newsreader SemiBold og Haas Grot Text ----------
+   Sjekken måler tekst i fonten mot en reservefont i et canvas: blir bredden lik, finnes ikke fonten på maskinen.
+   Newsreader er fri (SIL OFL) og kan installeres fra Studio. Haas Grot Text er lisensiert (Commercial Type) og må komme fra Faktisk. */
+const FONTER = [{id:'newsreader', navn:'Newsreader SemiBold', fam:'Newsreader SemiBold', vekt:'400', fri:true},
+  {id:'haas', navn:'Haas Grot Text', fam:'Haas Grot Text', vekt:'400', fri:false}];
+function harFont(fam, vekt){
+  const c = document.createElement('canvas').getContext('2d'), t = 'mmmmmmmmmmlliiWW Faktisk 0123456789';
+  return ['monospace', 'serif', 'sans-serif'].some(b => { c.font = `${vekt} 72px ${b}`; const w0 = c.measureText(t).width; c.font = `${vekt} 72px "${fam}", ${b}`; return Math.abs(c.measureText(t).width - w0) > .5; });
+}
+let fontStatus = null;
+const fontMangler = () => { if (!fontStatus) fontStatus = FONTER.filter(f => !harFont(f.fam, f.vekt)); return fontStatus; };
+window.addEventListener('focus', () => { const før = (fontStatus || []).length; fontStatus = null; if (fontMangler().length !== før) drawInspector(); });
+async function installerFonter(){
+  const F = window.faktisk;
+  if (!F || !F.presentationFontsInstall) { toast('Installasjon krever Faktisk Studio 0.8.6 eller nyere.'); return; }
+  try {
+    if (!window.FONTFILER) await new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'fonter.js'; s.onload = ok; s.onerror = () => no(new Error('fant ikke fontfilene')); document.head.appendChild(s); });
+    const r = await F.presentationFontsInstall({files:window.FONTFILER});
+    if (!r || !r.ok) throw new Error(r && r.error || 'ukjent feil');
+    toast(r.installed.length ? `Newsreader er installert. Start Keynote og Studio på nytt, så tas den i bruk.` : 'Newsreader var allerede installert. Start Studio på nytt hvis den ikke blir funnet.');
+  } catch (e) { toast('Kunne ikke installere: ' + e.message); }
+}
+function fontVarsel(){
+  const m = fontMangler(); if (!m.length) return null;
+  const g = document.createElement('div'); g.className = 'group fontvarsel'; g.setAttribute('role', 'status');
+  g.innerHTML = `<b>Fonter mangler</b><span class="lbl">${m.map(f => f.navn).join(' og ')} er ikke installert på denne maskinen. Keynote-fila blir riktig, men Keynote viser en annen font til fonten er installert.</span>`;
+  const r = document.createElement('div'); r.className = 'row';
+  if (m.some(f => f.fri)) { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn small';
+    if (window.faktisk && window.faktisk.presentationFontsInstall) { b.textContent = 'Installer Newsreader'; b.addEventListener('click', installerFonter); }
+    else { b.textContent = 'Last ned Newsreader (gratis)'; b.addEventListener('click', () => window.open('https://fonts.google.com/specimen/Newsreader', '_blank', 'noopener')); }
+    r.appendChild(b); }
+  const hj = document.createElement('button'); hj.type = 'button'; hj.className = 'btn small'; hj.textContent = 'Mer om fontene'; hj.addEventListener('click', () => apneHjelp('fonter')); r.appendChild(hj);
+  g.appendChild(r); return g;
+}
 function drawInspector(){
   inspDoc.innerHTML = '';
+  { const fv = fontVarsel(); if (fv) inspDoc.appendChild(fv); }
   const pg = document.createElement('div'); pg.className = 'group'; pg.innerHTML = '<span class="lbl">Palett</span>';
   const sw = document.createElement('div'); sw.className = 'swatches';
   for (const [k, p] of Object.entries(PALETTES)) { const b = document.createElement('button'); b.type = 'button'; b.className = 'pal'; b.setAttribute('aria-pressed', String(k===doc.palette));
@@ -1788,7 +1824,14 @@ const HJELP = [
      'Første gang spør macOS om Studio får styre Keynote. Svar Tillat, så kan Studio lagre fila som .key.'],
    feil:[['Knappen blir stående på «Åpner i Keynote»','Se etter en dialog fra macOS eller Keynote som venter på svar. Studio gir opp etter 20 sekunder og åpner fila uansett.'],
      ['Fila åpnes som PowerPoint i Keynote','Studio fikk ikke lov til å lagre som .key. Trykk ⌘S i Keynote, eller gi tillatelse under Systeminnstillinger → Personvern og sikkerhet → Automatisering.'],
-     ['Feil fonter i Keynote','Newsreader og Haas Grot Text må være installert på maskinen. Mangler de, bytter Keynote til en annen font.']]},
+     ['Feil fonter i Keynote','Newsreader og Haas Grot Text må være installert på maskinen. Se «Fontene Newsreader og Haas Grot Text».']], se:['fonter']},
+  {id:'fonter', kat:'Avspilling og Keynote', tittel:'Fontene Newsreader og Haas Grot Text', tags:'font fonter skrift installere mangler feil font newsreader haas grotesk',
+   intro:'Keynote-fila bruker Newsreader SemiBold i titler og Haas Grot Text i resten. Fila blir riktig uansett, men Keynote viser fontene bare når de er installert på maskinen.',
+   steg:['Mangler en font, står det et varsel øverst i Presentasjon-spalten.',
+     'Newsreader er gratis: trykk «Installer Newsreader» (Studio 0.8.6 eller nyere). Den legges i fontmappa di.',
+     'Haas Grot Text er en lisensiert font fra Commercial Type. Be Stian om den, så den installeres i tråd med Faktisks lisens.',
+     'Start Keynote og Studio på nytt etter installasjonen.'],
+   tips:['Installer fonter ved å dobbeltklikke fila og velge «Installer» i Fontbok, hvis du har fått dem på annen måte.']},
   // ---- Bibliotek ----
   {id:'bibliotek', kat:'Bibliotek', tittel:'Bibliotek: gjenbruke lysbilder og presentasjoner', tags:'bibliotek blokk gjenbruke sett inn mal eksempel case lagre i biblioteket', studio:true,
    intro:'Biblioteket har tre nivåer: Mine (bare deg), Delt (kolleger) og Faktisk (godkjent, på Faktisks delte disk).',

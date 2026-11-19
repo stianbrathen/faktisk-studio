@@ -234,6 +234,7 @@ contextBridge.exposeInMainWorld('faktisk', {
   presentationReadFile: (p) => ipcRenderer.invoke('presentation-read-file', p),
   presentationWaveform: (opts) => ipcRenderer.invoke('presentation-waveform', opts),
   presentationFitVideo: (opts) => ipcRenderer.invoke('presentation-fit-video', opts),
+  presentationFontsInstall: (opts) => ipcRenderer.invoke('presentation-fonts-install', opts),
   presentationKeynote: (opts) => ipcRenderer.invoke('presentation-keynote', opts),
   studioUser: (force) => ipcRenderer.invoke('studio-user', force),
   adminStatus: () => ipcRenderer.invoke('admin-status'),
