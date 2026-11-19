@@ -391,7 +391,8 @@ const TYPES = {
       T('utsagn',129,648,836,245,{serif:true,size:56,color:'tekst'},{ph:'Utsagn i én setning'}),...LOGOS(doc)]},
   faksimile:{name:'Faksimile / skjermopptak', desc:'Én stor skjermdump eller video med kilde',
     build:(s,doc)=>[T('kicker',86,86,1296,50,S.kicker,{ph:'ETIKETT',match:'kicker'}),T('tittel',86,137,1584,122,S.tittel64,{ph:'Tittel',match:'tittel'}),
-      {kind:'rect',x:346,y:281,w:1228,h:634,r:23,fillHex:'#FFFFFF'},{kind:'media',role:'faksimile',x:374,y:310,w:1171,h:576,label:'Skjermdump eller skjermopptak'},
+      // rammen rundt: lik bredde (29) på alle sider, og ytre radius = indre radius + rammebredde, så krumningene går parallelt
+      {kind:'rect',x:346,y:281,w:1228,h:634,r:23+29,fillHex:'#FFFFFF'},{kind:'media',role:'faksimile',x:375,y:310,w:1170,h:576,label:'Skjermdump eller skjermopptak'},
       T('kilde',346,929,1228,50,{size:24,color:'dempet'},{ph:'Faksimile: kilde'}),...LOGOS(doc)]},
   kollasj:{name:'Bildekollasj', desc:'Fire bilder side om side',
     build:(s,doc)=>{const out=[T('kicker',86,86,1296,50,S.kicker,{ph:'SAMMENLIGNING',match:'kicker'}),T('tittel',86,137,1584,122,S.tittel72,{ph:'Tittel',match:'tittel'})];
