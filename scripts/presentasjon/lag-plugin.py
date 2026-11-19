@@ -42,13 +42,13 @@ rep('<label class="deckpick"><span>Eksempel</span><select id="deckSel" aria-labe
 rep('title="Laster ned presentasjonen som .pptx som åpnes i Keynote">Lag Keynote</button>',
     'title="Lager Keynote-fila i dokumentets Eksport-mappe og åpner den">Lag Keynote</button>')
 rep('      <div class="insp" id="inspDoc"></div>',
-    '      <div class="docslot"><select id="projectSelect" hidden></select><button class="btn small" id="saveProjectBtn">Lagre…</button></div>\n'
+    '      <div class="docpad"><div class="docslot"><select id="projectSelect" hidden></select><button class="btn small" id="saveProjectBtn">Lagre…</button></div></div>\n'
     '      <div class="insp" id="inspDoc"></div>')
 i = h.index('<div class="note" id="note"><p>')
 j = h.index('</p>', i)
 h = h[:i] + ('<div class="note" id="note"><p><b>Presentasjon.</b> Skriv rett i lysbildet, slipp bilder, video eller lyd på feltene, og dra lysbildene i lista for å endre rekkefølge. '
              'Lagre som dokument til høyre, så kopieres mediene inn i dokumentmappa. «Lag Keynote» legger Keynote-fila i Eksport-mappa og åpner den.') + h[j:]
-rep('.sep{border-top:1px solid var(--ui-line)}', '.sep{border-top:1px solid var(--ui-line)}\n.docslot{margin:0 0 12px}.docslot .fk-docbar button{font-size:12px}')
+rep('.sep{border-top:1px solid var(--ui-line)}', '.sep{border-top:1px solid var(--ui-line)}\n.docslot{margin:0 0 12px}.docslot .fk-docbar button{font-size:12px}\n/* Studio bytter ut .docslot med sin egen dokumentlinje; ytre marg ligger derfor på .docpad */\n.docpad{padding:0 14px 14px}.docpad .fk-docbar button{font-size:12px}')
 
 # ---------- tilstand: Studio-dokumentet ----------
 a = h.index("const STORE = 'studio-presentasjon-v1';")
