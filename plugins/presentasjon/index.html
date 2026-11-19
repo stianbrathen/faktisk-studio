@@ -1059,6 +1059,18 @@ async function installerFonter(){
     toast(r.installed.length ? `Newsreader er installert. Start Keynote og Studio på nytt, så tas den i bruk.` : 'Newsreader var allerede installert. Start Studio på nytt hvis den ikke blir funnet.');
   } catch (e) { toast('Kunne ikke installere: ' + e.message); }
 }
+// Haas Grot Text: lisensiert, installeres fra Faktisks fontmappe på den delte disken (bare lisensierte har tilgang)
+async function installerHaas(){
+  const F = window.faktisk;
+  if (!F || !F.presentationFontsInstallFrom) { toast('Installasjon krever Faktisk Studio 0.8.6 eller nyere.'); return; }
+  try {
+    let f = await F.presentationFontsFind();
+    if (!f || !f.ok) { toast('Fant ikke Faktisks fontmappe. Velg mappa med Haas Grot Text.'); f = await F.presentationFontsChoose(); if (!f || !f.ok) { if (f && f.error) toast(f.error); return; } }
+    const r = await F.presentationFontsInstallFrom();
+    if (!r || !r.ok) throw new Error(r && r.error || 'ukjent feil');
+    toast(r.installed.length ? 'Haas Grot Text er installert. Start Keynote og Studio på nytt, så tas den i bruk.' : 'Haas Grot Text var allerede installert. Start Studio på nytt hvis den ikke blir funnet.');
+  } catch (e) { toast('Kunne ikke installere: ' + e.message); }
+}
 function fontVarsel(){
   const m = fontMangler(); if (!m.length) return null;
   const g = document.createElement('div'); g.className = 'group fontvarsel'; g.setAttribute('role', 'status');
@@ -1068,6 +1080,8 @@ function fontVarsel(){
     if (window.faktisk && window.faktisk.presentationFontsInstall) { b.textContent = 'Installer Newsreader'; b.addEventListener('click', installerFonter); }
     else { b.textContent = 'Last ned Newsreader (gratis)'; b.addEventListener('click', () => window.open('https://fonts.google.com/specimen/Newsreader', '_blank', 'noopener')); }
     r.appendChild(b); }
+  if (m.some(f => f.id === 'haas') && window.faktisk && window.faktisk.presentationFontsInstallFrom) { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn small';
+    b.textContent = 'Installer Haas Grot Text'; b.title = 'Fra Faktisks fontmappe på den delte disken. Krever at du har fått tilgang (lisensiert font).'; b.addEventListener('click', installerHaas); r.appendChild(b); }
   const hj = document.createElement('button'); hj.type = 'button'; hj.className = 'btn small'; hj.textContent = 'Mer om fontene'; hj.addEventListener('click', () => apneHjelp('fonter')); r.appendChild(hj);
   g.appendChild(r); return g;
 }
@@ -1939,7 +1953,9 @@ const HJELP = [
    intro:'Keynote-fila bruker Newsreader SemiBold i titler og Haas Grot Text i resten. Fila blir riktig uansett, men Keynote viser fontene bare når de er installert på maskinen.',
    steg:['Mangler en font, står det et varsel øverst i Presentasjon-spalten.',
      'Newsreader er gratis: trykk «Installer Newsreader» (Studio 0.8.6 eller nyere). Den legges i fontmappa di.',
-     'Haas Grot Text er en lisensiert font fra Commercial Type. Be Stian om den, så den installeres i tråd med Faktisks lisens.',
+     'Haas Grot Text er lisensiert (Commercial Type) for et fast antall maskiner. Den ligger i Faktisks fontmappe på en egen delt disk, som bare de med lisens har tilgang til.',
+     'Har du tilgang: trykk «Installer Haas Grot Text». Studio finner mappa på den delte disken selv, eller spør deg om den.',
+     'Har du ikke tilgang, eller trenger du fonten på en ny maskin: spør Stian, så holder vi oss innenfor lisensen.',
      'Start Keynote og Studio på nytt etter installasjonen.'],
    tips:['Installer fonter ved å dobbeltklikke fila og velge «Installer» i Fontbok, hvis du har fått dem på annen måte.']},
   // ---- Bibliotek ----

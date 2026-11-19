@@ -12,6 +12,7 @@
 //   presentation-fit-video  Beskjærer et klipp til feltet i lysbildet og maler runde hjørner
 //                           i bakgrunnsfargen (Keynote runder ikke hjørner på video)
 //   presentation-fonts-install  Legger fritt lisensierte fonter fra pluginen i ~/Library/Fonts
+//   presentation-fonts-find/-choose/-install-from  Haas Grot Text fra Faktisks fontmappe (tilgang = lisens)
 //   presentation-keynote    Tar imot .pptx-fila pluginen har laget, åpner den i
 //                           Keynote og lagrer den som .key i dokumentets Eksport/
 //                           (eller der brukeren velger). .pptx-fila slettes. Går
@@ -211,6 +212,48 @@ function installFonts(e, o) {
   return { ok: true, installed };
 }
 
+// ---- lisensierte fonter (Haas Grot Text) fra Faktisks fontmappe ----
+// Fontene ligger i en mappe som bare lisensierte brukere har tilgang til (en egen delt disk på Google Drive).
+// Studio leter etter en mappe som heter «Fonter» på de delte diskene, eller bruker mappa brukeren har valgt.
+// Tilgangen til mappa er lisenskontrollen: Studio installerer bare det brukeren allerede har lov til å lese.
+const LISENS_FONT = /^(NeueHaasGroteskText|HaasGrotText)[\w-]*\.(otf|ttf)$/i;
+const fontCfg = () => path.join(deps.app.getPath('userData'), 'presentasjon-fonter.json');
+function fontFilesIn(dir) { try { return fs.readdirSync(dir).filter((n) => LISENS_FONT.test(n)); } catch (x) { return []; } }
+function findFontDir() {
+  try { const d = JSON.parse(fs.readFileSync(fontCfg(), 'utf-8')).dir; if (d && fontFilesIn(d).length) return d; } catch (x) {}
+  const cloud = path.join(os.homedir(), 'Library', 'CloudStorage');
+  let roots = []; try { roots = fs.readdirSync(cloud).filter((n) => /^GoogleDrive/i.test(n)).map((n) => path.join(cloud, n)); } catch (x) {}
+  for (const r of roots) for (const sd of ['Delte disker', 'Shared drives']) {
+    let drives = []; try { drives = fs.readdirSync(path.join(r, sd)); } catch (x) { continue; }
+    for (const dname of drives) {
+      const base = path.join(r, sd, dname);
+      for (const cand of [base, path.join(base, 'Fonter'), path.join(base, 'Fonter', 'Haas Grot Text')]) if (fontFilesIn(cand).length && (cand !== base || /font/i.test(dname))) return cand;
+    }
+  }
+  return null;
+}
+function fontsFind() { const dir = findFontDir(); return dir ? { ok: true, dir, files: fontFilesIn(dir) } : { ok: false }; }
+async function fontsChoose() {
+  const r = await deps.dialog.showOpenDialog({ title: 'Velg mappa med Haas Grot Text', properties: ['openDirectory'] });
+  if (r.canceled || !r.filePaths[0]) return { ok: false, canceled: true };
+  const dir = r.filePaths[0], files = fontFilesIn(dir);
+  if (!files.length) return { ok: false, error: 'Fant ingen Haas Grot Text-filer i mappa' };
+  try { fs.writeFileSync(fontCfg(), JSON.stringify({ dir })); } catch (x) {}
+  return { ok: true, dir, files };
+}
+function fontsInstallFrom() {
+  const dir = findFontDir(); if (!dir) return { ok: false, error: 'Fant ikke fontmappa' };
+  const target = path.join(os.homedir(), 'Library', 'Fonts'), installed = [];
+  try { fs.mkdirSync(target, { recursive: true }); } catch (x) { return { ok: false, error: x.message }; }
+  for (const n of fontFilesIn(dir)) {
+    const to = path.join(target, n); if (fs.existsSync(to)) continue;
+    let buf; try { buf = fs.readFileSync(path.join(dir, n)); } catch (x) { return { ok: false, error: 'Kunne ikke lese ' + n + ' (er den lastet ned fra Drive?)' }; }
+    if (!['00010000', '4f54544f', '74727565'].includes(buf.slice(0, 4).toString('hex'))) return { ok: false, error: 'Ikke en font: ' + n };
+    try { fs.writeFileSync(to, buf); installed.push(n); } catch (x) { return { ok: false, error: x.message }; }
+  }
+  return { ok: true, installed };
+}
+
 function nextName(dir, title, ext) {
   const safe = (title || 'Presentasjon').replace(/[\\/:*?"<>|]/g, '-').trim() || 'Presentasjon';
   for (let n = 1; n < 1000; n++) { const p = path.join(dir, `${safe} v${n}${ext}`); if (!fs.existsSync(p)) return p; }
@@ -265,6 +308,9 @@ function register(ipcMain, d) {
   ipcMain.handle('presentation-waveform', (e, o) => waveform(e, o));
   ipcMain.handle('presentation-fit-video', (e, o) => fitVideo(e, o));
   ipcMain.handle('presentation-fonts-install', (e, o) => installFonts(e, o));
+  ipcMain.handle('presentation-fonts-find', () => fontsFind());
+  ipcMain.handle('presentation-fonts-choose', () => fontsChoose());
+  ipcMain.handle('presentation-fonts-install-from', () => fontsInstallFrom());
   ipcMain.handle('presentation-keynote', (e, o) => keynote(e, o));
 }
 
