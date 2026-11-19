@@ -65,6 +65,25 @@ header.top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-block
 .el.ann.sel{outline:2px dashed var(--ui-accent, #6F9BFF);outline-offset:6px}
 .el.ann .annh{position:absolute;right:-14px;bottom:-14px;width:28px;height:28px;border-radius:50%;background:#fff;box-shadow:0 0 0 3px var(--ui-accent, #6F9BFF);cursor:nwse-resize;display:none}
 .el.ann.sel .annh{display:block}
+.hjelp{width:min(640px,calc(100vw - 32px));max-height:min(80vh,820px);padding:0;border:1px solid var(--ui-line);border-radius:14px;background:var(--ui-panel);color:var(--ui-fg);box-shadow:0 24px 60px rgba(0,0,0,.5);display:flex;flex-direction:column}
+.hjelp:not([open]){display:none}
+.hjelp::backdrop{background:rgba(0,0,0,.45)}
+.hj-top{display:flex;gap:8px;padding:14px;border-bottom:1px solid var(--ui-line)}
+.hj-top input{flex:1;background:var(--ui-bg);border:1px solid var(--ui-line);border-radius:8px;padding:9px 11px;color:inherit;font-size:14px}
+.hj-body{overflow:auto;padding:6px 20px 22px;font-size:14px;line-height:1.5}
+.hj-body h2{font-size:20px;margin:4px 0 10px}.hj-body h3{font-size:14px;margin:20px 0 8px}
+.hj-kat{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ui-mute);margin:18px 0 6px}
+.hj-liste{display:flex;flex-direction:column;gap:2px}
+.hj-kort{display:flex;justify-content:space-between;gap:10px;padding:8px 10px;border-radius:8px;color:inherit;text-decoration:none}
+.hj-kort:hover,.hj-kort:focus-visible{background:var(--ui-raise)}
+.hj-kort b{font-weight:500}
+.hj-merke{font-size:11px;color:var(--ui-mute);border:1px solid var(--ui-line);border-radius:999px;padding:1px 7px;align-self:center}
+.hj-steg{padding-left:22px}.hj-steg li{margin:6px 0}
+.hj-tips{background:var(--ui-bg);border:1px solid var(--ui-line);border-radius:10px;padding:10px 14px;margin-top:12px}.hj-tips p{margin:4px 0}
+.hj-feil dt{font-weight:600;margin-top:10px}.hj-feil dd{margin:2px 0 0}
+.hj-note{color:var(--ui-mute);font-style:italic}
+.hj-tilbake{display:inline-block;margin:12px 0 0;color:var(--ui-mute);text-decoration:none;font-size:13px}
+.hj-lenke{color:inherit;text-decoration:underline}
 .chips{display:flex;flex-wrap:wrap;gap:4px}.chips button{display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:0;padding:2px;cursor:pointer;color:var(--ui-mute);font-size:11px}
 .chips button i{width:22px;height:22px;border-radius:50%;box-shadow:inset 0 0 0 1px rgba(255,255,255,.18)}.chips button[aria-pressed=true]{color:var(--ui-fg)}.chips button[aria-pressed=true] i{outline:2px solid var(--ui-accent);outline-offset:2px}
 .typemenu button{text-align:left;background:none;border:0;border-radius:6px;padding:7px 9px;cursor:pointer}
@@ -998,7 +1017,8 @@ function drawInspector(){
   insp.innerHTML = '';
   const s = slides[sel], t = TYPES[s.type];
   const head = document.createElement('div'); head.className = 'group wide';
-  head.innerHTML = `<span class="typename">${t.name}</span><span class="lbl">${t.desc}</span>`; insp.appendChild(head);
+  head.innerHTML = `<span class="typename">${t.name}</span><span class="lbl">${t.desc} · <a href="#" class="hj-lenke">Hjelp</a></span>`; insp.appendChild(head);
+  head.querySelector('.hj-lenke').addEventListener('click', ev => { ev.preventDefault(); apneHjelp((typeof HJELP_TYPE !== 'undefined' && HJELP_TYPE[s.type]) || 'lysbildetyper'); });
   const PS = PALETTES[doc.palette].series;
   if (PS) {
     const g = document.createElement('div'); g.className = 'group'; g.innerHTML = '<span class="lbl">Farge på lysbildet</span>';
@@ -1647,5 +1667,212 @@ try { if (localStorage.getItem(STORE+'-note')) document.getElementById('note').h
 
 function refresh(){ drawStage(); scheduleThumbs(); }
 function drawAll(){ if (lyd.sid && (!slides[sel] || slides[sel].id !== lyd.sid)) lydStop(); drawStage(); drawList(); drawInspector(); }
+/* ---------- Hjelp: oppslag, steg for steg og feilsøking ----------
+   Åpnes med «Hjelp» i topplinja eller ?-tasten. Søket leter i tittel, stikkord og tekst (uten å bry seg om æ/ø/å-varianter).
+   Artikler merket studio gjelder bare i Faktisk Studio (lagring, bibliotek, Keynote-fila i Eksport-mappa). */
+const HJELP = [
+  // ---- Kom i gang ----
+  {id:'kom-i-gang', kat:'Kom i gang', tittel:'Lag en presentasjon fra start til slutt', tags:'ny start begynne første gang oversikt',
+   intro:'Presentasjon lager lysbilder i Faktisk-stil. Du skriver rett i lysbildet, slipper inn bilder og klipp, og «Lag Keynote» gir en ferdig Keynote-fil.',
+   steg:['Start en ny presentasjon (se «Start en ny, tom presentasjon»), eller hent en ferdig fra «Bibliotek…».',
+     'Legg til lysbilder med «+ Nytt lysbilde» nederst til venstre, og velg type.',
+     'Klikk i teksten på lysbildet og skriv. Slipp bilder og klipp på de grå feltene.',
+     'Velg palett og avsender til høyre, under Presentasjon.',
+     'Juster hvert lysbilde i feltet under lysbildet: bygg, overgang, kant, markeringer og talenotat.',
+     'Trykk «Spill av» for å se hvordan det blir, og «Lag Keynote» når du er fornøyd.'],
+   se:['ny-tom','lysbildetyper','lag-keynote','lagre']},
+  {id:'ny-tom', kat:'Kom i gang', tittel:'Start en ny, tom presentasjon', tags:'ny tom blank tømme starte på nytt', studio:true,
+   steg:['Fra Studios forside: velg Ny og Presentasjon. En ny presentasjon starter med ett tomt tittellysbilde.',
+     'Står du allerede i en presentasjon: åpne «Bibliotek…» øverst og trykk «Ny tom presentasjon» nederst.',
+     'Knappen må trykkes to ganger («Klikk igjen: tømmer …»), så du ikke tømmer noe ved et uhell.'],
+   tips:['Vil du beholde den gamle, bruk «Lagre…» først.'], se:['lagre','bibliotek']},
+  {id:'lagre', kat:'Kom i gang', tittel:'Lagre og åpne presentasjoner', tags:'lagre åpne dokument fil mappe medier finder cmd s', studio:true,
+   intro:'En presentasjon lagres som et dokument i en egen mappe, med alle bilder og klipp kopiert inn i Medier/ ved siden av.',
+   steg:['Trykk «Lagre…» øverst i Presentasjon-spalten (eller ⌘S) og velg hvor mappa skal ligge.',
+     'Etter dette lagres endringene av seg selv.',
+     '«Åpne…» (⌘O) åpner et dokument du har lagret før. «Vis i Finder» viser mappa.'],
+   tips:['Legg prosjektmappene utenfor iCloud-synkede mapper, ellers kan medier ligge bare i skyen når Keynote trenger dem.'],
+   se:['lag-keynote']},
+  {id:'lysbildetyper', kat:'Kom i gang', tittel:'Hvilken lysbildetype skal jeg velge?', tags:'type mal layout oversikt velge lysbilde',
+   intro:'Hver type har et fast oppsett. Lite tekst fungerer best: det du vil si, legger du i talenotatet.',
+   steg:['Tittel og Kapittel: forside og skille mellom delene.',
+     'Tekst: to begreper med forklaring. Tekst + bilde: tekst med ett bilde ved siden av.',
+     'Faksimile: én stor skjermdump eller video med kilde. Bildekollasj: fire bilder side om side.',
+     'Utsagn over bevis: stort bilde bak et kort utsagn. Påstand mot funn: to bilder satt opp mot hverandre.',
+     'Fargebokser: to til seks bokser med kort tekst. Tabell: liten tabell med overskriftsrad.',
+     'Case-typene (lydanalyse, verktøyresultater, spredning, to klipp, kart, tidslinje, konklusjon) er laget for verifiseringscaser.'],
+   tips:['Du kan bytte type ved å legge til et nytt lysbilde og flytte teksten over. Typen til et lysbilde står øverst i feltet under lysbildet.']},
+  {id:'lysbilder', kat:'Kom i gang', tittel:'Legge til, flytte, kopiere og slette lysbilder', tags:'nytt lysbilde rekkefølge dra duplisere slette kopi',
+   steg:['«+ Nytt lysbilde» nederst til venstre legger til et lysbilde etter det du står på. Lista over typer kan rulles.',
+     'Dra lysbildene i lista til venstre for å endre rekkefølge.',
+     '«Dupliser» og «Slett lysbilde» finner du nederst i feltet under lysbildet.']},
+  // ---- Tekst ----
+  {id:'tekst', kat:'Tekst', tittel:'Skrive og redigere tekst', tags:'skrive tekst felt overskrift for lang får ikke plass rød',
+   steg:['Klikk rett i teksten på lysbildet og skriv. Grå tekst er plassholdere som ikke kommer med.',
+     'Tekst som ikke får plass i feltet, blir markert. Kort ned teksten eller flytt noe til talenotatet.',
+     'Kopierer du inn tekst, kommer den inn uten formatering.'],
+   tips:['Malene har bevisst begrenset plass. Et lysbilde som skal leses, fungerer dårlig på en skjerm i et møte.'], se:['talenotat']},
+  {id:'talenotat', kat:'Tekst', tittel:'Talenotat', tags:'notat manus foredragsholder notater presenter',
+   steg:['Talenotatet står til høyre i feltet under lysbildet.','Det følger med til Keynote som foredragsnotat, og vises bare for den som presenterer.']},
+  // ---- Bilder og klipp ----
+  {id:'bilder', kat:'Bilder og klipp', tittel:'Legge inn bilder og klipp', tags:'bilde video klipp slippe dra inn bytte fjerne fil',
+   steg:['Dra en bilde- eller videofil fra Finder og slipp den på et grått felt, eller klikk på feltet og velg fil.',
+     'Hold musa over et bilde for å få «Bytt» og «Fjern».',
+     'I Studio kopieres fila inn i dokumentets Medier-mappe når du lagrer.'],
+   se:['utsnitt','kant','vis-stort']},
+  {id:'utsnitt', kat:'Bilder og klipp', tittel:'Velge utsnitt og zoome i et bilde', tags:'utsnitt beskjære zoom flytte bilde crop',
+   steg:['Dra i bildet for å flytte utsnittet.','Rull med musehjulet eller styreflaten over bildet for å zoome.',
+     'Utsnittet blir med til Keynote. For klipp lager Studio en beskåret versjon i riktig størrelse.']},
+  {id:'bildeform', kat:'Bilder og klipp', tittel:'Bildeform i Tekst + bilde (høyde, bred, utfallende)', tags:'bildeform høydeformat bredformat utfallende venstre høyre kant til kant',
+   steg:['Velg lysbildet. Under Lysbilde finner du «Bildeform».',
+     'Auto følger bildets format: høye bilder får et smalt felt, brede bilder et bredt.',
+     'Kvadratisk, Høyde og Bred kan også velges selv.',
+     'Utfallende fyller halve lysbildet ut til kanten, uten runde hjørner.',
+     '«Bildet står» bytter mellom høyre og venstre.']},
+  {id:'kant', kat:'Bilder og klipp', tittel:'Hvit kant og skygge rundt bilder og klipp', tags:'kant ramme outline skygge hvit tynn medium tykk',
+   steg:['Velg lysbildet. Under Lysbilde: «Hvit kant rundt bilder og klipp» (Ingen, Tynn, Medium, Tykk) og «Skygge».',
+     'Kanten legges utenpå bildet, så ingenting av bildet forsvinner.',
+     'På faksimile og avslutning har feltet allerede en hvit ramme. Der kan du bare velge skygge under rammen.'],
+   tips:['Bilder og klipp med kant eller skygge lagres ferdig tegnet, og kan ikke beskjæres på nytt i Keynote. Juster utsnittet i Studio først.'],
+   feil:[['Klippet ser strukket ut i Keynote','Oppdater Studio til 0.8.5 eller nyere. Eldre versjoner tegnet kanten inni klippet.']]},
+  {id:'markeringer', kat:'Bilder og klipp', tittel:'Markere noe i et bilde med sirkel eller firkant', tags:'markere markering sirkel ring firkant peke ut fremheve annotere',
+   steg:['Velg lysbildet. Under Lysbilde: «+ Sirkel» eller «+ Avrundet firkant».',
+     'Dra markeringen dit den skal. Dra i det runde håndtaket i hjørnet for å endre størrelse (Shift gir sirkel eller kvadrat).',
+     'Velg «Markeringer vises»: én per klikk (etter resten av lysbildet) eller med lysbildet.',
+     'Slett-tasten eller «Fjern valgt» fjerner den du har valgt.'],
+   tips:['Markeringene ligger på lysbildet, ikke fast på bildet. Endrer du utsnittet, må de flyttes.']},
+  {id:'vis-stort', kat:'Bilder og klipp', tittel:'Vise bilder og klipp i stor størrelse', tags:'stort fullskjerm forstørre vis stort klikk',
+   steg:['Velg lysbildet. Under Lysbilde: «Bilder og klipp i avspilling» → «Også stort, ett og ett».',
+     'Under avspilling gir neste klikk bildet eller klippet stort, med teksten under. Klikket etter går tilbake.',
+     'I Keynote blir dette egne lysbilder med glidende overgang.']},
+  {id:'klipp-keynote', kat:'Bilder og klipp', tittel:'Klipp i Keynote: start, lyd og runde hjørner', tags:'video klipp starter ikke lyd runde hjørner keynote spiller',
+   steg:['Klipp starter på klikk i Keynote, i samme rekkefølge som de kommer inn på lysbildet.',
+     'Studio lager en kopi av klippet med riktig utsnitt og runde hjørner i bakgrunnsfargen. Originalen endres ikke.'],
+   feil:[['Klippet har firkantede hjørner','Lag Keynote fra Studio 0.8.4 eller nyere. Fra prototypen i nettleseren får klipp ikke runde hjørner.'],
+     ['Klippet starter ikke','Klikk én gang til: klippet kommer først inn, så starter det. Sjekk også at fila spiller i QuickTime.']]},
+  // ---- Utseende ----
+  {id:'palett', kat:'Utseende', tittel:'Palett og farge på enkeltlysbilder', tags:'farge palett mørk lys sprek bakgrunn blå lime rosa',
+   steg:['Velg palett til høyre under Presentasjon. Den gjelder hele presentasjonen.',
+     'Med «Faktisk sprek» kan hvert lysbilde få en farge fra serien under «Farge på lysbildet». Auto gir forsiden blå og kapitlene hver sin farge.'],
+   tips:['«Faktisk sprek» er foreløpig en test.']},
+  {id:'logo', kat:'Utseende', tittel:'Avsender og samarbeidslogoer', tags:'logo avsender sujo partner samarbeid legge til ny logo',
+   steg:['Velg avsender til høyre: Bare Faktisk, Faktisk + SUJO, eller en logo du har lagt inn.',
+     '«+ Legg til logo…» tar PNG, SVG eller JPG. Bakgrunn og tom luft fjernes, og logoen farges som teksten.',
+     'Størrelsen settes automatisk, så logoen veier like mye som Faktisk-logoen. En tynn strek skiller dem.'],
+   tips:['Lista over egne logoer ligger på maskinen der de ble lagt inn, men logoen følger med presentasjonen.']},
+  {id:'fargebokser', kat:'Utseende', tittel:'Fargebokser', tags:'bokser farge fliser kort tekst seks',
+   steg:['Legg til et lysbilde av typen Fargebokser.','Velg antall (2–6) og farger under Lysbilde: fargeserien, palettfarger, én farge eller lyse.',
+     'Skriv en kort tittel og en kort tekst i hver boks. «Én boks per klikk» bygger dem inn én og én.']},
+  {id:'tabell', kat:'Utseende', tittel:'Tabell: lim inn fra Numbers eller Excel', tags:'tabell lime inn regneark excel numbers google sheets tall kolonner rader',
+   steg:['Legg til et lysbilde av typen Tabell.','Merk cellene i Numbers, Excel eller Google Regneark og kopier (⌘C).',
+     'Lim inn i feltet «Lim inn tabell» under Lysbilde. Første rad blir overskrift.',
+     'Du kan også skrive rett i cellene på lysbildet.'],
+   tips:['Maks 5 kolonner og 6 rader. Tallkolonner høyrestilles, og en rad som starter med «Sum» blir fet.']},
+  {id:'bygg', kat:'Utseende', tittel:'Bygg, klikk og overganger', tags:'bygg animasjon klikk overgang magisk flytting toning rekkefølge',
+   steg:['«Bygg» under Lysbilde avgjør om alt kommer på en gang eller ett og ett per klikk.',
+     '«Overgang fra forrige lysbilde»: Toning, eller Glir (magisk flytting) der like elementer glir på plass.',
+     '«Spill av» viser omtrent hvordan det blir i Keynote.']},
+  // ---- Case ----
+  {id:'lydanalyse', kat:'Case-grafikk', tittel:'Lydanalyse med funn', tags:'lyd lydbølge funn lydklipp analyse markering spiller giuffre',
+   steg:['Slipp en lyd- eller videofil på bølgen for å lage den fra fila.',
+     'Legg til opptil tre funn under Lysbilde, og sett Fra og Til med glidebryterne.',
+     'Korte funn spilles med litt luft rundt, og markeringen viser det som faktisk spilles.',
+     'I Keynote blir det oversikt, hele lyden og ett lysbilde per funn, der klippet starter av seg selv.'],
+   feil:[['Feil funn spilles eller bølgen står stille i Keynote','Lag Keynote på nytt med Presentasjon 0.1.5 eller nyere.']]},
+  // ---- Avspilling og Keynote ----
+  {id:'spill-av', kat:'Avspilling og Keynote', tittel:'Spille av i Studio', tags:'spill av fremvisning presentere piltaster esc fullskjerm',
+   steg:['«Spill av» starter fra lysbildet du står på.','Piltastene eller mellomrom går fram og tilbake. Esc avslutter.']},
+  {id:'lag-keynote', kat:'Avspilling og Keynote', tittel:'Lag Keynote', tags:'keynote eksport pptx lage fil åpne lagre tillatelse henger stopper fonter font', studio:true,
+   steg:['Trykk «Lag Keynote» øverst til høyre.',
+     'Studio lager fila i Eksport-mappa ved dokumentet, med versjonsnummer i navnet, og åpner den i Keynote.',
+     'Første gang spør macOS om Studio får styre Keynote. Svar Tillat, så kan Studio lagre fila som .key.'],
+   feil:[['Knappen blir stående på «Åpner i Keynote»','Se etter en dialog fra macOS eller Keynote som venter på svar. Studio gir opp etter 20 sekunder og åpner fila uansett.'],
+     ['Fila åpnes som PowerPoint i Keynote','Studio fikk ikke lov til å lagre som .key. Trykk ⌘S i Keynote, eller gi tillatelse under Systeminnstillinger → Personvern og sikkerhet → Automatisering.'],
+     ['Feil fonter i Keynote','Newsreader og Haas Grot Text må være installert på maskinen. Mangler de, bytter Keynote til en annen font.']]},
+  // ---- Bibliotek ----
+  {id:'bibliotek', kat:'Bibliotek', tittel:'Bibliotek: gjenbruke lysbilder og presentasjoner', tags:'bibliotek blokk gjenbruke sett inn mal eksempel case lagre i biblioteket', studio:true,
+   intro:'Biblioteket har tre nivåer: Mine (bare deg), Delt (kolleger) og Faktisk (godkjent, på Faktisks delte disk).',
+   steg:['«Bibliotek…» øverst åpner biblioteket.',
+     'Velg en blokk og «Sett inn» for å legge lysbildene etter det du står på.',
+     'En hel presentasjon kan brukes med «Start ny presentasjon herfra».',
+     '«Lagre i biblioteket…» lagrer valgte lysbilder eller hele presentasjonen, med bilder og klipp inni.'],
+   se:['bibliotek-mapper']},
+  {id:'bibliotek-mapper', kat:'Bibliotek', tittel:'Sette opp Faktisk-biblioteket (delt disk)', tags:'delt disk google drive faktisk mappe velg mappe synk shared drive vises ikke', studio:true,
+   steg:['Installer Google Drive for Desktop og logg inn med Faktisk-kontoen.',
+     'Slå på synkronisering av delte disker: Drive-ikonet i menylinja → tannhjulet → Innstillinger.',
+     'I «Bibliotek…»: velg mappa Faktisk Studio → Presentasjonsbibliotek under Google Drive → Delte disker.'],
+   feil:[['De delte diskene vises ikke på Macen','Synkronisering av delte disker er av. Slå den på i Drive for Desktop, og start Drive på nytt.'],
+     ['Treg første gang','Drive henter filene når de brukes. Høyreklikk mappa og velg «Tilgjengelig uten nett» før et foredrag.']]},
+  // ---- Feilsøking ----
+  {id:'finner-ikke', kat:'Feilsøking', tittel:'Presentasjon mangler eller er ikke oppdatert', tags:'beta tilgang plugin finnes ikke oppdatering versjon gammel ny funksjon', studio:true,
+   steg:['Presentasjon er i beta. Ser du den ikke på forsiden, må du få tilgang: be Stian legge deg til.',
+     'Mangler en ny funksjon: start Studio på nytt, så hentes siste versjon av pluginen.',
+     'Noen funksjoner krever også ny Studio-versjon. Oppdater Studio når den spør.']},
+  {id:'treg', kat:'Feilsøking', tittel:'Det går tregt eller henger', tags:'treg henger fryser venter lang tid',
+   steg:['Første eksport med klipp og lydanalyse tar tid: Studio lager nye videofiler. Neste gang gjenbrukes de.',
+     'Store klipp (flere minutter i høy oppløsning) tar lengst tid. Korte ned klippet først om mulig.',
+     'Hjelper ikke det: lagre, lukk Presentasjon og åpne dokumentet igjen.']},
+  {id:'mangler-medier', kat:'Feilsøking', tittel:'Bilder eller klipp mangler', tags:'mangler bilde borte grått felt finner ikke fil medier',
+   steg:['Er dokumentet lagret, ligger kopiene i Medier-mappa ved siden av dokumentet. Er mappa flyttet, flytt hele mappa samlet.',
+     'Ligger originalen i iCloud eller Google Drive, kan den være bare i skyen. Åpne fila i Finder én gang, så hentes den.',
+     'Fra biblioteket følger bildene med i fila. Mangler de, ble blokken lagret uten medier: lagre den på nytt.']},
+];
+
+function hjelpNorm(s){ return String(s || '').toLowerCase().replace(/[æä]/g, 'ae').replace(/[øö]/g, 'o').replace(/å/g, 'a').replace(/[^a-z0-9 ]+/g, ' '); }
+function hjelpSok(q){
+  const ord = hjelpNorm(q).split(/\s+/).filter(w => w.length > 1); if (!ord.length) return [];
+  return HJELP.map(a => {
+    const t = hjelpNorm(a.tittel), g = hjelpNorm(a.tags), b = hjelpNorm([a.intro, ...(a.steg || []), ...(a.tips || []), ...(a.feil || []).flat()].join(' '));
+    let p = 0, treff = 0;
+    for (const w of ord) { const s = (t.includes(w) ? 6 : 0) + (g.includes(w) ? 4 : 0) + (b.includes(w) ? 1 : 0)
+      + (w.length > 4 && !t.includes(w) && !g.includes(w) && (t + ' ' + g).includes(w.slice(0, -2)) ? 2 : 0); if (s) treff++; p += s; }
+    return {a, p: p * (treff / ord.length)};
+  }).filter(x => x.p > 0).sort((x, y) => y.p - x.p).filter((x, i, l) => x.p >= l[0].p * .35).slice(0, 8).map(x => x.a);   // bare de som treffer godt
+}
+const HJELP_I_STUDIO = () => !!(window.faktisk && window.faktisk.stateSave);
+function hjelpEsc(s){ return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function apneHjelp(id){
+  let d = document.getElementById('hjelp');
+  if (!d) {
+    d = document.createElement('dialog'); d.id = 'hjelp'; d.className = 'hjelp'; d.setAttribute('aria-label', 'Hjelp');
+    d.innerHTML = `<div class="hj-top"><input type="search" id="hjSok" placeholder="Søk: «tabell», «runde hjørner», «delt disk» …" aria-label="Søk i hjelpen">
+      <button class="btn small" type="button" id="hjLukk">Lukk</button></div><div class="hj-body" id="hjBody"></div>`;
+    document.body.appendChild(d);
+    d.querySelector('#hjLukk').onclick = () => d.close();
+    d.addEventListener('click', ev => { if (ev.target === d) d.close(); });
+    const sok = d.querySelector('#hjSok'); sok.addEventListener('input', () => vis(sok.value.trim() ? {sok:sok.value} : {}));
+    d.querySelector('#hjBody').addEventListener('click', ev => { const a = ev.target.closest('[data-hj]'); if (a) { ev.preventDefault(); vis({id:a.dataset.hj}); } });
+  }
+  const body = d.querySelector('#hjBody'), sok = d.querySelector('#hjSok');
+  const kort = a => `<a href="#" class="hj-kort" data-hj="${a.id}"><b>${hjelpEsc(a.tittel)}</b>${a.studio && !HJELP_I_STUDIO() ? '<span class="hj-merke">Studio</span>' : ''}</a>`;
+  function vis({id, sok:q} = {}){
+    if (id) {
+      const a = HJELP.find(x => x.id === id); if (!a) return vis();
+      body.innerHTML = `<a href="#" class="hj-tilbake" data-hj="">← Alle emner</a><p class="hj-kat">${hjelpEsc(a.kat)}</p><h2>${hjelpEsc(a.tittel)}</h2>`
+        + (a.studio && !HJELP_I_STUDIO() ? '<p class="hj-note">Gjelder Faktisk Studio. I prototypen i nettleseren finnes ikke dette.</p>' : '')
+        + (a.intro ? `<p>${hjelpEsc(a.intro)}</p>` : '')
+        + (a.steg ? `<ol class="hj-steg">${a.steg.map(s => `<li>${hjelpEsc(s)}</li>`).join('')}</ol>` : '')
+        + (a.tips ? `<div class="hj-tips"><b>Tips</b>${a.tips.map(s => `<p>${hjelpEsc(s)}</p>`).join('')}</div>` : '')
+        + (a.feil ? `<h3>Fungerer det ikke?</h3><dl class="hj-feil">${a.feil.map(([p, l]) => `<dt>${hjelpEsc(p)}</dt><dd>${hjelpEsc(l)}</dd>`).join('')}</dl>` : '')
+        + (a.se ? `<h3>Se også</h3><div class="hj-liste">${a.se.map(x => HJELP.find(y => y.id === x)).filter(Boolean).map(kort).join('')}</div>` : '');
+      body.scrollTop = 0; return;
+    }
+    if (q) { const r = hjelpSok(q);
+      body.innerHTML = r.length ? `<p class="hj-kat">${r.length} treff</p><div class="hj-liste">${r.map(kort).join('')}</div>`
+        : '<p>Fant ingenting. Prøv et annet ord, for eksempel «bilde», «keynote» eller «bibliotek». Står du fast, spør Stian.</p>'; return; }
+    const kat = [...new Set(HJELP.map(a => a.kat))];
+    body.innerHTML = kat.map(k => `<p class="hj-kat">${hjelpEsc(k)}</p><div class="hj-liste">${HJELP.filter(a => a.kat === k).map(kort).join('')}</div>`).join('');
+  }
+  if (!d.open) d.showModal();
+  if (id) { sok.value = ''; vis({id}); } else { vis(sok.value.trim() ? {sok:sok.value} : {}); sok.focus(); }
+}
+// Knapp i topplinja og ?-tasten
+{ const play = document.getElementById('playBtn'), b = document.createElement('button');
+  b.type = 'button'; b.className = 'btn'; b.id = 'hjelpBtn'; b.textContent = 'Hjelp'; b.title = 'Hjelp og feilsøking (?)';
+  b.addEventListener('click', () => apneHjelp()); play.parentNode.insertBefore(b, play); }
+document.addEventListener('keydown', ev => { if (ev.key === '?' && !ev.target.isContentEditable && !/INPUT|TEXTAREA|SELECT/.test(ev.target.tagName)) { ev.preventDefault(); apneHjelp(); } });
+// hjelp til lysbildetypen som er valgt: lenke ved typenavnet
+const HJELP_TYPE = {tekstbilde:'bildeform', bokser:'fargebokser', tabell:'tabell', lyd:'lydanalyse', faksimile:'kant'};
+
 drawAll();
 </script>
