@@ -1383,7 +1383,8 @@ document.addEventListener('keydown', ev => {
   if (['ArrowLeft','ArrowUp','PageUp','Backspace'].includes(ev.key)) { ev.preventDefault(); advance(-1); }
   if (ev.key === 'Escape') stopPlay();
 });
-document.addEventListener('fullscreenchange', () => { if (play) setTimeout(play.sizeWrap, 50); });
+// Esc i fullskjerm går til nettleseren/Studio og avslutter bare fullskjermen: da avslutter vi avspillingen også, så én Esc holder
+document.addEventListener('fullscreenchange', () => { if (!play) return; if (!document.fullscreenElement && play.wasFull) { stopPlay(); return; } if (document.fullscreenElement) play.wasFull = true; setTimeout(play.sizeWrap, 50); });
 
 /* ============================================================
    Keynote-eksport: lager en .pptx fra lysbildene (samme geometri
