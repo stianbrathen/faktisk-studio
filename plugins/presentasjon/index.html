@@ -62,6 +62,9 @@ header.top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-block
 .el.media .kant{position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:2}
 .el.ann{border-radius:28px;cursor:move;z-index:5}.el.ann.sirkel{border-radius:50%}
 .el.ann.sel{outline:2px dashed var(--ui-accent, #6F9BFF);outline-offset:6px}
+.insp input[type=text]{background:var(--ui-bg);border:1px solid var(--ui-line);border-radius:8px;padding:7px 9px;width:100%;box-sizing:border-box}
+.el.ann-strek{transform-origin:0 50%;border-radius:2px;pointer-events:none;z-index:5}
+.el.ann-lbl{z-index:6;border-radius:10px;font:700 28px/35px var(--slide-sans);text-align:center;white-space:pre;padding:12px 20px;box-sizing:border-box;cursor:move}
 .el.ann .annh{position:absolute;right:-14px;bottom:-14px;width:28px;height:28px;border-radius:50%;background:#fff;box-shadow:0 0 0 3px var(--ui-accent, #6F9BFF);cursor:nwse-resize;display:none}
 .el.ann.sel .annh{display:block}
 .hjelp{width:min(640px,calc(100vw - 32px));max-height:min(80vh,820px);padding:0;border:1px solid var(--ui-line);border-radius:14px;background:var(--ui-panel);color:var(--ui-fg);box-shadow:0 24px 60px rgba(0,0,0,.5);display:flex;flex-direction:column}
@@ -741,8 +744,28 @@ function renderSlide(slide, index, {editable=false, step=Infinity} = {}){
   }
   annList(slide).forEach((a, i) => {
     const d = document.createElement('div'); d.className = 'el ann' + (a.f === 'sirkel' ? ' sirkel' : '') + (editable && annSel === i ? ' sel' : '');
-    Object.assign(d.style, {left:a.x+'px', top:a.y+'px', width:a.w+'px', height:a.h+'px', boxShadow:`inset 0 0 0 ${ANN_W}px var(--markering)`});
-    if (!editable && annStep(slide, i) > step) d.style.visibility = 'hidden';
+    const css = (c) => c.startsWith('#') ? c : `var(--${c})`, col = annFarge(a);
+    Object.assign(d.style, {left:a.x+'px', top:a.y+'px', width:a.w+'px', height:a.h+'px', boxShadow:`inset 0 0 0 ${ANN_W}px ${css(col.linje)}`});
+    const hidden = !editable && annStep(slide, i) > step; if (hidden) d.style.visibility = 'hidden';
+    // forklaring: strek og boks
+    const ln = document.createElement('div'), lb = document.createElement('div');
+    ln.className = 'el ann-strek'; lb.className = 'el ann-lbl'; ln.style.background = css(col.linje);
+    Object.assign(lb.style, {background:css(col.linje), color:css(col.tekst)});
+    const placeLbl = () => { const L = annLabel(a), g = annLine(a, L);
+      lb.hidden = !L; if (L) { Object.assign(lb.style, {left:L.x+'px', top:L.y+'px', width:L.w+'px', height:L.h+'px'}); lb.textContent = L.lines.join('\n'); }
+      ln.hidden = !g; if (g) { const len = Math.hypot(g.x2 - g.x1, g.y2 - g.y1);
+        Object.assign(ln.style, {left:g.x1+'px', top:(g.y1 - ANN_W / 4)+'px', width:len+'px', height:(ANN_W / 2)+'px', transform:`rotate(${Math.atan2(g.y2 - g.y1, g.x2 - g.x1)}rad)`}); } };
+    placeLbl(); if (hidden) { ln.style.visibility = lb.style.visibility = 'hidden'; }
+    root.appendChild(ln); root.appendChild(lb);
+    if (editable) {   // dra i boksen for å flytte forklaringen
+      lb.addEventListener('pointerdown', ev => { if (ev.button) return; ev.preventDefault(); ev.stopPropagation(); lb.setPointerCapture(ev.pointerId);
+        if (annSel !== i) { annSel = i; drawInspector(); root.querySelectorAll('.ann').forEach((x, k) => x.classList.toggle('sel', k === i)); }
+        const sc = stageScale(), sx = ev.clientX, sy = ev.clientY, ox = a.lx, oy = a.ly;
+        const mv = me => { a.lx = Math.round(Math.min(1900, Math.max(20, ox + (me.clientX - sx) / sc))); a.ly = Math.round(Math.min(1060, Math.max(20, oy + (me.clientY - sy) / sc))); placeLbl(); };
+        const up = () => { lb.removeEventListener('pointermove', mv); lb.removeEventListener('pointerup', up); save(); scheduleThumbs(); };
+        lb.addEventListener('pointermove', mv); lb.addEventListener('pointerup', up); });
+    }
+    d._place = placeLbl;
     if (editable) {
       const hd = document.createElement('i'); hd.className = 'annh'; d.appendChild(hd);
       d.addEventListener('pointerdown', ev => { if (ev.button) return; ev.preventDefault(); ev.stopPropagation(); d.setPointerCapture(ev.pointerId);
@@ -751,7 +774,7 @@ function renderSlide(slide, index, {editable=false, step=Infinity} = {}){
         const mv = me => { const dx = (me.clientX - sx) / sc, dy = (me.clientY - sy) / sc;
           if (resize) { a.w = Math.max(40, Math.round(o.w + dx)); a.h = Math.max(40, Math.round(me.shiftKey ? a.w : o.h + dy)); }
           else { a.x = Math.round(Math.min(1920 - 20, Math.max(20 - a.w, o.x + dx))); a.y = Math.round(Math.min(1080 - 20, Math.max(20 - a.h, o.y + dy))); }
-          Object.assign(d.style, {left:a.x+'px', top:a.y+'px', width:a.w+'px', height:a.h+'px'}); };
+          Object.assign(d.style, {left:a.x+'px', top:a.y+'px', width:a.w+'px', height:a.h+'px'}); d._place(); };
         const up = () => { d.removeEventListener('pointermove', mv); d.removeEventListener('pointerup', up); save(); scheduleThumbs(); };
         d.addEventListener('pointermove', mv); d.addEventListener('pointerup', up); });
     }
@@ -1149,6 +1172,18 @@ function drawInspector(){
     g.appendChild(r);
     if (list.length) { const hint = document.createElement('span'); hint.className = 'lbl'; hint.textContent = 'Dra for å flytte, dra i hjørnet for å endre størrelse (Shift: sirkel/kvadrat). Slett fjerner valgt.'; g.appendChild(hint); }
     insp.appendChild(g);
+    const a = list[annSel];
+    if (a) {
+      insp.appendChild(seg('Farge på valgt markering', Object.entries(ANN_FARGER).map(([k, v]) => [k, v.n]), a.farge || 'markering', v => { a.farge = v; save(); drawAll(); }));
+      const fg = document.createElement('div'); fg.className = 'group'; fg.innerHTML = '<label for="annTekst">Forklaring til valgt markering</label>';
+      const inp = document.createElement('input'); inp.id = 'annTekst'; inp.type = 'text'; inp.value = a.tekst || ''; inp.placeholder = 'Et ord eller to, f.eks. «Ingen skygge»'; inp.maxLength = 80;
+      inp.addEventListener('input', () => { a.tekst = inp.value;
+        if (a.lx === undefined) { const right = a.x + a.w + 240 < 1840; a.lx = right ? a.x + a.w + 200 : Math.max(120, a.x - 200); a.ly = Math.max(60, a.y - 40); }
+        save(); refresh(); });
+      fg.appendChild(inp);
+      const hint = document.createElement('span'); hint.className = 'lbl'; hint.textContent = 'Dra i boksen på lysbildet for å flytte den. Streken følger etter.'; fg.appendChild(hint);
+      insp.appendChild(fg);
+    }
     if (list.length) insp.appendChild(seg('Markeringer vises', [['klikk','Én per klikk'],['med','Med lysbildet']], s.annBuild || 'klikk', v => { s.annBuild = v; save(); drawAll(); }));
   }
   if (s.type === 'tekstbilde') {
@@ -1358,6 +1393,32 @@ const KANT = {tynn:5, medium:10, tykk:16};
 // runde hjørner på bilder og klipp, unntatt fullskjerm og utfallende bilder
 const mediaR = (e) => (e.square || e.w >= 1920) ? 0 : 23;
 const SKYGGE = {y:14, blur:36, alpha:.3, pad:64};
+/* Markeringer kan få en forklaring: en liten boks med et ord eller to, og en strek ut fra markeringen.
+   Farge per markering: markeringsfargen (standard), hvit, tekstfargen eller aksentfargen. */
+const ANN_FARGER = {markering:{n:'Markering', linje:'markering', tekst:'bakgrunn'}, hvit:{n:'Hvit', linje:'#FFFFFF', tekst:'#111316'},
+  tekst:{n:'Tekstfarge', linje:'tekst', tekst:'bakgrunn'}, aksent:{n:'Aksent', linje:'aksent', tekst:'bakgrunn'}};
+const annFarge = (a) => ANN_FARGER[a.farge] || ANN_FARGER.markering;
+const ANN_LBL = {fs:28, lh:35, padX:20, padY:12, maxW:460, r:10, font:'700 28px "Haas Grot Text","Neue Haas Grotesk Text Pro",Inter,sans-serif'};
+let annCtx = null;
+function annLabel(a){
+  const t = (a.tekst || '').trim(); if (!t) return null;
+  annCtx = annCtx || document.createElement('canvas').getContext('2d'); annCtx.font = ANN_LBL.font;
+  const lines = []; for (const para of t.split('\n')) { let cur = '';
+    for (const w of para.split(/\s+/)) { const tryL = cur ? cur + ' ' + w : w; if (cur && annCtx.measureText(tryL).width > ANN_LBL.maxW) { lines.push(cur); cur = w; } else cur = tryL; }
+    lines.push(cur); }
+  const w = Math.ceil(Math.max(...lines.map(l => annCtx.measureText(l).width))) + 2 * ANN_LBL.padX + 4, hh = lines.length * ANN_LBL.lh + 2 * ANN_LBL.padY;
+  return {x:Math.round(a.lx - w / 2), y:Math.round(a.ly - hh / 2), w, h:hh, lines};
+}
+// streken går fra kanten av markeringen til kanten av boksen, langs linja mellom sentrene
+function annLine(a, L){
+  if (!L) return null;
+  const cx = a.x + a.w / 2, cy = a.y + a.h / 2, lx = L.x + L.w / 2, ly = L.y + L.h / 2, dx = lx - cx, dy = ly - cy;
+  if (!dx && !dy) return null;
+  const t1 = a.f === 'sirkel' ? 1 / Math.sqrt((dx / (a.w / 2)) ** 2 + (dy / (a.h / 2)) ** 2) : Math.min(dx ? (a.w / 2) / Math.abs(dx) : 1e9, dy ? (a.h / 2) / Math.abs(dy) : 1e9);
+  const t2 = Math.min(dx ? (L.w / 2) / Math.abs(dx) : 1e9, dy ? (L.h / 2) / Math.abs(dy) : 1e9);
+  if (t1 + t2 >= 1) return null;   // boksen ligger oppå markeringen: ingen strek
+  return {x1:cx + dx * t1, y1:cy + dy * t1, x2:lx - dx * t2, y2:ly - dy * t2};
+}
 const localCache = {};
 async function localUrl(url){
   if (!url || !url.startsWith('file://') || !EXPORT_HOOKS.readFile) return url;
@@ -1480,10 +1541,18 @@ async function exportPptx(doc, slides, {onProgress} = {}){
       }
     }
     late.forEach(f => f());
-    if (seg.kind === 'normal' || !seg.kind) annList(s).forEach((a, i) => {   // markeringer: sirkler og avrundede firkanter i markeringsfargen
-      const nm = `markering-${i + 1}`; m.names[nm] = annStep(s, i);
+    if (seg.kind === 'normal' || !seg.kind) annList(s).forEach((a, i) => {   // markeringer: sirkler og avrundede firkanter, med eventuell forklaring
+      const nm = `markering-${i + 1}`, k = annStep(s, i), col = annFarge(a), lc = exHex(col.linje, pal); m.names[nm] = k;
       sl.addShape(a.f === 'sirkel' ? pptx.ShapeType.ellipse : pptx.ShapeType.roundRect, {x:a.x*PX, y:a.y*PX, w:a.w*PX, h:a.h*PX, objectName:nm,
-        rectRadius:a.f === 'sirkel' ? undefined : Math.min(28, a.w/2, a.h/2)*PX, fill:{type:'none'}, line:{color:exHex('markering', pal), width:PT(ANN_W)}});
+        rectRadius:a.f === 'sirkel' ? undefined : Math.min(28, a.w/2, a.h/2)*PX, fill:{type:'none'}, line:{color:lc, width:PT(ANN_W)}});
+      const L = annLabel(a), ln = annLine(a, L);
+      if (ln) { m.names[nm + '-strek'] = k;
+        sl.addShape(pptx.ShapeType.line, {x:Math.min(ln.x1, ln.x2)*PX, y:Math.min(ln.y1, ln.y2)*PX, w:Math.max(1, Math.abs(ln.x2 - ln.x1))*PX, h:Math.abs(ln.y2 - ln.y1)*PX,
+          flipH:ln.x2 < ln.x1, flipV:ln.y2 < ln.y1, objectName:nm + '-strek', line:{color:lc, width:PT(ANN_W / 2)}}); }
+      if (L) { m.names[nm + '-tekst'] = k;
+        sl.addText(L.lines.join('\n'), {shape:pptx.ShapeType.roundRect, rectRadius:ANN_LBL.r*PX, x:L.x*PX, y:L.y*PX, w:L.w*PX, h:L.h*PX, objectName:nm + '-tekst',
+          fill:{color:lc}, color:exHex(col.tekst, pal), fontFace:EXPORT_FONTS.sans, bold:true, fontSize:PT(ANN_LBL.fs), align:'center', valign:'middle', margin:0,
+          lineSpacing:PT(ANN_LBL.lh)}); }
     });
     if (m.noPlay) for (const v of Object.values(m.videos)) v.noplay = true;   // lite klipp: står stille, spilles bare stort
     }
@@ -1810,12 +1879,14 @@ const HJELP = [
      'På faksimile og avslutning har feltet allerede en hvit ramme. Der kan du bare velge skygge under rammen.'],
    tips:['Bilder og klipp med kant eller skygge lagres ferdig tegnet, og kan ikke beskjæres på nytt i Keynote. Juster utsnittet i Studio først.'],
    feil:[['Klippet ser strukket ut i Keynote','Oppdater Studio til 0.8.5 eller nyere. Eldre versjoner tegnet kanten inni klippet.']]},
-  {id:'markeringer', kat:'Bilder og klipp', tittel:'Markere noe i et bilde med sirkel eller firkant', tags:'markere markering sirkel ring firkant peke ut fremheve annotere',
+  {id:'markeringer', kat:'Bilder og klipp', tittel:'Markere noe i et bilde med sirkel eller firkant', tags:'markere markering sirkel ring firkant peke ut fremheve annotere forklaring tekstboks strek etikett farge hvit',
    steg:['Velg lysbildet. Under Lysbilde: «+ Sirkel» eller «+ Avrundet firkant».',
      'Dra markeringen dit den skal. Dra i det runde håndtaket i hjørnet for å endre størrelse (Shift gir sirkel eller kvadrat).',
      'Velg «Markeringer vises»: én per klikk (etter resten av lysbildet) eller med lysbildet.',
-     'Slett-tasten eller «Fjern valgt» fjerner den du har valgt.'],
-   tips:['Markeringene ligger på lysbildet, ikke fast på bildet. Endrer du utsnittet, må de flyttes.']},
+     'Slett-tasten eller «Fjern valgt» fjerner den du har valgt.',
+     'Forklaring: skriv et ord eller to i «Forklaring til valgt markering». Det kommer en liten boks med en strek ut til markeringen. Dra i boksen for å flytte den.',
+     '«Farge på valgt markering» overstyrer fargen på ring, strek og boks: markeringsfargen, hvit, tekstfargen eller aksentfargen.'],
+   tips:['Markeringene ligger på lysbildet, ikke fast på bildet. Endrer du utsnittet, må de flyttes.', 'Hvit fungerer best på mørke bilder og mørke lysbilder.']},
   {id:'vis-stort', kat:'Bilder og klipp', tittel:'Vise bilder og klipp i stor størrelse', tags:'stort fullskjerm forstørre vis stort klikk',
    steg:['Velg lysbildet. Under Lysbilde: «Bilder og klipp i avspilling» → «Også stort, ett og ett».',
      'Under avspilling gir neste klikk bildet eller klippet stort, med teksten under. Klikket etter går tilbake.',
