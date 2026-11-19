@@ -443,6 +443,8 @@ const TYPES = {
       T('oppfordring',1231,684,552,187,{size:36,weight:700,colorHex:'#0F1514',align:'center'},{ph:'Oppfordring'}),
       ...PARTNER_STOR(doc),...LOGOS(doc)]},
   /* ---------- case-grafikk ---------- */
+  lydklipp:{name:'Lydklipp', desc:'Bare lydbølgen i palettens farger, uten tekst. Lyden spilles av på klikk eller av seg selv', group:'case',
+    build:(s,doc)=>[{kind:'wave',x:130,y:425,w:1660,h:230,role:'lyd'}, ...(s.logo ? LOGOS(doc) : [])]},
   lyd:{name:'Lydanalyse', desc:'Lydbølge med merkede funn, ett per klikk', buildLabel:'Ett funn per klikk', group:'case',
     build:(s,doc)=>{const dur=s.dur||waveFor(s).dur, WX=130, WW=1660, WY=330, WH=230;
       const out=[T('kicker',86,86,1296,50,S.kicker,{ph:'LYDANALYSE',match:'kicker'}),T('tittel',86,137,1584,122,S.tittel72,{ph:'Hva lyden avslører',match:'tittel'}),
@@ -858,7 +860,7 @@ function waveEl(slide, e, editable){
     const ph = document.createElement('div'); ph.className = 'playhead'; d.appendChild(ph);
     const ctl = document.createElement('div'); ctl.className = 'lydctl';
     ctl.innerHTML = `<button type="button" class="lydplay" aria-label="Spill av lyden"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path class="pi" d="M8 5v14l11-7z"/><path class="pa" d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg></button><span class="lydtid">0:00 / ${fmtT(waveFor(slide).dur)}</span>`;
-    d.appendChild(ctl);
+    if (editable || slide.type !== 'lydklipp') d.appendChild(ctl);   // lydklipp i avspilling: ingen knapp eller tid, bare bølgen
     const stopEv = ev => ev.stopPropagation();
     ctl.addEventListener('pointerdown', stopEv); ctl.addEventListener('click', ev => { ev.stopPropagation(); lydToggle(slide); });
     // klikk på bølgen i avspilling: hopp dit
@@ -1147,6 +1149,11 @@ function drawInspector(){
   if (t.buildLabel) insp.appendChild(seg('Bygg', [['ingen','Alt på en gang'],['punkt',t.buildLabel]], s.build, v => { s.build = v; save(); drawAll(); }));
   const COUNT = {detektor:[[2,3,4],'Antall verktøy'], spredning:[[2,3,4],'Antall ledd'], kart:[[2,3,4,5],'Antall steder'], tidslinje:[[3,4,5,6],'Antall hendelser']}[s.type];
   if (COUNT) insp.appendChild(seg(COUNT[1], COUNT[0].map(n=>[n,String(n)]), s.steps||COUNT[0][1], v => { s.steps = v; save(); drawAll(); }));
+  if (s.type === 'lydklipp') {
+    const g = document.createElement('div'); g.className = 'group'; g.innerHTML = `<span class="lbl">${lydSrc(s) ? 'Slipp en annen lyd- eller videofil på bølgen for å bytte.' : 'Slipp en lyd- eller videofil på bølgen. Bølgen lages fra lyden i fila.'}</span>`; insp.appendChild(g);
+    insp.appendChild(seg('Lyden starter', [['klikk','På klikk'],['auto','Av seg selv']], s.lydStart || 'klikk', v => { s.lydStart = v; save(); drawAll(); }));
+    insp.appendChild(seg('Logo', [['','Ingen'],['ja','Vis logoen']], s.logo ? 'ja' : '', v => { s.logo = v === 'ja'; save(); drawAll(); }));
+  }
   if (s.type === 'lyd') {
     const {dur} = s.peaks ? {dur:s.dur} : waveFor(s);
     const info = document.createElement('div'); info.className = 'group';
@@ -1277,6 +1284,7 @@ function captionFor(els, e, s){
 function bigLayout(asp){ const M = 60, AH = 1080 - 2*M - 84, w = Math.round(Math.min(1920 - 2*M, AH*asp)), h = Math.round(w/asp), y = M + Math.round((AH - h)/2); return {x:Math.round((1920-w)/2), y, w, h, capY:y + h + 24}; }
 function playStates(s, index){
   const max = stepsFor(s), st = []; for (let i = 0; i <= max; i++) st.push({build:i, big:null});
+  if (s.type === 'lydklipp' && lydSrc(s)) return s.lydStart === 'auto' ? [{build:0, big:null, audio:'all'}] : [{build:0, big:null}, {build:0, big:null, audio:'all'}];
   if (s.type === 'lyd' && lydSrc(s)) {   // etter funnene: hele lyden, så hvert funn for seg
     const dur = waveFor(s).dur; st.push({build:max, big:null, audio:'all'});
     (s.marks || []).slice(0, 3).forEach((mk, i) => { if (mk[1] - mk[0] < dur * .9) st.push({build:max, big:null, audio:i}); });
@@ -1375,6 +1383,8 @@ function advance(dir){
   const ni = play.i + dir; if (ni < 0 || ni >= slides.length) return;
   lydStop(); const prev = play.wrap.lastElementChild; play.i = ni; play.step = dir > 0 ? 0 : playStates(slides[ni], ni).length - 1;
   if (dir < 0) { play.wrap.innerHTML = ''; showPlay(null); } else showPlay(prev);
+  const ns = slides[ni], st0 = playStates(ns, ni)[play.step];   // lydklipp som starter av seg selv
+  if (dir > 0 && st0 && st0.audio === 'all' && play.step === 0) setTimeout(() => { if (play && play.i === ni) lydPlay(ns, 0, waveFor(ns).dur + 1); }, 600);
 }
 function stopPlay(){ if (!play) return; lydStop(); removeEventListener('resize', play.sizeWrap); try { document.fullscreenElement && document.exitFullscreen(); } catch(e) {} play.ov.remove(); sel = play.i; play = null; drawAll(); }
 document.addEventListener('keydown', ev => {
@@ -1528,7 +1538,7 @@ async function exportPptx(doc, slides, {onProgress} = {}){
           const q = await videoPoster(seg.sg.src);
           if (q) {
             const nm = seg.sg.i < 0 ? 'lydvideo' : `lydfunn-${seg.sg.i+1}`; m.names[nm] = 0;
-            m.videos[nm] = {dur:Math.round(q.dur*1000), seg:1, auto:true};   // starter av seg selv når lysbildet vises
+            m.videos[nm] = s.type === 'lydklipp' && s.lydStart !== 'auto' ? {dur:Math.round(q.dur*1000), last:true} : {dur:Math.round(q.dur*1000), seg:1, auto:true};   // starter av seg selv når lysbildet vises (lydklipp: på klikk hvis valgt)
             for (const fi of seg.sg.frames) {   // ramme rundt boksen til funnet (står fast på dette lysbildet)
               const card = !s.noFrame && seg.els.find(x => x.card && x.mi === fi);
               if (card) late.push(() => sl.addShape(pptx.ShapeType.roundRect, {x:card.x*PX, y:card.y*PX, w:card.w*PX, h:card.h*PX, rectRadius:card.r*PX, objectName:`lydramme-${fi+1}`, fill:{type:'none'}, line:{color:exHex('markering', pal), width:PT(10)}}));
@@ -1624,7 +1634,7 @@ async function mediaAspect(s, e){
 }
 // lydvideoene for et lydlysbilde: hele lyden og ett klipp per funn (fra eksempelet, eller laget av Studio)
 async function lydVideos(s, si, onProgress){
-  if (s.type !== 'lyd') return null;
+  if (s.type !== 'lyd' && s.type !== 'lydklipp') return null;
   const pal = typeof slidePal === 'function' ? slidePal(s, si) : PALETTES[doc.palette].c;
   let lv = s.def && s.def.lydvideo; if (lv && lv.palette && lv.palette !== doc.palette) lv = null;
   let segList = lv ? (s.def.lydseg || []) : [];
@@ -1642,6 +1652,7 @@ async function lydVideos(s, si, onProgress){
 async function exportSegments(s, si, all, onProgress){
   const tag = all.map((e, i) => s.stor ? {...e, match:e.match || `el-${i}`} : e);
   const lyd = await lydVideos(s, si, onProgress);
+  if (lyd && s.type === 'lydklipp') return [{kind:'funn', first:true, from:0, els:tag, lyd, sg:{i:-1, src:lyd.lv.src, frames:[]}}];
   if (lyd) {   // oversikten (boksene bygges inn, så spilles hele lyden), deretter ett lysbilde per funn
     const max = Math.max(0, ...tag.map(e => e.build || 0)), segs = [{kind:'normal', first:true, from:0, els:tag, lyd}];
     const dur = waveFor(s).dur, hele = (s.marks || []).slice(0, 3).map((mk, i) => mk[1] - mk[0] >= dur * .9 ? i : -1).filter(i => i >= 0);
@@ -1783,6 +1794,7 @@ EXPORT_HOOKS.waveVideo = async (s, pal, from, to, seg) => {
   if (!window.faktisk.presentationWaveform) return null;
   const src = lydSrc(s); if (!src || !src.startsWith('file:')) return null;
   const mk = seg != null && s.marks[seg], c = {}; for (const k of ['flate','aksent','markering','tekst','dempet']) c[k] = pal[k];
+  if (s.type === 'lydklipp') { c.flate = pal.bakgrunn; c.dempet = pal.bakgrunn; }   // «blankt» lysbilde: ingen boks bak bølgen og ingen tidskode (tegnes i bakgrunnsfargen)
   const r = await window.faktisk.presentationWaveform({src, peaks:waveFor(s).p, dur:waveFor(s).dur, from, to, colors:c,
     seg:null, label:''});   // markeringen ligger på lysbildet
   if (!r || !r.ok) { console.warn('lydbølge', r && r.error); return null; }
@@ -1940,6 +1952,12 @@ const HJELP = [
      'Korte funn spilles med litt luft rundt, og markeringen viser det som faktisk spilles.',
      'I Keynote blir det oversikt, hele lyden og ett lysbilde per funn, der klippet starter av seg selv.'],
    feil:[['Feil funn spilles eller bølgen står stille i Keynote','Lag Keynote på nytt med Presentasjon 0.1.5 eller nyere.']]},
+  {id:'lydklipp', kat:'Case-grafikk', tittel:'Lydklipp: bare lydbølgen, uten tekst', tags:'lydklipp lyd bølge blank tom uten tekst spille av lydfil opptak',
+   steg:['Legg til et lysbilde av typen Lydklipp.','Slipp en lyd- eller videofil på bølgen. Bølgen lages fra lyden i fila.',
+     'Under Lysbilde: velg om lyden starter på klikk eller av seg selv, og om logoen skal vises.',
+     'Fargene følger paletten, og med «Faktisk sprek» kan lysbildet få en farge fra serien.',
+     'I Keynote blir det en film av bølgen med lyden, der spilt del lyser opp og bølgen beveger seg der lyden er.'],
+   tips:['Bølgen viser hvor sterk lyden er gjennom klippet: pauser, kutt og lydnivå synes, men ikke hva som sies eller tonehøyde.']},
   // ---- Avspilling og Keynote ----
   {id:'spill-av', kat:'Avspilling og Keynote', tittel:'Spille av i Studio', tags:'spill av fremvisning presentere piltaster esc fullskjerm',
    steg:['«Spill av» starter fra lysbildet du står på.','Piltastene eller mellomrom går fram og tilbake. Esc avslutter.']},

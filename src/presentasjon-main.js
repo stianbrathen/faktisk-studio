@@ -113,7 +113,7 @@ async function waveform(e, o) {
   const opt = { peaks, dur, c: { flate: hex(c.flate, '#ECEAE4'), aksent: hex(c.aksent, '#2D4A68'), markering: hex(c.markering, '#B4472F'), tekst: hex(c.tekst, '#1D2733'), dempet: hex(c.dempet, '#5B6572') },
     seg: Array.isArray(o.seg) ? o.seg.map(Number) : null, label: o.label ? String(o.label).slice(0, 40) : '' };
   const st = fs.statSync(src);
-  const key = crypto.createHash('sha256').update(JSON.stringify([src, st.size, st.mtimeMs, opt, from, to, 4])).digest('hex').slice(0, 24);
+  const key = crypto.createHash('sha256').update(JSON.stringify([src, st.size, st.mtimeMs, opt, from, to, 5])).digest('hex').slice(0, 24);
   const dir = path.join(deps.app.getPath('userData'), 'presentasjon-cache');
   const out = path.join(dir, key + '.mp4');
   if (fs.existsSync(out)) return { ok: true, path: out, cached: true };
@@ -124,6 +124,8 @@ async function waveform(e, o) {
   const tmp = out + '.tmp.mp4';
   const p = spawn(ff, ['-v', 'error', '-y', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', `${W}x${H}`, '-r', String(FPS), '-i', '-',
     '-ss', String(from), '-t', String(len), '-i', src, '-map', '0:v', '-map', '1:a?', '-t', String(len),
+    // BT.709-merket, så flatene får nøyaktig lysbildets farge i Keynote (ellers synes en svak boks rundt bølgen)
+    '-vf', 'scale=out_color_matrix=bt709:out_range=tv,format=yuv420p', '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-color_range', 'tv',
     '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '26', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '96k', '-movflags', '+faststart', '-f', 'mp4', tmp]);
   let err = ''; p.stderr.on('data', (d) => { err = (err + d).slice(-2000); });
   const done = new Promise((resolve) => { p.on('close', (code) => resolve(code)); p.on('error', () => resolve(-1)); });
