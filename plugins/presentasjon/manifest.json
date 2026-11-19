@@ -1,7 +1,7 @@
 {
   "id": "presentasjon",
   "name": "Presentasjon",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "entry": "index.html",
   "description": "Lysbilder i Faktisk-stil som blir en ferdig Keynote-presentasjon: lysbildetyper for kurs og foredrag, case-grafikk (lydanalyse, verktøyresultater, spredning, kart, tidslinje), bygg per klikk, magisk flytting og bilder og klipp i stor visning. Mediene ligger på maskinen, ikke Labrador.",
   "category": "presentasjon",

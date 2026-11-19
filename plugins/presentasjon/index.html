@@ -60,6 +60,10 @@ header.top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-block
 .add-wrap .btn{width:100%;justify-content:center}
 .typemenu{position:absolute;left:10px;right:10px;bottom:52px;background:var(--ui-raise);border:1px solid var(--ui-line);border-radius:10px;padding:6px;display:grid;gap:2px;z-index:5;box-shadow:0 12px 30px rgba(0,0,0,.45);max-height:calc(100vh - 180px);overflow-y:auto;overscroll-behavior:contain}
 .el.media .kant{position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:2}
+.el.ann{border-radius:28px;cursor:move;z-index:5}.el.ann.sirkel{border-radius:50%}
+.el.ann.sel{outline:2px dashed var(--ui-accent, #6F9BFF);outline-offset:6px}
+.el.ann .annh{position:absolute;right:-14px;bottom:-14px;width:28px;height:28px;border-radius:50%;background:#fff;box-shadow:0 0 0 3px var(--ui-accent, #6F9BFF);cursor:nwse-resize;display:none}
+.el.ann.sel .annh{display:block}
 .chips{display:flex;flex-wrap:wrap;gap:4px}.chips button{display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:0;padding:2px;cursor:pointer;color:var(--ui-mute);font-size:11px}
 .chips button i{width:22px;height:22px;border-radius:50%;box-shadow:inset 0 0 0 1px rgba(255,255,255,.18)}.chips button[aria-pressed=true]{color:var(--ui-fg)}.chips button[aria-pressed=true] i{outline:2px solid var(--ui-accent);outline-offset:2px}
 .typemenu button{text-align:left;background:none;border:0;border-radius:6px;padding:7px 9px;cursor:pointer}
@@ -714,8 +718,30 @@ function renderSlide(slide, index, {editable=false, step=Infinity} = {}){
     if (e.card) { d.classList.add('card'); Object.assign(d.dataset, {sid:slide.id, mi:e.mi, a:e.a, b:e.b}); }
     root.appendChild(d);
   }
+  annList(slide).forEach((a, i) => {
+    const d = document.createElement('div'); d.className = 'el ann' + (a.f === 'sirkel' ? ' sirkel' : '') + (editable && annSel === i ? ' sel' : '');
+    Object.assign(d.style, {left:a.x+'px', top:a.y+'px', width:a.w+'px', height:a.h+'px', boxShadow:`inset 0 0 0 ${ANN_W}px var(--markering)`});
+    if (!editable && annStep(slide, i) > step) d.style.visibility = 'hidden';
+    if (editable) {
+      const hd = document.createElement('i'); hd.className = 'annh'; d.appendChild(hd);
+      d.addEventListener('pointerdown', ev => { if (ev.button) return; ev.preventDefault(); ev.stopPropagation(); d.setPointerCapture(ev.pointerId);
+        if (annSel !== i) { annSel = i; drawInspector(); root.querySelectorAll('.ann').forEach((x, k) => x.classList.toggle('sel', k === i)); }
+        const sc = stageScale(), sx = ev.clientX, sy = ev.clientY, o = {...a}, resize = ev.target === hd;
+        const mv = me => { const dx = (me.clientX - sx) / sc, dy = (me.clientY - sy) / sc;
+          if (resize) { a.w = Math.max(40, Math.round(o.w + dx)); a.h = Math.max(40, Math.round(me.shiftKey ? a.w : o.h + dy)); }
+          else { a.x = Math.round(Math.min(1920 - 20, Math.max(20 - a.w, o.x + dx))); a.y = Math.round(Math.min(1080 - 20, Math.max(20 - a.h, o.y + dy))); }
+          Object.assign(d.style, {left:a.x+'px', top:a.y+'px', width:a.w+'px', height:a.h+'px'}); };
+        const up = () => { d.removeEventListener('pointermove', mv); d.removeEventListener('pointerup', up); save(); scheduleThumbs(); };
+        d.addEventListener('pointermove', mv); d.addEventListener('pointerup', up); });
+    }
+    root.appendChild(d);
+  });
   return root;
 }
+let annSel = -1;
+document.addEventListener('keydown', ev => {   // Slett/Backspace fjerner valgt markering (ikke når man skriver)
+  if (annSel < 0 || !['Delete','Backspace'].includes(ev.key) || ev.target.isContentEditable || /INPUT|TEXTAREA|SELECT/.test(ev.target.tagName)) return;
+  const s = slides[sel]; if (!s || !annList(s)[annSel]) return; ev.preventDefault(); s.ann.splice(annSel, 1); annSel = -1; save(); drawAll(); });
 
 function mediaEl(slide, e, editable){
   const d = document.createElement('div'); d.className = 'el media';
@@ -1053,6 +1079,20 @@ function drawInspector(){
   }
   if (s.type === 'kart') { const g = document.createElement('div'); g.className = 'group'; g.innerHTML = '<span class="lbl">Dra de nummererte punktene på kartet til riktig sted.</span>'; insp.appendChild(g); }
   if (sel > 0) insp.appendChild(seg('Overgang fra forrige lysbilde', [['toning','Toning'],['magisk','Glir (magisk flytting)']], s.in, v => { s.in = v; save(); drawAll(); }));
+  {   // markeringer
+    const g = document.createElement('div'); g.className = 'group'; const list = annList(s);
+    g.innerHTML = `<span class="lbl">Markeringer${list.length ? ' (' + list.length + ')' : ''}</span>`;
+    const r = document.createElement('div'); r.className = 'row';
+    const addAnn = (f) => { const md = TYPES[s.type].build(s, doc, ctxFor(sel)).find(e => e.kind === 'media') || {x:660, y:290, w:600, h:500};
+      const w = f === 'sirkel' ? 260 : 380, hh = f === 'sirkel' ? 260 : 220;
+      s.ann = [...list, {f, x:Math.round(md.x + md.w / 2 - w / 2 + list.length * 30), y:Math.round(md.y + md.h / 2 - hh / 2 + list.length * 30), w, h:hh}]; annSel = s.ann.length - 1; save(); drawAll(); };
+    for (const [f, txt] of [['sirkel','+ Sirkel'],['boks','+ Avrundet firkant']]) { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn small'; b.textContent = txt; b.addEventListener('click', () => addAnn(f)); r.appendChild(b); }
+    if (annSel >= 0 && list[annSel]) { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn small'; b.textContent = 'Fjern valgt'; b.addEventListener('click', () => { list.splice(annSel, 1); annSel = -1; save(); drawAll(); }); r.appendChild(b); }
+    g.appendChild(r);
+    if (list.length) { const hint = document.createElement('span'); hint.className = 'lbl'; hint.textContent = 'Dra for å flytte, dra i hjørnet for å endre størrelse (Shift: sirkel/kvadrat). Slett fjerner valgt.'; g.appendChild(hint); }
+    insp.appendChild(g);
+    if (list.length) insp.appendChild(seg('Markeringer vises', [['klikk','Én per klikk'],['med','Med lysbildet']], s.annBuild || 'klikk', v => { s.annBuild = v; save(); drawAll(); }));
+  }
   if (s.type === 'tekstbilde') {
     const auto = (() => { const f = s.bildeform; s.bildeform = ''; const r = bildeform(s); s.bildeform = f; return r; })();
     const navn = {kvadrat:'kvadratisk', hoyde:'høydeformat', bred:'bredformat'};
@@ -1110,7 +1150,13 @@ document.addEventListener('click', ev => { if (!typemenu.hidden && !typemenu.con
 
 /* ---------- avspilling med omtrentlig magisk flytting ---------- */
 let play = null;
-function stepsFor(s){ if (s.build!=='punkt') return 0; return {tekst:2, kollasj:4, detalj:3, steg:s.steps||6, lyd:Math.min(3,(s.marks||[]).length), detektor:s.steps||3, spredning:s.steps||3, toklipp:2, kart:s.steps||4, mot:2, tidslinje:s.steps||5}[s.type] || 0; }
+/* Markeringer: sirkler og avrundede firkanter som legges oppå lysbildet for å peke ut noe i et bilde.
+   s.ann = [{f:'sirkel'|'boks', x, y, w, h}] i lysbildets mål; s.annBuild: 'klikk' (én per klikk etter innholdet) eller 'med' (vises med lysbildet) */
+const ANN_W = 8;
+const annList = (s) => Array.isArray(s.ann) ? s.ann : [];
+const annStep = (s, i) => (s.annBuild === 'med' ? 0 : contentSteps(s) + i + 1);
+function stepsFor(s){ return contentSteps(s) + (s.annBuild === 'med' ? 0 : annList(s).length); }
+function contentSteps(s){ if (s.build!=='punkt') return 0; return {bokser:s.steps||6, tabell:s.rows||4, tekst:2, kollasj:4, detalj:3, steg:s.steps||6, lyd:Math.min(3,(s.marks||[]).length), detektor:s.steps||3, spredning:s.steps||3, toklipp:2, kart:s.steps||4, mot:2, tidslinje:s.steps||5}[s.type] || 0; }
 /* «Vis stort»: etter at et bilde/klipp har kommet inn, gir neste klikk det i stor størrelse med teksten under */
 function hasMedia(s, role){ return !!((s.img && s.img[role]) || (s.def && s.def[role])); }
 function captionFor(els, e, s){
@@ -1374,6 +1420,11 @@ async function exportPptx(doc, slides, {onProgress} = {}){
       }
     }
     late.forEach(f => f());
+    if (seg.kind === 'normal' || !seg.kind) annList(s).forEach((a, i) => {   // markeringer: sirkler og avrundede firkanter i markeringsfargen
+      const nm = `markering-${i + 1}`; m.names[nm] = annStep(s, i);
+      sl.addShape(a.f === 'sirkel' ? pptx.ShapeType.ellipse : pptx.ShapeType.roundRect, {x:a.x*PX, y:a.y*PX, w:a.w*PX, h:a.h*PX, objectName:nm,
+        rectRadius:a.f === 'sirkel' ? undefined : Math.min(28, a.w/2, a.h/2)*PX, fill:{type:'none'}, line:{color:exHex('markering', pal), width:PT(ANN_W)}});
+    });
     if (m.noPlay) for (const v of Object.values(m.videos)) v.noplay = true;   // lite klipp: står stille, spilles bare stort
     }
   }
