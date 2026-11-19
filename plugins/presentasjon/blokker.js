@@ -104,7 +104,7 @@
         }
         const manifest = { format: 'faktisk-blokk', version: 1, kind, id: 'b' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
           name, description: d.querySelector('#blkDesc').value.trim(), savedAt: new Date().toISOString(),
-          palette: doc.palette, sender: doc.sender, doc: kind === 'presentasjon' ? { title: name, palette: doc.palette, sender: doc.sender } : null, slides: pick };
+          palette: doc.palette, sender: doc.sender, logo: doc.logo || null, doc: kind === 'presentasjon' ? { title: name, palette: doc.palette, sender: doc.sender, logo: doc.logo || null } : null, slides: pick };
         zip.file('blokk.json', JSON.stringify(manifest, null, 1));
         st.textContent = 'Lagrer …';
         const bytes = await zip.generateAsync({ type: 'uint8array', compression: 'STORE' });
@@ -199,7 +199,7 @@
           blokk: { id: r.block.id, name: r.block.name, savedAt: r.block.savedAt, level: b.level } }));
         if (a === 'ny') {
           const dd = r.block.doc || {};
-          doc = { ...doc, title: dd.title || r.block.name, palette: PALETTES[dd.palette] ? dd.palette : doc.palette, sender: dd.sender || doc.sender };
+          doc = { ...doc, title: dd.title || r.block.name, palette: PALETTES[dd.palette] ? dd.palette : doc.palette, sender: dd.sender || doc.sender, logo: dd.logo || (dd.sender ? null : doc.logo) };
           slides = add; sel = 0; document.getElementById('docTitle').value = doc.title;
         } else { slides.splice(sel + 1, 0, ...add); sel = sel + 1; }
         save(); drawAll(); d.close();
