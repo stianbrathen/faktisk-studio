@@ -156,12 +156,13 @@ async function fitVideo(e, o) {
   const cr = (Array.isArray(o.crop) ? o.crop : []).map((v) => Math.max(0, Math.floor(Number(v) || 0)));
   if (cr.length !== 4 || cr[2] < 2 || cr[3] < 2) return { ok: false, error: 'Ugyldig utsnitt' };
   const r = Math.max(0, Number(o.radius) || 0), ellipse = !!o.ellipse, bg = hex(o.bg, '#000000');
-  // hvit kant (inni feltet) og skygge (utenfor: klippet får en marg i bakgrunnsfargen der skyggen tegnes)
-  const kant = Math.max(0, Math.min(40, Number(o.kant) || 0));
+  // hvit kant og skygge: klippet får en marg i bakgrunnsfargen der kanten og skyggen tegnes.
+  // kantUt: kanten ligger utenpå klippet (fra Presentasjon 0.1.12); ellers innenfor, som før.
+  const kant = Math.max(0, Math.min(40, Number(o.kant) || 0)), ut = !!o.kantUt, K = ut ? kant : 0;
   const sk = o.skygge && typeof o.skygge === 'object' ? { y: Number(o.skygge.y) || 0, blur: Number(o.skygge.blur) || 0, alpha: Math.min(1, Number(o.skygge.alpha) || 0), pad: even(Number(o.skygge.pad) || 0) } : null;
-  const P = sk ? sk.pad : 0, TW = W + 2 * P, TH = H + 2 * P;
+  const P = (sk ? sk.pad : 0) + K, TW = W + 2 * P, TH = H + 2 * P;
   const st = fs.statSync(src);
-  const key = crypto.createHash('sha256').update(JSON.stringify([src, st.size, st.mtimeMs, W, H, cr, r, ellipse, bg, kant, sk, 4])).digest('hex').slice(0, 24);
+  const key = crypto.createHash('sha256').update(JSON.stringify([src, st.size, st.mtimeMs, W, H, cr, r, ellipse, bg, kant, ut, sk, 5])).digest('hex').slice(0, 24);
   const dir = path.join(deps.app.getPath('userData'), 'presentasjon-cache');
   const out = path.join(dir, key + '-klipp.mp4');
   if (fs.existsSync(out)) return { ok: true, path: out, cached: true };
@@ -169,13 +170,13 @@ async function fitVideo(e, o) {
   let sharp; try { sharp = require('sharp'); } catch (x) { return { ok: false, error: 'sharp mangler' }; }
   const mask = out + '.hjorner.png', tmp = out + '.tmp.mp4';
   // laget som legges over klippet: bakgrunnsfarge (med skygge) rundt et hull i feltets form, og kanten innerst i hullet
-  const hole = holePath(W, H, r, ellipse);
+  const hole = holePath(W, H, r, ellipse), outer = K ? holePath(W + 2 * K, H + 2 * K, r ? r + K : 0, ellipse) : hole, O = P - K;   // ytre form: klippet + kanten, med radius r + K
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${TW}" height="${TH}"><defs>
     <mask id="ute"><rect width="${TW}" height="${TH}" fill="#fff"/><path transform="translate(${P} ${P})" d="${hole}" fill="#000"/></mask>
     <clipPath id="inne"><path transform="translate(${P} ${P})" d="${hole}"/></clipPath>
     ${sk ? `<filter id="sk" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="${sk.blur / 2}"/></filter>` : ''}</defs>
-    <g mask="url(#ute)"><rect width="${TW}" height="${TH}" fill="${bg}"/>${sk ? `<path transform="translate(${P} ${P + sk.y})" d="${hole}" fill="#000" fill-opacity="${sk.alpha}" filter="url(#sk)"/>` : ''}</g>
-    ${kant ? `<g clip-path="url(#inne)"><path transform="translate(${P} ${P})" d="${hole}" fill="none" stroke="#fff" stroke-width="${kant * 2}"/></g>` : ''}</svg>`;
+    <g mask="url(#ute)"><rect width="${TW}" height="${TH}" fill="${bg}"/>${sk ? `<path transform="translate(${O} ${O + sk.y})" d="${outer}" fill="#000" fill-opacity="${sk.alpha}" filter="url(#sk)"/>` : ''}${K ? `<path transform="translate(${O} ${O})" d="${outer}" fill="#fff"/>` : ''}</g>
+    ${kant && !ut ? `<g clip-path="url(#inne)"><path transform="translate(${P} ${P})" d="${hole}" fill="none" stroke="#fff" stroke-width="${kant * 2}"/></g>` : ''}</svg>`;
   await sharp(Buffer.from(svg)).png().toFile(mask);
   progress(e, 'Tilpasser klipp …', 0);
   const [cx, cy, cw, ch] = cr;

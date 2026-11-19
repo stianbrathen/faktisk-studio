@@ -396,7 +396,7 @@ const TYPES = {
   faksimile:{name:'Faksimile / skjermopptak', desc:'Én stor skjermdump eller video med kilde',
     build:(s,doc)=>[T('kicker',86,86,1296,50,S.kicker,{ph:'ETIKETT',match:'kicker'}),T('tittel',86,137,1584,122,S.tittel64,{ph:'Tittel',match:'tittel'}),
       // rammen rundt: lik bredde (29) på alle sider, og ytre radius = indre radius + rammebredde, så krumningene går parallelt
-      {kind:'rect',x:346,y:281,w:1228,h:634,r:23+29,fillHex:'#FFFFFF'},{kind:'media',role:'faksimile',x:375,y:310,w:1170,h:576,label:'Skjermdump eller skjermopptak'},
+      {kind:'rect',x:346,y:281,w:1228,h:634,r:23+29,fillHex:'#FFFFFF',frame:true},{kind:'media',role:'faksimile',x:375,y:310,w:1170,h:576,label:'Skjermdump eller skjermopptak',frame:true},
       T('kilde',346,929,1228,50,{size:24,color:'dempet'},{ph:'Faksimile: kilde'}),...LOGOS(doc)]},
   kollasj:{name:'Bildekollasj', desc:'Fire bilder side om side',
     build:(s,doc)=>{const out=[T('kicker',86,86,1296,50,S.kicker,{ph:'SAMMENLIGNING',match:'kicker'}),T('tittel',86,137,1584,122,S.tittel72,{ph:'Tittel',match:'tittel'})];
@@ -416,7 +416,7 @@ const TYPES = {
   avslutning:{name:'Avslutning med QR', desc:'Kontakt, QR-kode og oppfordring',
     build:(s,doc)=>[T('tittel',86,216,950,259,{serif:true,size:108,color:'tekst'},{ph:'Takk for i dag'}),
       T('kontakt',86,518,950,259,{size:40,color:'tekst'},{ph:'Navn\nRolle\nE-post'}),
-      {kind:'rect',x:1181,y:130,w:653,h:799,r:23,fillHex:'#FFFFFF'},{kind:'media',role:'qr',x:1282,y:187,w:451,h:451,label:'QR-kode'},
+      {kind:'rect',x:1181,y:130,w:653,h:799,r:23,fillHex:'#FFFFFF',frame:true},{kind:'media',role:'qr',x:1282,y:187,w:451,h:451,label:'QR-kode',frame:true},
       T('oppfordring',1231,684,552,187,{size:36,weight:700,colorHex:'#0F1514',align:'center'},{ph:'Oppfordring'}),
       ...PARTNER_STOR(doc),...LOGOS(doc)]},
   /* ---------- case-grafikk ---------- */
@@ -678,6 +678,7 @@ function renderSlide(slide, index, {editable=false, step=Infinity} = {}){
       if (e.fill) d.style.background = `var(--${e.fill})`; if (e.fillHex) d.style.background = e.fillHex;
       if (e.stroke) d.style.boxShadow = `inset 0 0 0 ${e.sw}px var(--${e.stroke})`;
       if (e.opacity !== undefined) d.style.opacity = e.opacity;
+      if (e.frame && slide.skygge) d.style.boxShadow = `0 ${SKYGGE.y}px ${SKYGGE.blur}px rgba(0,0,0,${SKYGGE.alpha})`;
     } else if (e.kind === 'num') {
       d = document.createElement('div'); d.className = 'el';
       Object.assign(d.style, {borderRadius:'50%', background:'var(--bakgrunn)', boxShadow:'inset 0 0 0 3px var(--aksent)', color:'var(--tekst)', display:'flex', alignItems:'center', justifyContent:'center', font:`700 ${e.fs||30}px var(--slide-sans)`});
@@ -695,9 +696,9 @@ function renderSlide(slide, index, {editable=false, step=Infinity} = {}){
     } else if (e.kind === 'media') {
       d = mediaEl(slide, e, editable);
       if (e.round) d.style.borderRadius = '50%';
-      if (d.classList.contains('has') && (KANT[slide.kant] || slide.skygge)) {
-        if (slide.skygge) d.style.boxShadow = `0 ${SKYGGE.y}px ${SKYGGE.blur}px rgba(0,0,0,${SKYGGE.alpha})`;
-        if (KANT[slide.kant]) { const k = document.createElement('i'); k.className = 'kant'; k.style.boxShadow = `inset 0 0 0 ${KANT[slide.kant]}px #fff`; d.appendChild(k); }
+      if (!e.frame && d.classList.contains('has') && (KANT[slide.kant] || slide.skygge)) {   // kanten utenpå bildet, skyggen fra kanten
+        const k = KANT[slide.kant] || 0;
+        d.style.boxShadow = [k ? `0 0 0 ${k}px #fff` : '', slide.skygge ? `0 ${SKYGGE.y}px ${SKYGGE.blur}px ${k}px rgba(0,0,0,${SKYGGE.alpha})` : ''].filter(Boolean).join(', ');
       }
     } else if (e.kind === 'wave') {
       d = waveEl(slide, e, editable);
@@ -1045,8 +1046,9 @@ function drawInspector(){
     se.addEventListener('change', () => { s.grade = +se.value; save(); drawAll(); }); g.appendChild(se); insp.appendChild(g);
   }
   if (t.build(s, doc, ctxFor(sel)).some(e => e.kind === 'media')) {
-    insp.appendChild(seg('Hvit kant rundt bilder og klipp', [['','Ingen'],['tynn','Tynn'],['tykk','Tykk']], s.kant || '', v => { s.kant = v; save(); drawAll(); }));
-    insp.appendChild(seg('Skygge', [['','Av'],['på','På']], s.skygge ? 'på' : '', v => { s.skygge = v === 'på'; save(); drawAll(); }));
+    const els = t.build(s, doc, ctxFor(sel)).filter(e => e.kind === 'media'), framed = els.every(e => e.frame);
+    if (!framed) insp.appendChild(seg('Hvit kant rundt bilder og klipp', [['','Ingen'],['tynn','Tynn'],['medium','Medium'],['tykk','Tykk']], s.kant || '', v => { s.kant = v; save(); drawAll(); }));
+    insp.appendChild(seg(framed ? 'Skygge under rammen' : 'Skygge', [['','Av'],['på','På']], s.skygge ? 'på' : '', v => { s.skygge = v === 'på'; save(); drawAll(); }));
   }
   if (t.build(s, doc, ctxFor(sel)).some(e => e.kind === 'media')) insp.appendChild(seg('Bilder og klipp i avspilling', [['','Bare i lysbildet'],['stor','Også stort, ett og ett']], s.stor ? 'stor' : '', v => { s.stor = v === 'stor'; save(); drawAll(); toast(s.stor ? 'Under avspilling gir neste klikk hvert bilde eller klipp i stor størrelse, med teksten under. Klikket etter går tilbake.' : 'Bilder og klipp vises bare i lysbildet.'); }));
   if (t.buildLabel) insp.appendChild(seg('Bygg', [['ingen','Alt på en gang'],['punkt',t.buildLabel]], s.build, v => { s.build = v; save(); drawAll(); }));
@@ -1295,7 +1297,8 @@ function blobToB64(blob){ return new Promise((ok, no) => { const r = new FileRea
 // I Studio fyller pluginen inn disse: lese lokale filer (file://) og lage lydbølge-videoer
 const EXPORT_HOOKS = {readFile:null, waveVideo:null, fitVideo:null};
 // hvit kant og skygge rundt bilder og klipp (valg per lysbilde); mål i px på 1920×1080
-const KANT = {tynn:4, tykk:10};
+// kanten legges UTENPÅ bildet (spiser ikke av bildet), og skyggen kastes fra kanten
+const KANT = {tynn:5, medium:10, tykk:16};
 // runde hjørner på bilder og klipp, unntatt fullskjerm og utfallende bilder
 const mediaR = (e) => (e.square || e.w >= 1920) ? 0 : 23;
 const SKYGGE = {y:14, blur:36, alpha:.3, pad:64};
@@ -1363,6 +1366,7 @@ async function exportPptx(doc, slides, {onProgress} = {}){
           o.fill = (e.fill || e.fillHex) ? {color:exHex(e.fillHex || e.fill, pal), transparency: e.opacity !== undefined ? Math.round((1-e.opacity)*100) : 0} : {type:'none'};
           o.line = e.stroke ? {color:exHex(e.stroke, pal), width:PT(e.sw)} : {type:'none'};
           if (e.r) o.rectRadius = Math.min(e.r, e.w/2, e.h/2) * PX;
+          if (e.frame && s.skygge) o.shadow = {type:'outer', angle:90, offset:PT(SKYGGE.y), blur:PT(SKYGGE.blur), color:'000000', opacity:SKYGGE.alpha};
         }
         if (e.grow) m.grow[o.objectName] = 1;
         sl.addShape(o.rectRadius ? pptx.ShapeType.roundRect : pptx.ShapeType.rect, o);
@@ -1540,16 +1544,19 @@ async function addMedia(sl, s, e, name, m, pal, pptx){
   const pct = v => Math.round(v * 100000);
   m.pics[nm] = {src:[pct(ox/w), pct(oy/h), pct((w-e.w-ox)/w), pct((h-e.h-oy)/h)], adj:round};
   let b = {x:e.x*PX, y:e.y*PX, w:e.w*PX, h:e.h*PX, objectName:nm};
-  const kant = KANT[s.kant] || 0, skygge = !!s.skygge, pad = skygge ? SKYGGE.pad : 0;
+  const framed = !!e.frame;   // står allerede i en hvit ramme (faksimile, QR): kant og skygge gjelder rammen, ikke bildet
+  const kant = framed ? 0 : (KANT[s.kant] || 0), skygge = !framed && !!s.skygge, pad = (skygge ? SKYGGE.pad : 0) + kant;
   const padBox = () => ({x:(e.x-pad)*PX, y:(e.y-pad)*PX, w:(e.w+2*pad)*PX, h:(e.h+2*pad)*PX, objectName:nm});
   if (med.kind !== 'video' && (kant || skygge)) {   // bildet tegnes ferdig med runde hjørner, kant og skygge (PNG med gjennomsiktighet)
     const im = await loadImg(data), Q = Math.min(2, 4096 / (e.w + 2*pad)), c = document.createElement('canvas');
     c.width = Math.round((e.w + 2*pad) * Q); c.height = Math.round((e.h + 2*pad) * Q);
     const g = c.getContext('2d'); g.scale(Q, Q); g.translate(pad, pad);
-    const r = e.round ? 0 : mediaR(e), shape = () => { g.beginPath(); if (e.round) g.ellipse(e.w/2, e.h/2, e.w/2, e.h/2, 0, 0, Math.PI*2); else g.roundRect(0, 0, e.w, e.h, r); };
-    if (skygge) { g.save(); g.shadowColor = `rgba(0,0,0,${SKYGGE.alpha})`; g.shadowBlur = SKYGGE.blur * Q; g.shadowOffsetY = SKYGGE.y * Q; shape(); g.fillStyle = '#000'; g.fill(); g.restore(); }
+    const r = e.round ? 0 : mediaR(e);
+    // shape(u): bildets form utvidet med u på alle sider; hjørneradius r + u, så kanten følger krumningen jevnt
+    const shape = (u = 0) => { g.beginPath(); if (e.round) g.ellipse(e.w/2, e.h/2, e.w/2 + u, e.h/2 + u, 0, 0, Math.PI*2); else g.roundRect(-u, -u, e.w + 2*u, e.h + 2*u, r ? r + u : 0); };
+    if (skygge) { g.save(); g.shadowColor = `rgba(0,0,0,${SKYGGE.alpha})`; g.shadowBlur = SKYGGE.blur * Q; g.shadowOffsetY = SKYGGE.y * Q; shape(kant); g.fillStyle = kant ? '#FFFFFF' : '#000'; g.fill(); g.restore(); }
+    if (kant) { shape(kant); g.fillStyle = '#FFFFFF'; g.fill(); }
     g.save(); shape(); g.clip(); g.drawImage(im, ox/sc, oy/sc, e.w/sc, e.h/sc, 0, 0, e.w, e.h);
-    if (kant) { shape(); g.lineWidth = kant * 2; g.strokeStyle = '#FFFFFF'; g.stroke(); }
     g.restore();
     m.pics[nm] = {src:[0, 0, 0, 0], adj:0};
     sl.addImage({...padBox(), data:c.toDataURL('image/png')});
@@ -1559,7 +1566,7 @@ async function addMedia(sl, s, e, name, m, pal, pptx){
   if (med.kind === 'video' && EXPORT_HOOKS.fitVideo) {
     const under = e.bigVideo ? '#' + String(BIG_BG).replace('#', '') : (pal[e.under || 'bakgrunn'] || pal.bakgrunn);
     const fu = await EXPORT_HOOKS.fitVideo({src:med.url, w:e.w, h:e.h, crop:[ox/sc, oy/sc, e.w/sc, e.h/sc], radius:e.round ? 0 : mediaR(e), ellipse:!!e.round, bg:under,
-      kant, skygge:skygge ? SKYGGE : null});
+      kant, kantUt:true, skygge:skygge ? SKYGGE : null});
     const fp = fu && await videoPoster(fu);
     if (fp) { m.pics[nm] = {src:[0, 0, 0, 0], adj:0}; data = await urlToDataUrl(fu); poster = fp.data; if (pad) b = padBox(); }
   }
