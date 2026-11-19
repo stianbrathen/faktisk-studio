@@ -68,7 +68,16 @@ header.top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-block
 .typemenu small{color:var(--ui-mute);display:block;font-size:11.5px}
 
 /* Scene */
-.center{display:flex;flex-direction:column;gap:10px;min-width:0;min-height:0}
+.center{display:flex;flex-direction:column;gap:10px;min-width:0;min-height:0;overflow:auto}
+.center .stagewrap{flex:none;max-width:max(520px,calc((100vh - 400px) * 16 / 9));align-self:center}
+/* innstillingene for lysbildet står under lysbildet: valgene i kolonner, talenotatet bredt ved siden av */
+.slideset{flex:none}
+.slidecols{display:grid;grid-template-columns:minmax(0,3fr) minmax(260px,2fr);gap:0 8px;min-height:0}
+.slideset .insp{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px 18px;align-content:start;overflow:visible}
+.slideset .insp > .wide{grid-column:1/-1}
+.slideset .notescol{display:flex;flex-direction:column}
+.slideset .notescol textarea{flex:1;min-height:150px}
+@media (max-width:1100px){.slidecols{grid-template-columns:1fr}}
 .stagewrap{position:relative;width:100%;aspect-ratio:16/9;max-width:100%;background:#000;border-radius:10px;overflow:hidden;outline:1px solid var(--ui-line)}
 .hint{color:var(--ui-mute);font-size:12.5px;display:flex;gap:16px;flex-wrap:wrap}
 .hint b{color:var(--ui-fg);font-weight:600}
@@ -194,13 +203,14 @@ textarea{min-height:88px;resize:vertical}
     <section class="center" aria-label="Lysbilde">
       <div class="stagewrap" id="stagewrap"></div>
       <div class="hint"><span><b>Tekst:</b> klikk og skriv</span><span><b>Bilde/video:</b> slipp fil eller klikk</span><span><b>Utsnitt:</b> dra i bildet, rull for å zoome</span></div>
+      <section class="panel slideset" aria-label="Innstillinger for lysbildet">
+        <h2>Lysbilde</h2>
+        <div class="slidecols"><div class="insp" id="insp"></div><div class="insp notescol" id="inspNotes"></div></div>
+      </section>
     </section>
     <aside class="panel right" aria-label="Innstillinger">
       <h2>Presentasjon</h2>
       <div class="insp" id="inspDoc"></div>
-      <div class="sep"></div>
-      <h2>Lysbilde</h2>
-      <div class="insp" id="insp"></div>
     </aside>
   </div>
 </div>
@@ -875,7 +885,7 @@ function drawList(){
 }
 
 /* ---------- inspektør ---------- */
-const inspDoc = document.getElementById('inspDoc'), insp = document.getElementById('insp');
+const inspDoc = document.getElementById('inspDoc'), insp = document.getElementById('insp'), inspNotes = document.getElementById('inspNotes');
 function seg(label, options, value, onPick){
   const g = document.createElement('div'); g.className = 'group';
   g.innerHTML = `<span class="lbl">${label}</span>`;
@@ -896,7 +906,7 @@ function drawInspector(){
 
   insp.innerHTML = '';
   const s = slides[sel], t = TYPES[s.type];
-  const head = document.createElement('div'); head.className = 'group';
+  const head = document.createElement('div'); head.className = 'group wide';
   head.innerHTML = `<span class="typename">${t.name}</span><span class="lbl">${t.desc}</span>`; insp.appendChild(head);
   const PS = PALETTES[doc.palette].series;
   if (PS) {
@@ -989,15 +999,15 @@ function drawInspector(){
     g.appendChild(ta); insp.appendChild(g);
   }
   if (s.type === 'tekst') insp.appendChild(seg('Bygg', [['ingen','Alt på en gang'],['punkt','Ett begrep per klikk']], s.build, v => { s.build = v; save(); drawAll(); }));
-  const ng = document.createElement('div'); ng.className = 'group'; ng.innerHTML = '<label for="notes">Talenotat</label>';
+  const ng = document.createElement('div'); ng.className = 'group'; ng.innerHTML = '<label for="notes">Talenotat</label>'; ng.style.flex = '1';
   const ta = document.createElement('textarea'); ta.id = 'notes'; ta.value = s.notes || ''; ta.placeholder = 'Det du vil si på dette lysbildet';
-  ta.addEventListener('input', () => { s.notes = ta.value; save(); }); ng.appendChild(ta); insp.appendChild(ng);
+  ta.addEventListener('input', () => { s.notes = ta.value; save(); }); ng.appendChild(ta); inspNotes.innerHTML = ''; inspNotes.appendChild(ng);
   const row = document.createElement('div'); row.className = 'row';
   const dup = document.createElement('button'); dup.type = 'button'; dup.className = 'btn small'; dup.textContent = 'Dupliser';
   dup.addEventListener('click', () => { const c = JSON.parse(JSON.stringify({...s, img:undefined})); c.id = uid++; c.img = {...s.img}; slides.splice(sel+1, 0, c); sel++; save(); drawAll(); });
   const del = document.createElement('button'); del.type = 'button'; del.className = 'btn small'; del.textContent = 'Slett lysbilde'; del.disabled = slides.length < 2;
   del.addEventListener('click', () => { slides.splice(sel, 1); sel = Math.max(0, sel-1); save(); drawAll(); toast('Lysbildet er slettet.'); });
-  row.append(dup, del); insp.appendChild(row);
+  row.append(dup, del); row.classList.add('wide'); insp.appendChild(row);
   const rs = document.createElement('button'); rs.type = 'button'; rs.className = 'btn small'; rs.textContent = 'Tilbakestill til eksempelet'; rs.style.alignSelf = 'flex-start';
   rs.addEventListener('click', () => { if (rs.dataset.armed) { slides = DECKS[deck].slides(); sel = 0; doc = freshDoc(deck); document.getElementById('docTitle').value = doc.title; save(); drawAll(); toast('Eksempelet er lastet inn på nytt.'); }
     else { rs.dataset.armed = '1'; rs.textContent = 'Klikk igjen for å tilbakestille'; setTimeout(() => { rs.textContent = 'Tilbakestill til eksempelet'; delete rs.dataset.armed; }, 3000); } });
